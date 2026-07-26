@@ -1,4 +1,5 @@
-"""Convergence strategies: how many times to repeat apply -> re-probe. Once (default) and Fixpoint."""
+"""Convergence strategies for how many times to repeat apply -> re-probe: Once, Fixpoint, and the Backoff that paces Fixpoint's retries."""
+import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 
@@ -23,6 +24,52 @@ class Once(Convergence):
         return converge()
 
 
+class Backoff(ABC):
+    """How long Fixpoint waits before it retries a pass that changed nothing.
+
+    Fixpoint stops the moment a pass leaves the residual unchanged, reading it as settled or stuck.
+    That is right for an in-process convergence, where re-probing at once cannot change the answer.
+    It is wrong for a step whose drift clears only once some external state catches up (a rollout
+    finishing, a cache expiring, a queue draining): there the same drift now can be gone in a moment.
+    Hand Fixpoint a Backoff and an unchanged pass no longer ends the loop. Fixpoint waits, then
+    retries, still bounded by max_passes, giving the world time to settle. wait() is passed the count
+    of consecutive unchanged passes so far (1 on the first stall) and blocks the calling thread.
+    """
+    @abstractmethod
+    def wait(self, stalled: int) -> None:
+        ...
+
+
+class Fixed(Backoff):
+    """Wait the same number of seconds before every retry, however long the stall has run."""
+    def __init__(self, seconds: float):
+        if seconds < 0:
+            raise ValueError(f"Fixed backoff seconds must be >= 0, got {seconds}")
+        self.__seconds = seconds
+
+    def wait(self, stalled: int) -> None:
+        time.sleep(self.__seconds)
+
+
+class Exponential(Backoff):
+    """Double the wait on each consecutive unchanged pass, from base up to cap seconds.
+
+    The nth stalled pass waits base * 2 ** (n - 1), clamped to cap, so a loop that keeps meeting the
+    same drift steps back further each time instead of re-probing at full tilt. cap bounds the single
+    longest wait, max_passes bounds how many waits there can be.
+    """
+    def __init__(self, base: float, cap: float):
+        if base < 0:
+            raise ValueError(f"Exponential backoff base must be >= 0, got {base}")
+        if cap < base:
+            raise ValueError(f"Exponential backoff cap must be >= base, got cap={cap}, base={base}")
+        self.__base = base
+        self.__cap = cap
+
+    def wait(self, stalled: int) -> None:
+        time.sleep(min(self.__base * 2 ** (stalled - 1), self.__cap))
+
+
 class Fixpoint(Convergence):
     """Repeat the apply -> re-probe cycle until the residual stops changing or max_passes is reached.
 
@@ -31,20 +78,33 @@ class Fixpoint(Convergence):
     two residuals are equal when their (name, message) multisets match, so the loop stops as soon
     as a pass changes nothing (converged clean, or genuinely stuck). max_passes is the hard ceiling
     that guarantees termination even when a step never settles.
+
+    An optional backoff changes what an unchanged pass means. Without one it is terminal. With one
+    it becomes a paced retry: Fixpoint waits (growing the wait as stalls repeat) and re-probes again,
+    up to max_passes, for drift that clears only once external state catches up. See Backoff.
     """
 
-    def __init__(self, max_passes: int = 10):
+    def __init__(self, max_passes: int = 10, *, backoff: Backoff | None = None):
         if max_passes < 1:
             raise ValueError(f"Fixpoint max_passes must be >= 1, got {max_passes}")
         self.__max_passes = max_passes
+        self.__backoff = backoff
 
     def __call__(self, converge: Callable[[], list[Drift]]) -> list[Drift]:
         residual = converge()
+        stalled = 0
         for _ in range(self.__max_passes - 1):
             if not residual:
                 break  # converged clean
             previous = sorted((item.name, item.message) for item in residual)
             residual = converge()
-            if sorted((item.name, item.message) for item in residual) == previous:
-                break  # fixed point reached (clean or stuck)
+            if sorted((item.name, item.message) for item in residual) != previous:
+                stalled = 0   # progress this pass, so a later stall backs off from scratch
+                continue
+            # The pass changed nothing: settled or stuck. Terminal, unless a backoff turns it into a
+            # paced retry for drift that is only waiting on external state to catch up.
+            if self.__backoff is None:
+                break
+            stalled += 1
+            self.__backoff.wait(stalled)
         return residual

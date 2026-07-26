@@ -28,7 +28,7 @@ from .cancellation import (
     Rule,
     Some,
 )
-from .convergence import Convergence, Fixpoint, Once
+from .convergence import Backoff, Convergence, Exponential, Fixed, Fixpoint, Once
 from .drift import Drift, DriftItem
 from .executor import Executor, OnError, Parallel, Pipeline, Serial
 from .observer import Chorus, Observer
@@ -43,7 +43,7 @@ __all__ = [
     "Placement", "Partition", "Levels", "Chains",
     "OnError", "Executor", "Serial", "Parallel", "Pipeline",
     "Cancelled", "Cancellation", "Deadline", "Flag", "Rule", "Some", "Every", "Most", "Quorum", "AnyOf", "AllOf", "Majority",
-    "Convergence", "Once", "Fixpoint",
+    "Convergence", "Once", "Fixpoint", "Backoff", "Fixed", "Exponential",
     "Residual", "Reconciler", "Controller",
     "Observer", "Chorus",
 ]

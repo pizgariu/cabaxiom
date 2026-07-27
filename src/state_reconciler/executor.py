@@ -1,4 +1,6 @@
-"""Executor strategies - HOW a Partition is run: Serial, plus pooled Parallel (waves) and Pipeline (chains)."""
+"""Executor strategies - HOW a Partition is run: Serial, the pooled Parallel (waves) and Pipeline (chains), and the event-loop Async (waves)."""
+import asyncio
+import inspect
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from enum import Enum
@@ -9,6 +11,54 @@ from .drift import Drift, DriftItem
 from .ordering import Ordering
 from .partition import Chains, Levels, Partition
 from .step import Step
+
+
+class _Fan:
+    """The shape a fanning executor fans into, composed onto it as `_shape`: how to turn an Ordering into a
+    verified Partition, and why a flat Ordering is rejected. Two exist, dual to each other, built by the
+    `waves()` factory for the level-fanners (Parallel, Async) and `chains()` for the chain-fanner (Pipeline).
+    Serial fans nothing, composes no shape, and keeps the serial-safe default. The per-shape wording lives here
+    because only the shape knows why its own fallback is wrong: a fanned flat wave ignores Step.after, a
+    pipelined single chain runs nothing concurrently."""
+
+    def __init__(self, into: type[Partition], via: str, needs: str, otherwise: str, use: str):
+        self.__into = into      # the Partition subclass this shape builds: Levels or Chains
+        self.__via = via        # the Ordering method that feeds it: "levels" or "chains"
+        self.__needs = needs
+        self.__otherwise = otherwise
+        self.__use = use
+
+    @classmethod
+    def waves(cls) -> "_Fan":
+        # The shape the level-fanners compose: independent topological waves, drawn from Kahn's levels.
+        return cls(
+            into=Levels, via="levels",
+            needs="level-aware Ordering that splits steps into independent waves",
+            otherwise="only yields a flat order from levels(), which fanned out would ignore Step.after",
+            use="Kahn",
+        )
+
+    @classmethod
+    def chains(cls) -> "_Fan":
+        # The shape the chain-fanner composes: independent dependency chains, drawn from Components.
+        return cls(
+            into=Chains, via="chains",
+            needs="chain-aware Ordering that splits steps into independent chains",
+            otherwise="only yields one chain of everything from chains(), which pipelined would run nothing concurrently",
+            use="Components",
+        )
+
+    def __call__(self, executor: str, ordering: Ordering, steps: tuple[Step, ...]) -> Partition:
+        # An Ordering that does not override `via` only yields the flat fallback, so reject it as a class (the
+        # unbound override check against the ABC names no concrete strategy) before running. Then build the
+        # shape from the groups it produces and verify the placement upfront.
+        if getattr(type(ordering), self.__via) is getattr(Ordering, self.__via):
+            raise ValueError(
+                f"{executor} needs a {self.__needs}, but {type(ordering).__name__} {self.__otherwise}. Use {self.__use}."
+            )
+        partition = self.__into(getattr(ordering, self.__via)(steps))
+        partition.verify()
+        return partition
 
 
 class OnError(Enum):
@@ -29,14 +79,17 @@ class Executor(ABC):
     # route its applied items to their own channel, and lets prune concatenate them since for a teardown both
     # are residual.
 
+    _shape: _Fan | None = None   # the shape a subclass fans into (waves() or chains()); None means it fans nothing
+
     def arrange(self, ordering: Ordering, steps: tuple[Step, ...]) -> Partition:
-        # The executor builds the Partition SHAPE it can run, from the injected Ordering. It alone knows how
-        # it fans out, so it alone knows what shape it needs and how to verify it. The DEFAULT is serial-safe:
-        # a level partition (real waves from Kahn, the one-wave fallback from DFS/Components) walked in order
-        # on one thread, honouring Step.after with no verification required. A fanning executor OVERRIDES this
-        # to demand its shape (waves for Parallel, chains for Pipeline), reject an Ordering that cannot produce
-        # it, and verify the partition upfront.
-        return Levels(ordering.levels(steps))
+        # The executor turns the injected Ordering into the Partition SHAPE it runs. A non-fanning executor
+        # (Serial, no _shape) walks a serial-safe level partition (real waves from Kahn, the one-wave fallback
+        # from DFS/Components) in order on one thread, honouring Step.after with no verification. A fanning one
+        # delegates to its composed shape, which demands the Ordering it needs, builds the partition, and
+        # verifies it upfront.
+        if self._shape is None:
+            return Levels(ordering.levels(steps))
+        return self._shape(type(self).__name__, ordering, steps)
 
     @abstractmethod
     def execute(self, groups: tuple[tuple[Step, ...], ...], do: Callable[[Step], list[Drift] | None], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
@@ -69,7 +122,7 @@ class Serial(Executor):
         return returns, failures
 
 
-class _PooledExecutor(Executor):
+class _PooledExecutor(Executor, ABC):
     """Shared thread-pool plumbing for the two fanning executors: Parallel fans the steps within a level,
     Pipeline fans the independent chains. One Pool per instance (multiprocessing.dummy.Pool, the threaded
     twin of multiprocessing.Pool), created lazily on first run and reused across runs, released by close()
@@ -114,22 +167,9 @@ class _PooledExecutor(Executor):
 class Parallel(_PooledExecutor):
     """Runs each topo LEVEL concurrently on the pool, with the levels themselves still walked in dependency
     order. The steps WITHIN one level are mutually independent by construction, so fanning them out is safe,
-    and the barrier between levels preserves every Step.after edge."""
+    and the barrier between levels preserves every Step.after edge. Composes the WAVES shape."""
 
-    def arrange(self, ordering: Ordering, steps: tuple[Step, ...]) -> Levels:
-        # Demands real waves: an Ordering that does not override levels() only yields the one-wave fallback
-        # (its whole graph in a single wave), which fanned out would ignore Step.after. Reject it as a class
-        # (the unbound override check against the ABC names no concrete strategy), then verify the waves the
-        # Ordering actually produced are independent before running.
-        if type(ordering).levels is Ordering.levels:
-            raise ValueError(
-                f"{type(self).__name__} needs a level-aware Ordering that splits steps into independent "
-                f"waves. {type(ordering).__name__} only yields a flat order (its levels() is the one-wave "
-                f"fallback), so fanning it out would ignore Step.after. Use Kahn."
-            )
-        partition = Levels(ordering.levels(steps))
-        partition.verify()
-        return partition
+    _shape = _Fan.waves()
 
     def execute(self, levels: tuple[tuple[Step, ...], ...], do: Callable[[Step], list[Drift] | None], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
         # attempt() ALWAYS catches, even under FailFast, so an apply() blowing up in a worker thread surfaces
@@ -163,22 +203,10 @@ class Pipeline(_PooledExecutor):
     """The dual of Parallel: runs each independent CHAIN concurrently on the pool, the steps WITHIN a chain
     in series. Parallel fans the steps inside a level and bars between levels, Pipeline fans the chains and
     serialises inside each. Correct only when the chains share no Step.after edge, which the Reconciler proves
-    upfront via the partition's verify(), so a chain never waits on another and needs no barrier."""
+    upfront via the partition's verify(), so a chain never waits on another and needs no barrier. Composes the
+    CHAINS shape."""
 
-    def arrange(self, ordering: Ordering, steps: tuple[Step, ...]) -> Chains:
-        # Demands independent chains: an Ordering that does not override chains() only yields the one-chain
-        # fallback (its whole graph in a single chain), which pipelined would run nothing concurrently. Reject
-        # it as a class (the unbound override check against the ABC), then verify no Step.after edge crosses
-        # between the chains the Ordering produced before running.
-        if type(ordering).chains is Ordering.chains:
-            raise ValueError(
-                f"{type(self).__name__} needs a chain-aware Ordering that splits steps into independent "
-                f"chains. {type(ordering).__name__} only yields one chain of everything (its chains() is "
-                f"the fallback), so pipelining it would run nothing concurrently. Use Components."
-            )
-        partition = Chains(ordering.chains(steps))
-        partition.verify()
-        return partition
+    _shape = _Fan.chains()
 
     def execute(self, chains: tuple[tuple[Step, ...], ...], do: Callable[[Step], list[Drift] | None], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
         # run_chain walks ONE chain in series on a worker thread, checking cancellation between its steps (a
@@ -211,4 +239,54 @@ class Pipeline(_PooledExecutor):
                 raise error   # a Cancelled (under any on_error), or under FailFast the chain's first failure
             returns.extend(chain_returns)
             failures.extend(chain_failures)
+        return returns, failures
+
+
+class Async(Executor):
+    """Runs each dependency wave on an asyncio event loop instead of a thread pool, the cooperative dual of
+    Parallel, for steps whose apply() is a coroutine that closes its gap over I/O (a network call, a socket, a
+    subprocess awaited without blocking). It awaits a wave's coroutines concurrently and bars between waves, so
+    every Step.after edge holds, composing the same WAVES shape as Parallel.
+
+    A step method may be a coroutine (awaited) or a plain sync call (run inline, so a sync apply() still works,
+    it just does not overlap). converge() stays synchronous: Async drives a fresh event loop per pass with
+    asyncio.run, so call it from sync code, not from inside an already-running loop. Like every executor it
+    fans only the write phase (apply, prune), the drift re-probe stays a serial read."""
+
+    _shape = _Fan.waves()
+
+    def __init__(self, on_error: OnError = OnError.FailFast):
+        self.__on_error = on_error
+
+    def execute(self, levels: tuple[tuple[Step, ...], ...], do: Callable[[Step], list[Drift] | None], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
+        # converge() is sync, so drive the whole wave walk on a fresh loop and hand back plain lists.
+        return asyncio.run(self.__walk(levels, do, cancellation))
+
+    async def __walk(self, levels: tuple[tuple[Step, ...], ...], do: Callable[[Step], list[Drift] | None], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
+        # attempt() ALWAYS catches, even under FailFast, so a coroutine blowing up comes back as a clean value
+        # rather than cancelling its wave-mates mid-flight, and carries the step's own return. A sync do() is
+        # used as-is, an awaitable one is awaited. gather preserves input order, so returns build in resolved
+        # step order, and the wave is a barrier: every coroutine settles before we inspect, so under FailFast
+        # the first failure (in order) is re-raised only after the whole wave has finished.
+        async def attempt(step):
+            try:
+                outcome = do(step)
+                if inspect.isawaitable(outcome):
+                    outcome = await outcome
+                return step, outcome, None
+            except Exception as exception:
+                return step, None, exception
+
+        returns: list[Drift] = []
+        failures: list[Drift] = []
+        for level in levels:
+            if cancellation.cancelled():
+                raise Cancelled(f"Run cancelled by {type(cancellation).__name__}")
+            for step, produced, exception in await asyncio.gather(*(attempt(step) for step in level)):
+                if exception is not None:
+                    if self.__on_error is OnError.FailFast:
+                        raise exception
+                    failures.append(DriftItem(type(step).__name__, f"step failed: {type(exception).__name__}: {exception}"))
+                elif produced:  # prune's residue, or converge's applied items - apply's no-op returns None
+                    returns.extend(produced)
         return returns, failures

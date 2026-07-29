@@ -25,38 +25,46 @@ class Once(Convergence):
 
 
 class Backoff(ABC):
-    """How long Fixpoint waits before it retries a pass that changed nothing.
+    """How long to pause before a retry, as a function of how many times in a row it has stalled.
 
     Fixpoint stops the moment a pass leaves the residual unchanged, reading it as settled or stuck.
     That is right for an in-process convergence, where re-probing at once cannot change the answer.
     It is wrong for a step whose drift clears only once some external state catches up (a rollout
     finishing, a cache expiring, a queue draining): there the same drift now can be gone in a moment.
     Hand Fixpoint a Backoff and an unchanged pass no longer ends the loop. Fixpoint waits, then
-    retries, still bounded by max_passes, giving the world time to settle. wait() is passed the count
-    of consecutive unchanged passes so far (1 on the first stall) and blocks the calling thread.
+    retries, still bounded by max_passes, giving the world time to settle. Retry paces a single
+    step's write attempts with the same vocabulary. delay() is the pure policy, the seconds to
+    pause before retrying the nth consecutive stall (1 on the first). wait() is the blocking form
+    built on it, which Fixpoint and the sync write paths use on the calling thread. An async
+    consumer reads delay() and awaits the event loop's own sleep instead, so a pause never blocks
+    the coroutines sharing the loop.
     """
     @abstractmethod
-    def wait(self, stalled: int) -> None:
+    def delay(self, stalled: int) -> float:
         ...
+
+    def wait(self, stalled: int) -> None:
+        time.sleep(self.delay(stalled))
 
 
 class Fixed(Backoff):
-    """Wait the same number of seconds before every retry, however long the stall has run."""
+    """Pause the same number of seconds before every retry, however long the stall has run."""
     def __init__(self, seconds: float):
         if seconds < 0:
             raise ValueError(f"Fixed backoff seconds must be >= 0, got {seconds}")
         self.__seconds = seconds
 
-    def wait(self, stalled: int) -> None:
-        time.sleep(self.__seconds)
+    def delay(self, stalled: int) -> float:
+        return self.__seconds
 
 
 class Exponential(Backoff):
-    """Double the wait on each consecutive unchanged pass, from base up to cap seconds.
+    """Double the pause on each consecutive stall, from base up to cap seconds.
 
-    The nth stalled pass waits base * 2 ** (n - 1), clamped to cap, so a loop that keeps meeting the
-    same drift steps back further each time instead of re-probing at full tilt. cap bounds the single
-    longest wait, max_passes bounds how many waits there can be.
+    The nth stall pauses base * 2 ** (n - 1), clamped to cap, so a loop that keeps meeting the
+    same drift steps back further each time instead of re-probing at full tilt. cap bounds the
+    single longest pause, the consumer's own ceiling (max_passes, attempts) bounds how many there
+    can be.
     """
     def __init__(self, base: float, cap: float):
         if base < 0:
@@ -66,8 +74,8 @@ class Exponential(Backoff):
         self.__base = base
         self.__cap = cap
 
-    def wait(self, stalled: int) -> None:
-        time.sleep(min(self.__base * 2 ** (stalled - 1), self.__cap))
+    def delay(self, stalled: int) -> float:
+        return min(self.__base * 2 ** (stalled - 1), self.__cap)
 
 
 class Fixpoint(Convergence):

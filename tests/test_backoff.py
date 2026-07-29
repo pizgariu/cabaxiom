@@ -21,12 +21,13 @@ class _ClearsAfter(Step):
 
 
 class _Recording(Backoff):
-    # Records the stall count handed to each wait instead of sleeping, so a test stays instant.
+    # Records the stall count handed to each pause and pauses for nothing, so a test stays instant.
     def __init__(self):
         self.waits: list[int] = []
 
-    def wait(self, stalled: int) -> None:
+    def delay(self, stalled: int) -> float:
         self.waits.append(stalled)
+        return 0.0
 
 
 class BackoffTests(unittest.TestCase):

@@ -35,6 +35,7 @@ from .observer import Chorus, Observer
 from .ordering import DFS, Components, Kahn, Ordering, Priority
 from .partition import Chains, Levels, Partition, Placement
 from .reconciler import Controller, Reconciler, Residual
+from .retry import Retry
 from .step import Step
 
 __all__ = [
@@ -44,6 +45,7 @@ __all__ = [
     "OnError", "Executor", "Serial", "Parallel", "Pipeline", "Async",
     "Cancelled", "Cancellation", "Deadline", "Flag", "Rule", "Some", "Every", "Most", "Quorum", "AnyOf", "AllOf", "Majority",
     "Convergence", "Once", "Fixpoint", "Backoff", "Fixed", "Exponential",
+    "Retry",
     "Residual", "Reconciler", "Controller",
     "Observer", "Chorus",
 ]

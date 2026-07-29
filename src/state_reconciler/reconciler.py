@@ -1,5 +1,6 @@
 """Reconciler: resolves Steps once, then reports drift or converges and self-verifies. A Controller drives it in a loop."""
 from collections.abc import Callable, Iterable, Iterator
+from typing import cast
 
 from .cancellation import Cancellation
 from .convergence import Convergence, Once
@@ -7,6 +8,7 @@ from .drift import Drift
 from .executor import Executor, Serial
 from .observer import Observer
 from .ordering import Kahn, Ordering
+from .retry import Retry
 from .step import Step
 
 
@@ -37,7 +39,8 @@ class Reconciler:
 
     def __init__(self, steps: Iterable[Step], ordering: Ordering | None = None, *,
                  executor: Executor | None = None, convergence: Convergence | None = None,
-                 cancellation: Cancellation | None = None, observer: Observer | None = None):
+                 cancellation: Cancellation | None = None, observer: Observer | None = None,
+                 retry: Retry | None = None):
         # Resolve defaults here, not as mutable default args: a default instance in the signature
         # would be built once at import and shared across every Reconciler, a trap the moment a
         # default holds state (a pool, a flag).
@@ -46,6 +49,7 @@ class Reconciler:
         convergence = convergence or Once()
         cancellation = cancellation or Cancellation()
         observer = observer or Observer()
+        retry = retry or Retry(1)   # the neutral single try, which wraps nothing
         # The executor builds and verifies the partition shape it can run (Serial: a serial walk of
         # levels, Parallel: independent waves, Pipeline: independent chains). An executor that cannot
         # run the Ordering it was handed raises from arrange(), naming the fix.
@@ -54,6 +58,7 @@ class Reconciler:
         self.__convergence = convergence
         self.__cancellation = cancellation
         self.__observer = observer
+        self.__retry = retry
 
     def drift(self) -> list[Drift]:
         # Flatten every step's drift, in resolved order. [] == fully in desired state.
@@ -141,9 +146,14 @@ class Reconciler:
     def __execute(self, groups: tuple[tuple[Step, ...], ...], do: Callable[[Step], list[Drift] | None]) -> tuple[list[Drift], list[Drift]]:
         # The single WRITE engine: sequence steps, funnelling both converge (forward partition,
         # do = apply) and prune (reversed partition, do = prune) through the injected Executor. The
-        # Executor owns HOW (serial, level-parallel or chain-pipelined) and the OnError policy, and
-        # returns two lists apart: (do-returns, failures). The direction is the caller's.
-        return self.__executor.execute(groups, do, self.__cancellation)
+        # write callable goes in wrapped by the injected Retry, so a transient failure spends its
+        # attempts inside the executor's unit of work and only a failure that outlived them meets
+        # the OnError policy. Retry is a transparent wrapper that may hand back an awaitable-returning
+        # callable (an async step under Async). The executor's do stays typed sync, since only Async
+        # awaits it, so the wrapper is narrowed back to that view here. The Executor owns HOW (serial,
+        # level-parallel or chain-pipelined) and the OnError policy, and returns two lists apart:
+        # (do-returns, failures). The direction is the caller's.
+        return self.__executor.execute(groups, cast(Callable[[Step], list[Drift] | None], self.__retry(do)), self.__cancellation)
 
 
 class Controller:

@@ -35,6 +35,19 @@ Repository = "https://github.com/pizgariu/state-reconciler"
 Changelog = "https://github.com/pizgariu/state-reconciler/blob/master/CHANGELOG.md"
 Issues = "https://github.com/pizgariu/state-reconciler/issues"
 
+[tool.hatch.build.targets.sdist]
+# An explicit list, because the default sweeps in whatever the working tree happens to hold: a build
+# run from a developer's checkout would otherwise ship editor settings, local caches and untracked
+# notes alongside the source. Naming what belongs makes the artifact the same whoever builds it.
+include = [
+  "/src",
+  "/tests",
+  "/examples",
+  "/README.md",
+  "/CHANGELOG.md",
+  "/LICENSE",
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/state_reconciler"]
 

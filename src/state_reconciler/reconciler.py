@@ -139,8 +139,8 @@ class Reconciler:
         residue, failures = self.__execute(self.__partition.inverse(), lambda step: step.prune())
         return residue + failures
 
-    @staticmethod
-    def __probe(groups: tuple[tuple[Step, ...], ...], read: Callable[[Step], list[Drift]]) -> list[Drift]:
+    # noinspection PyMethodMayBeStatic
+    def __probe(self, groups: tuple[tuple[Step, ...], ...], read: Callable[[Step], list[Drift]]) -> list[Drift]:
         # The single READ engine: flatten a read-only per-step query over every step. drift, plan and
         # audit walk the resolved partition, footprint walks the teardown order. All four are one shape
         # (a pure read returning Drift), so they share this flattener and differ only in the method and

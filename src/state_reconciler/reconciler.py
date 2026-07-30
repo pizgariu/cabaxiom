@@ -9,6 +9,7 @@ from .executor import Executor, Serial
 from .observer import Observer
 from .ordering import Kahn, Ordering
 from .retry import Retry
+from .scope import Scope
 from .step import Step
 
 
@@ -38,22 +39,25 @@ class Reconciler:
     """
 
     def __init__(self, steps: Iterable[Step], ordering: Ordering | None = None, *,
-                 executor: Executor | None = None, convergence: Convergence | None = None,
-                 cancellation: Cancellation | None = None, observer: Observer | None = None,
-                 retry: Retry | None = None):
+                 scope: Scope | None = None, executor: Executor | None = None,
+                 convergence: Convergence | None = None, cancellation: Cancellation | None = None,
+                 observer: Observer | None = None, retry: Retry | None = None):
         # Resolve defaults here, not as mutable default args: a default instance in the signature
         # would be built once at import and shared across every Reconciler, a trap the moment a
         # default holds state (a pool, a flag).
+        scope = scope or Scope()   # the base keeps every step, the run-everything default
         ordering = ordering or Kahn()
         executor = executor or Serial()
         convergence = convergence or Once()
         cancellation = cancellation or Cancellation()
         observer = observer or Observer()
         retry = retry or Retry(1)   # the neutral single try, which wraps nothing
-        # The executor builds and verifies the partition shape it can run (Serial: a serial walk of
-        # levels, Parallel: independent waves, Pipeline: independent chains). An executor that cannot
-        # run the Ordering it was handed raises from arrange(), naming the fix.
-        self.__partition = executor.arrange(ordering, tuple(steps))
+        # The scope first decides WHICH of the handed steps take part, resolved once here so every
+        # verb sees the same set. Then the executor builds and verifies the partition shape it can
+        # run (Serial: a serial walk of levels, Parallel: independent waves, Pipeline: independent
+        # chains). An executor that cannot run the Ordering it was handed raises from arrange(),
+        # naming the fix.
+        self.__partition = executor.arrange(ordering, scope.select(tuple(steps)))
         self.__executor = executor
         self.__convergence = convergence
         self.__cancellation = cancellation

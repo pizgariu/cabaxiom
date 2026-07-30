@@ -36,10 +36,12 @@ from .ordering import DFS, Components, Kahn, Ordering, Priority
 from .partition import Chains, Levels, Partition, Placement
 from .reconciler import Controller, Reconciler, Residual
 from .retry import Retry
+from .scope import Only, Scope, Skip
 from .step import Step
 
 __all__ = [
     "Drift", "DriftItem", "Step",
+    "Scope", "Only", "Skip",
     "Ordering", "Kahn", "DFS", "Priority", "Components",
     "Placement", "Partition", "Levels", "Chains",
     "OnError", "Executor", "Serial", "Parallel", "Pipeline", "Async",

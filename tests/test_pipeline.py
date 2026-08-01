@@ -1,7 +1,7 @@
 """Chain axis: Components weakly-connected grouping and Pipeline per-chain fan-out."""
 import unittest
 
-from state_reconciler import (
+from cabaxiom import (
     Cancelled,
     Chains,
     Components,

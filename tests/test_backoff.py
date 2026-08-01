@@ -2,7 +2,7 @@
 import unittest
 from unittest.mock import patch
 
-from state_reconciler import Backoff, DriftItem, Exponential, Fixed, Fixpoint, Reconciler, Step
+from cabaxiom import Backoff, DriftItem, Exponential, Fixed, Fixpoint, Reconciler, Step
 
 
 class _ClearsAfter(Step):
@@ -64,14 +64,14 @@ class BackoffTests(unittest.TestCase):
 
     def test_fixed_waits_a_constant_duration(self):
         backoff = Fixed(2.5)
-        with patch("state_reconciler.convergence.time.sleep") as slept:
+        with patch("cabaxiom.convergence.time.sleep") as slept:
             backoff.wait(1)
             backoff.wait(6)
         self.assertEqual([call.args[0] for call in slept.call_args_list], [2.5, 2.5])
 
     def test_exponential_doubles_each_stall_then_holds_at_the_cap(self):
         backoff = Exponential(base=1, cap=8)
-        with patch("state_reconciler.convergence.time.sleep") as slept:
+        with patch("cabaxiom.convergence.time.sleep") as slept:
             for stall in range(1, 6):
                 backoff.wait(stall)
         self.assertEqual([call.args[0] for call in slept.call_args_list], [1, 2, 4, 8, 8])

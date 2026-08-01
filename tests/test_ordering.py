@@ -2,7 +2,7 @@
 import random
 import unittest
 
-from state_reconciler import DFS, Kahn, Levels, Parallel, Priority, Reconciler, Serial, Step
+from cabaxiom import DFS, Kahn, Levels, Parallel, Priority, Reconciler, Serial, Step
 from support import A, B, C, X, Y, Z, _RecStep
 
 

@@ -2,7 +2,7 @@
 import itertools
 import unittest
 
-from state_reconciler import Controller, DriftItem, Reconciler, Residual, Step
+from cabaxiom import Controller, DriftItem, Reconciler, Residual, Step
 from support import Boom, Fixable, ReportOnly
 
 

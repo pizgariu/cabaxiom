@@ -1,7 +1,7 @@
 """Cancellation signals and Quorum composition."""
 import unittest
 
-from state_reconciler import (
+from cabaxiom import (
     AllOf,
     AnyOf,
     Cancellation,

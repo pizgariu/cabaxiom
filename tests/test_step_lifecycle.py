@@ -1,7 +1,7 @@
 """Read and teardown step methods: plan, audit, footprint, and prune."""
 import unittest
 
-from state_reconciler import DriftItem, OnError, Reconciler, Serial, Step
+from cabaxiom import DriftItem, OnError, Reconciler, Serial, Step
 from support import A, Fixable, _RecStep
 
 

@@ -1,7 +1,7 @@
 """DriftItem value object: name and message access, repr, slots guard, and str form."""
 import unittest
 
-from state_reconciler import DriftItem
+from cabaxiom import DriftItem
 
 
 class DriftItemTests(unittest.TestCase):

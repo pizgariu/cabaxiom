@@ -44,10 +44,10 @@ import time
 from pathlib import Path
 
 try:
-    from state_reconciler import DriftItem, Fixpoint, Kahn, Parallel, Reconciler, Step
+    from cabaxiom import DriftItem, Fixpoint, Kahn, Parallel, Reconciler, Step
 except ModuleNotFoundError:  # running from a source checkout without an install
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-    from state_reconciler import DriftItem, Fixpoint, Kahn, Parallel, Reconciler, Step
+    from cabaxiom import DriftItem, Fixpoint, Kahn, Parallel, Reconciler, Step
 
 
 class Cluster:

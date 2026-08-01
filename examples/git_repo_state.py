@@ -38,10 +38,10 @@ import tempfile
 from pathlib import Path
 
 try:
-    from state_reconciler import DriftItem, Reconciler, Step
+    from cabaxiom import DriftItem, Reconciler, Step
 except ModuleNotFoundError:  # running from a source checkout without an install
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-    from state_reconciler import DriftItem, Reconciler, Step
+    from cabaxiom import DriftItem, Reconciler, Step
 
 
 def run_git(repo: str, args: list[str], check: bool = False) -> subprocess.CompletedProcess:
@@ -106,7 +106,7 @@ class InitialCommit(Step):
         if not self.drift():
             return None
         readme = Path(self.repo) / "README.md"
-        readme.write_text("# Managed by state-reconciler\n", encoding="utf-8")
+        readme.write_text("# Managed by cabaxiom\n", encoding="utf-8")
         run_git(self.repo, ["add", "README.md"], check=True)
         run_git(self.repo, ["commit", "-m", "Seed the repository"], check=True)
         return [DriftItem("HEAD", "created the initial commit")]

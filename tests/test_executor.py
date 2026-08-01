@@ -1,7 +1,7 @@
 """Serial and Parallel execution semantics: FailFast vs BestEffort, per-wave fan-out."""
 import unittest
 
-from state_reconciler import (
+from cabaxiom import (
     DFS,
     DriftItem,
     Executor,

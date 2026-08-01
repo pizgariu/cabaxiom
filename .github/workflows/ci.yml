@@ -38,7 +38,7 @@ jobs:
         run: pip install -e ".[dev]"
       - name: Test
         # Real measured coverage sits at 97 percent, so the gate is parked a few points under.
-        run: pytest --cov=state_reconciler --cov-report=term-missing --cov-fail-under=100
+        run: pytest --cov=cabaxiom --cov-report=term-missing --cov-fail-under=100
 
   build:
     runs-on: ubuntu-latest

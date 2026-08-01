@@ -1,7 +1,7 @@
 """Scope: which of the handed steps take part, Only with its dependency closure, Skip without cascade."""
 import unittest
 
-from state_reconciler import DriftItem, Only, Reconciler, Scope, Skip, Step
+from cabaxiom import DriftItem, Only, Reconciler, Scope, Skip, Step
 from support import A, B, C, X, Y, Z
 
 

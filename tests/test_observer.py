@@ -1,7 +1,7 @@
 """Observer hooks fired around each converge pass, and Chorus composition."""
 import unittest
 
-from state_reconciler import Chorus, DriftItem, Observer, Reconciler, Step
+from cabaxiom import Chorus, DriftItem, Observer, Reconciler, Step
 
 
 class _OneFix(Step):

@@ -1,7 +1,7 @@
 """Once single pass versus Fixpoint loop-to-settle."""
 import unittest
 
-from state_reconciler import DriftItem, Fixpoint, Reconciler, Step
+from cabaxiom import DriftItem, Fixpoint, Reconciler, Step
 
 
 class ConvergenceTests(unittest.TestCase):

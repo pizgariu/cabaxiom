@@ -1,12 +1,27 @@
 # Changelog
 
-All notable changes to state-reconciler are recorded here. This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html). What reconciliation is, and why this kernel exists, lives in the [README](README.md).
+All notable changes to Cabaxiom are recorded here. This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html). What reconciliation is, and why this kernel exists, lives in the [README](README.md).
 
 Every release is a pre-release on the road to the 1.0.0 freeze.
 
 ## [Unreleased]
 
 Nothing yet.
+
+## [0.2.0] - 2026-08-08
+
+### Breaking
+- **Renamed to `cabaxiom`.** The distribution, the import and the package directory. CABAL, the artificial intelligence of Command and Conquer Tiberian Sun, plus axiom. A thing that holds a world to a declaration and does not negotiate about it. Import `cabaxiom`, not `state_reconciler`. The rename lands here rather than later because its cost grows with every release, and 1.0.0 has to signal stability rather than churn. The public surface is untouched, all 45 names included. The import line is the only edit a consumer makes. The 0.1.x releases stay published under the old name.
+
+### Added
+- **Scope.** Choose which of the handed steps take part in a run, resolved once so every verb sees the same set. `Only(TypeA, ...)` keeps its targets plus everything they transitively depend on. A targeted run never converges against state nobody put there. `Skip(TypeB, ...)` drops the named types and keeps the rest. Both fail loudly on a named type that no step in the run carries. That catches a typo instead of quietly reconciling a smaller world.
+- **Retry and backoff.** Every `apply()` and `prune()` is guarded by an injected `Retry`. A transient failure is retried inside the executor's own unit of work, and only a failure that outlives every attempt reaches the error policy. An optional `Backoff` paces the attempts, `Fixed` holding a constant delay and `Exponential` doubling up to a cap. The same backoff turns an unchanged `Fixpoint` pass into a paced retry. Drift that waits on external state gets the time to settle. `Retry(1)` is the neutral, zero-cost guard.
+- **The async executor.** Fans each dependency wave onto an asyncio event loop instead of a thread pool, the cooperative dual of `Parallel`, for steps whose `apply()` is a coroutine that closes its gap over I/O. It awaits a wave concurrently and bars between waves. Every `after` edge still holds.
+- **Observer.** Trace hooks fired around each converge pass (`began`, `acted`, `remained`). A run's changes and what the world still shows can be followed without instrumenting a Step by hand. Silent by default. Compose several with `Chorus`, which is itself an `Observer` and nests.
+
+### Fixed
+- **The source distribution ships an explicit file list.** The wheel already named what it packed, the sdist did not. A build inherited whatever the builder's working tree happened to hold, and the artifact differed from machine to machine. It now names src, tests, examples and the metadata files. What ships is the same whoever builds it.
+- **A read-engine helper stopped being a staticmethod.** `__probe` took the groups and the read callable but never `self`. It was marked static and then reached through the class. One word removed, one indirection gone.
 
 ## [0.1.6] - 2026-07-21
 
@@ -56,7 +71,7 @@ Nothing yet.
 Planned milestones, in rough order. Nothing here is a promise of scope.
 
 - **1.0.0** - API stability. Freeze the public surface and commit to Semantic Versioning guarantees for it. The first non-prerelease, cut from 0.11.0.
-- **1.1.0** - Public testing utilities. Ship the reusable doubles the test suite grew - a `Staged` step, a `Fixable` step, a `RecordingBackoff`, a recording `Observer` - as a supported `state_reconciler.testing` module, so a domain tests its own Steps and strategies against ready-made fakes. A backwards-compatible new surface, a minor after the freeze.
+- **1.1.0** - Public testing utilities. Ship the reusable doubles the test suite grew - a `Staged` step, a `Fixable` step, a `RecordingBackoff`, a recording `Observer` - as a supported `cabaxiom.testing` module, so a domain tests its own Steps and strategies against ready-made fakes. A backwards-compatible new surface, a minor after the freeze.
 - **2.0.0** - Capability-based dependencies, a fourth edge kind. A step would declare what it PROVIDES (a capability, not a concrete class) and depend on capabilities rather than named types, the order resolved by matching what each step supports against what the others require - the way systemd `Provides=` or a Debian virtual package does. Threaded through the one shared edge derivation so `verify()`, the `Ledger`'s blocking and `Only`'s closure all honour it, which is why it belongs in a major version after the freeze.
 
 [unreleased]: https://github.com/pizgariu/state-reconciler/compare/v0.1.6...HEAD

@@ -1,9 +1,9 @@
-# state-reconciler
+# Cabaxiom
 
 Declare the state you want. The loop reads the world, finds the gap, and closes it. Then it looks again to prove the gap is gone.
 
 [![CI](https://github.com/pizgariu/state-reconciler/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/pizgariu/state-reconciler/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/state-reconciler.svg)](https://pypi.org/project/state-reconciler/)
+[![PyPI](https://img.shields.io/pypi/v/cabaxiom.svg)](https://pypi.org/project/cabaxiom/)
 [![Python versions](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg)](https://github.com/pizgariu/state-reconciler)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Code style: Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
@@ -87,7 +87,7 @@ A few properties fall straight out of this shape, and they are what separate a r
 
 If you have used a Kubernetes controller, you have already met this loop. It runs the same idea on your own Steps. For intuition, it is a thermostat that keeps re-reading the room instead of firing the furnace once. Or an immune system that patrols instead of firing once and going quiet. Reconciliation is what resilience gets built on, precisely because everything drifts eventually.
 
-`state-reconciler` is that principle and nothing else, boiled down to a small kernel with no domain vocabulary. It has no idea what a file or a git repo is. You teach it one `Step` at a time.
+Cabaxiom is that principle and nothing else, boiled down to a small kernel with no domain vocabulary. It has no idea what a file or a git repo is. You teach it one `Step` at a time.
 
 ---
 
@@ -98,7 +98,7 @@ If you have used a Kubernetes controller, you have already met this loop. It run
 You subclass `Step` and answer one question: what is the gap between the world and what I want? You report that gap as drift, and you know how to close it.
 
 ```python
-from state_reconciler import Step, Drift, DriftItem
+from cabaxiom import Step, Drift, DriftItem
 
 class Config(Step):
     def __init__(self, key: str, want: str) -> None:
@@ -137,7 +137,7 @@ Hand the reconciler these in any order and it sorts them into dependency waves. 
 ### `Reconciler` - the engine
 
 ```python
-from state_reconciler import Reconciler
+from cabaxiom import Reconciler
 
 reconciler = Reconciler([LocalBranch(...), GitConfig(...), InitialCommit(...)])
 
@@ -155,7 +155,7 @@ if not residual:
 `converge()` is one turn of the crank. A `Controller` turns it once per tick, which is what a long-lived reconciler does.
 
 ```python
-from state_reconciler import Controller
+from cabaxiom import Controller
 
 controller = Controller(reconciler, on_residual=log_gap)
 
@@ -184,7 +184,7 @@ Every axis of behavior is a small object you swap. The defaults resolve to `Kahn
 `Parallel` and `Pipeline` are context managers, so use them in a `with` block to release the thread pool on exit.
 
 ```python
-from state_reconciler import Reconciler, Parallel, Fixpoint, Deadline
+from cabaxiom import Reconciler, Parallel, Fixpoint, Deadline
 
 with Parallel(width=8) as executor:
     reconciler = Reconciler(
@@ -257,7 +257,7 @@ Converge (Parallel executor, Fixpoint convergence):
 ## Install
 
 ```
-pip install state-reconciler
+pip install cabaxiom
 ```
 
 Nothing else is pulled in. The kernel leans on the standard library alone, and everything you need is re-exported from the top-level package.
@@ -282,7 +282,7 @@ A few more boundaries, stated plainly:
 ```
 pip install -e ".[dev]"
 ruff check .
-pytest --cov=state_reconciler --cov-report=term-missing
+pytest --cov=cabaxiom --cov-report=term-missing
 ```
 
 The suite is written on the standard-library `unittest` framework with subtests and runs under pytest with coverage, currently at 100% across ordering, execution, convergence, cancellation, planning, and pruning. CI lints with Ruff and runs the full suite on CPython 3.10 through 3.14, on every push to `master` and every pull request. `fail-fast` is off, so a break on one interpreter does not hide the others.

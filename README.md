@@ -2,9 +2,9 @@
 
 Declare the state you want. The loop reads the world, finds the gap, and closes it. Then it looks again to prove the gap is gone.
 
-[![CI](https://github.com/pizgariu/state-reconciler/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/pizgariu/state-reconciler/actions/workflows/ci.yml)
+[![CI](https://github.com/pizgariu/cabaxiom/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/pizgariu/cabaxiom/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/cabaxiom.svg)](https://pypi.org/project/cabaxiom/)
-[![Python versions](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg)](https://github.com/pizgariu/state-reconciler)
+[![Python versions](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg)](https://github.com/pizgariu/cabaxiom)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Code style: Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 

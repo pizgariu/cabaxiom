@@ -2,7 +2,7 @@
 import asyncio
 import inspect
 from collections.abc import Awaitable, Callable
-from typing import cast
+from typing import cast, final
 
 from .convergence import Backoff
 from .drift import Drift
@@ -15,6 +15,7 @@ Changes = list[Drift] | None
 Outcome = Changes | Awaitable[Changes]
 
 
+@final
 class Retry:
     """How many tries a single step's write (apply or prune) gets before its failure counts.
 

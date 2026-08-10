@@ -1,4 +1,7 @@
 """Observer: optional trace hooks fired around each converge pass, composed via Chorus."""
+from typing import final
+
+from ._compat import override
 from .drift import Drift
 
 
@@ -23,6 +26,7 @@ class Observer:
         ...
 
 
+@final
 class Chorus(Observer):
     """An Observer that relays each hook to several observers in order. This is the composition seam,
     the way Quorum composes cancellations, so one run can trace to a log and a metrics sink at once. A
@@ -31,14 +35,17 @@ class Chorus(Observer):
     def __init__(self, *observers: Observer):
         self.__observers = observers
 
+    @override
     def began(self) -> None:
         for observer in self.__observers:
             observer.began()
 
+    @override
     def acted(self, applied: list[Drift]) -> None:
         for observer in self.__observers:
             observer.acted(applied)
 
+    @override
     def remained(self, residual: list[Drift]) -> None:
         for observer in self.__observers:
             observer.remained(residual)

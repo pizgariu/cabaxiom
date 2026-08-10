@@ -2,6 +2,9 @@
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
+from typing import final
+
+from ._compat import override
 
 
 class Cancelled(Exception):
@@ -18,6 +21,7 @@ class Cancellation:
         return False
 
 
+@final
 class Deadline(Cancellation):
     # Cancels once a wall-clock budget (seconds) elapses. The clock starts on the first check, so
     # construction-to-run latency is not counted against the budget.
@@ -27,6 +31,7 @@ class Deadline(Cancellation):
         self.__seconds = seconds
         self.__started: float | None = None
 
+    @override
     def cancelled(self) -> bool:
         now = time.monotonic()
         if self.__started is None:
@@ -34,14 +39,16 @@ class Deadline(Cancellation):
         return now - self.__started >= self.__seconds
 
 
+@final
 class Flag(Cancellation):
     # Cancels when cancel() is called, e.g. from a SIGINT handler or another thread watching the run.
-    def __init__(self):
+    def __init__(self) -> None:
         self.__cancelled = False
 
     def cancel(self) -> None:
         self.__cancelled = True
 
+    @override
     def cancelled(self) -> bool:
         return self.__cancelled
 
@@ -54,21 +61,27 @@ class Rule(ABC):
         ...
 
 
+@final
 class Some(Rule):
     # Cancel as soon as ANY member fired. Quorum's default.
+    @override
     def __call__(self, fired: Iterable[bool]) -> bool:
         return any(fired)
 
 
+@final
 class Every(Rule):
     # Cancel only when EVERY member fired. Quorum forbids an empty member set, so the all([]) is True
     # trap cannot fire here.
+    @override
     def __call__(self, fired: Iterable[bool]) -> bool:
         return all(fired)
 
 
+@final
 class Most(Rule):
     # Cancel when MORE members fired than not: a strict majority, a tie does not cancel.
+    @override
     def __call__(self, fired: Iterable[bool]) -> bool:
         tally = list(fired)
         return sum(tally) * 2 > len(tally)
@@ -86,22 +99,26 @@ class Quorum(Cancellation):
         self.__cancellations = cancellations
         self.__rule = rule or Some()   # None sentinel, never a mutable default instance
 
+    @override
     def cancelled(self) -> bool:
         return self.__rule(cancellation.cancelled() for cancellation in self.__cancellations)
 
 
+@final
 class AnyOf(Quorum):
     # Cancel as soon as ANY member fires, the common case. A named Quorum with the Some rule.
     def __init__(self, *cancellations: Cancellation):
         super().__init__(*cancellations, rule=Some())
 
 
+@final
 class AllOf(Quorum):
     # Cancel only once EVERY member has fired.
     def __init__(self, *cancellations: Cancellation):
         super().__init__(*cancellations, rule=Every())
 
 
+@final
 class Majority(Quorum):
     # Cancel when a strict majority of members have fired, a tie does not cancel.
     def __init__(self, *cancellations: Cancellation):

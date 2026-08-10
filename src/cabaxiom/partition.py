@@ -3,8 +3,13 @@ import operator
 from abc import ABC, abstractmethod
 from collections import namedtuple
 from enum import Enum
+from typing import TYPE_CHECKING, final
+
+if TYPE_CHECKING:
+    from .step import Step
 
 
+@final
 class Placement(namedtuple("Placement", "holds described")):
     # A shape's ordering rule as a value object: holds(dependency_group, dependent_group) is True when a
     # dependency is legally placed for its dependent, and described is that rule in words for verify()'s error.
@@ -18,7 +23,7 @@ class _Placements(Enum):
     SAME    = Placement(operator.eq, "in the same group")     # chains
 
 
-class Partition(tuple, ABC):
+class Partition(tuple[tuple["Step", ...], ...], ABC):
     """A resolved run structure the executor walks: a tuple of groups, each group a tuple of steps. The two
     shapes are dual - Levels (waves: parallel within a group, sequential between) and Chains (pipelines:
     serial within a group, concurrent between). The Reconciler treats either shape uniformly: it walks the
@@ -34,7 +39,7 @@ class Partition(tuple, ABC):
     type-checks the contract rather than block a bare Partition at runtime."""
     __slots__ = ()
 
-    def inverse(self) -> tuple:
+    def inverse(self) -> tuple[tuple["Step", ...], ...]:
         return tuple(tuple(reversed(group)) for group in reversed(self))
 
     def verify(self) -> None:
@@ -60,6 +65,7 @@ class Partition(tuple, ABC):
         ...
 
 
+@final
 class Levels(Partition):
     """A partition as topological LEVELS: each inner tuple is one wave of mutually-independent steps, the
     waves in dependency order. Its placement (a dependency must sit in an EARLIER wave) is the guard a
@@ -68,6 +74,7 @@ class Levels(Partition):
     _placement = _Placements.EARLIER.value
 
 
+@final
 class Chains(Partition):
     """A partition as independent CHAINS: each inner tuple is one chain of steps run in series, the chains
     mutually independent so a chain-fanning executor runs them concurrently. The dual of Levels. Its placement

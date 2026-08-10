@@ -4,7 +4,9 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from collections.abc import Callable
 from graphlib import CycleError, TopologicalSorter
+from typing import final
 
+from ._compat import override
 from .step import Step
 
 
@@ -31,11 +33,12 @@ class Ordering(ABC):
         return (self(steps),)
 
 
+@final
 class Kahn(Ordering):
     """Default Ordering: topological sort over Step.after via stdlib graphlib.TopologicalSorter (Kahn)."""
 
     @staticmethod
-    def __graph(steps: tuple[Step, ...]):
+    def __graph(steps: tuple[Step, ...]) -> tuple[defaultdict[type[Step], list[Step]], TopologicalSorter[type[Step]]]:
         # Two invariants the sorter needs help with:
         #   1. SCOPE EDGES to the supplied set: a dep naming a step outside the handed-in tuple is dropped,
         #      so a caller may hand in a filtered subset without the sorter materialising a phantom node.
@@ -46,12 +49,13 @@ class Kahn(Ordering):
         instances_of = defaultdict(list)  # class -> [instances], keeps supplied order, never drops a dupe
         for step in steps:
             instances_of[type(step)].append(step)
-        sorter = TopologicalSorter()
+        sorter: TopologicalSorter[type[Step]] = TopologicalSorter()
         for step in steps:
             declared_deps = tuple(dep for dep in step.after if dep in present)  # scope to supplied set
             sorter.add(type(step), *declared_deps)
         return instances_of, sorter
 
+    @override
     def __call__(self, steps: tuple[Step, ...]) -> tuple[Step, ...]:
         # Flat linear order. RAISE ValueError, not graphlib.CycleError, naming the stuck steps.
         instances_of, sorter = Kahn.__graph(steps)
@@ -62,6 +66,7 @@ class Kahn(Ordering):
             stuck = ", ".join(kind.__name__ for kind in dict.fromkeys(cycle_path))
             raise ValueError(f"Step dependency cycle or unsatisfiable order among: {stuck}") from cycle
 
+    @override
     def levels(self, steps: tuple[Step, ...]) -> tuple[tuple[Step, ...], ...]:
         # Real waves over the SAME graph via prepare/get_ready/done. Flattening the waves equals the
         # static_order() above, so flat-order callers are unaffected.
@@ -79,12 +84,14 @@ class Kahn(Ordering):
         return tuple(waves)
 
 
+@final
 class DFS(Ordering):
     """Swap-in alternative to Kahn: same result contract, a different (still valid) order on branching
     graphs. Recurses into a node's deps and emits post-order, one chain to the bottom before siblings, so it
     agrees with Kahn on a linear chain but differs on a diamond. Recursive (a deep after= chain leans on the
     call stack) and catches a cycle by hitting a node already on the recursion path."""
 
+    @override
     def __call__(self, steps: tuple[Step, ...]) -> tuple[Step, ...]:
         instances_of = defaultdict(list)  # class -> [instances], first-seen order, doubles as the node set
         for step in steps:
@@ -115,6 +122,7 @@ def _by_class_name(step_class: type) -> str:
     return step_class.__name__
 
 
+@final
 class Priority(Ordering):
     """Best-first Ordering: the ready set is a PRIORITY QUEUE, so at each step the ready class with the
     smallest key is emitted next. The key maps a Step class to a sort key and is injected: the default is
@@ -126,6 +134,7 @@ class Priority(Ordering):
         # an instance.
         self.__key = key or _by_class_name
 
+    @override
     def __call__(self, steps: tuple[Step, ...]) -> tuple[Step, ...]:
         # Kahn with a PRIORITY-QUEUE frontier (heapq): pop the ready class with the smallest key, emit it,
         # unlock its dependents, repeat. Keyed by CLASS, every instance out in supplied order. The heap tuple
@@ -135,7 +144,7 @@ class Priority(Ordering):
         for step in steps:
             instances_of[type(step)].append(step)
         present = set(instances_of)
-        sorter = TopologicalSorter()
+        sorter: TopologicalSorter[type[Step]] = TopologicalSorter()
         for step in steps:
             sorter.add(type(step), *(dep for dep in type(step).after if dep in present))  # scope to supplied set
         try:
@@ -143,7 +152,7 @@ class Priority(Ordering):
         except CycleError as cycle:
             stuck = ", ".join(kind.__name__ for kind in dict.fromkeys(cycle.args[1]))
             raise ValueError(f"Step dependency cycle or unsatisfiable order among: {stuck}") from cycle
-        frontier: list = []   # min-heap of (key, tiebreak, class): the ready set as a priority queue
+        frontier: list[tuple[object, int, type[Step]]] = []   # min-heap of (key, tiebreak, class): the ready set as a priority queue
         tiebreak = 0          # stable order for equal keys, keeps a non-comparable key from comparing classes
         ordered_kinds = []
         ready = sorter.get_ready()
@@ -158,6 +167,7 @@ class Priority(Ordering):
         return tuple(step for kind in ordered_kinds for step in instances_of[kind])
 
 
+@final
 class Components(Ordering):
     """Chain-capable Ordering for a pipelining executor: partitions the steps into weakly-connected
     components (maximal groups with no Step.after edge crossing between them), each component internally in
@@ -169,9 +179,11 @@ class Components(Ordering):
     two sides both depend on the fork and feed the join), so running them concurrently would ignore those
     edges. A component is the largest group genuinely independent of every other."""
 
+    @override
     def __call__(self, steps: tuple[Step, ...]) -> tuple[Step, ...]:
         return tuple(step for chain in self.chains(steps) for step in chain)
 
+    @override
     def chains(self, steps: tuple[Step, ...]) -> tuple[tuple[Step, ...], ...]:
         # Keyed by CLASS like Kahn. Union-find joins each step's class with every present after= dep into one
         # component, then each component is Kahn-sorted over its own sub-graph. Component order and
@@ -182,7 +194,7 @@ class Components(Ordering):
         present = set(instances_of)
         parent = {kind: kind for kind in instances_of}  # union-find over classes
 
-        def root(kind):
+        def root(kind: type[Step]) -> type[Step]:
             while parent[kind] != kind:
                 parent[kind] = parent[parent[kind]]  # path halving
                 kind = parent[kind]
@@ -201,7 +213,7 @@ class Components(Ordering):
         for component in dict.fromkeys(root(kind) for kind in instances_of):  # components in first-seen order
             member_classes = members_of[component]
             member_set = set(member_classes)
-            sorter = TopologicalSorter()
+            sorter: TopologicalSorter[type[Step]] = TopologicalSorter()
             for kind in member_classes:
                 sorter.add(kind, *(dep for dep in kind.after if dep in member_set))
             try:

@@ -1,4 +1,7 @@
 """Scope: which of the handed steps take part in a run, everything by default, or Only / Skip by step type."""
+from typing import final
+
+from ._compat import override
 from .step import Step
 
 
@@ -33,6 +36,7 @@ class _Named(Scope):
             )
 
 
+@final
 class Only(_Named):
     """Keep the named step types plus the transitive dependencies of each, in the handed order.
 
@@ -40,6 +44,7 @@ class Only(_Named):
     trust state nobody put there. So Only grows its selection along Step.after until it closes,
     the way a targeted apply pulls in what its target depends on."""
 
+    @override
     def select(self, steps: tuple[Step, ...]) -> tuple[Step, ...]:
         self._verify_present(steps)
         wanted = set(self._types)
@@ -55,6 +60,7 @@ class Only(_Named):
         return tuple(step for step in steps if type(step) in wanted)
 
 
+@final
 class Skip(_Named):
     """Drop exactly the named step types and keep everything else, with no cascade.
 
@@ -63,6 +69,7 @@ class Skip(_Named):
     prerequisite means trusting the world already satisfies it, which is precisely what the caller
     asked for."""
 
+    @override
     def select(self, steps: tuple[Step, ...]) -> tuple[Step, ...]:
         self._verify_present(steps)
         return tuple(step for step in steps if type(step) not in self._types)

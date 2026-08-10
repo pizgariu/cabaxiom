@@ -2,7 +2,9 @@
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable
+from typing import final
 
+from ._compat import override
 from .drift import Drift
 
 
@@ -18,8 +20,10 @@ class Convergence(ABC):
         ...
 
 
+@final
 class Once(Convergence):
     """Run exactly one apply -> re-probe cycle."""
+    @override
     def __call__(self, converge: Callable[[], list[Drift]]) -> list[Drift]:
         return converge()
 
@@ -47,6 +51,7 @@ class Backoff(ABC):
         time.sleep(self.delay(stalled))
 
 
+@final
 class Fixed(Backoff):
     """Pause the same number of seconds before every retry, however long the stall has run."""
     def __init__(self, seconds: float):
@@ -54,10 +59,12 @@ class Fixed(Backoff):
             raise ValueError(f"Fixed backoff seconds must be >= 0, got {seconds}")
         self.__seconds = seconds
 
+    @override
     def delay(self, stalled: int) -> float:
         return self.__seconds
 
 
+@final
 class Exponential(Backoff):
     """Double the pause on each consecutive stall, from base up to cap seconds.
 
@@ -74,10 +81,12 @@ class Exponential(Backoff):
         self.__base = base
         self.__cap = cap
 
+    @override
     def delay(self, stalled: int) -> float:
-        return min(self.__base * 2 ** (stalled - 1), self.__cap)
+        return float(min(self.__base * 2 ** (stalled - 1), self.__cap))
 
 
+@final
 class Fixpoint(Convergence):
     """Repeat the apply -> re-probe cycle until the residual stops changing or max_passes is reached.
 
@@ -98,6 +107,7 @@ class Fixpoint(Convergence):
         self.__max_passes = max_passes
         self.__backoff = backoff
 
+    @override
     def __call__(self, converge: Callable[[], list[Drift]]) -> list[Drift]:
         residual = converge()
         stalled = 0

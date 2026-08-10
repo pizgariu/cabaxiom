@@ -1,5 +1,5 @@
 """The drift contract: one thing found out of desired state, read through a two-field protocol."""
-from typing import Protocol
+from typing import Protocol, final
 
 
 class Drift(Protocol):
@@ -11,6 +11,7 @@ class Drift(Protocol):
     message: str  # human-readable one-liner: what is wrong
 
 
+@final
 class DriftItem:
     # The kernel's concrete default Drift, for domains with no carrier of their own. A domain with a
     # richer item just exposes name + message on it and uses that instead.

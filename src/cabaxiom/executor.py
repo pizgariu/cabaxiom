@@ -5,7 +5,10 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from enum import Enum
 from multiprocessing.dummy import Pool
+from multiprocessing.pool import ThreadPool
+from typing import final
 
+from ._compat import override
 from .cancellation import Cancellation, Cancelled
 from .drift import Drift, DriftItem
 from .ordering import Ordering
@@ -13,6 +16,7 @@ from .partition import Chains, Levels, Partition
 from .step import Step
 
 
+@final
 class _Fan:
     """The shape a fanning executor fans into, composed onto it as `_shape`: how to turn an Ordering into a
     verified Partition, and why a flat Ordering is rejected. Two exist, dual to each other, built by the
@@ -96,6 +100,7 @@ class Executor(ABC):
         ...
 
 
+@final
 class Serial(Executor):
     """Default executor: every level in order, every step within a level in order, on one thread.
     FailFast (default) lets an apply() exception propagate."""
@@ -103,6 +108,7 @@ class Serial(Executor):
     def __init__(self, on_error: OnError = OnError.FailFast):
         self.__on_error = on_error
 
+    @override
     def execute(self, levels: tuple[tuple[Step, ...], ...], do: Callable[[Step], list[Drift] | None], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
         returns: list[Drift] = []
         failures: list[Drift] = []
@@ -138,9 +144,9 @@ class _PooledExecutor(Executor, ABC):
         # width is the pool size (None defaults to os.cpu_count()). on_error matches Serial.
         self._on_error = on_error  # protected: each subclass's execute() reads it
         self.__width = width
-        self.__pool = None
+        self.__pool: ThreadPool | None = None
 
-    def _ensure_pool(self):
+    def _ensure_pool(self) -> ThreadPool:
         # One pool per instance, created on first use and reused across execute() calls: a Fixpoint converge
         # calls execute() once per pass, so a fresh pool each pass would spin worker threads up and down
         # repeatedly. Closed by close() or the context manager, else finalised on garbage collection.
@@ -157,13 +163,14 @@ class _PooledExecutor(Executor, ABC):
             self.__pool.join()
             self.__pool = None
 
-    def __enter__(self):
+    def __enter__(self) -> "_PooledExecutor":
         return self
 
-    def __exit__(self, *exception) -> None:
+    def __exit__(self, *exception: object) -> None:
         self.close()
 
 
+@final
 class Parallel(_PooledExecutor):
     """Runs each topo LEVEL concurrently on the pool, with the levels themselves still walked in dependency
     order. The steps WITHIN one level are mutually independent by construction, so fanning them out is safe,
@@ -171,12 +178,13 @@ class Parallel(_PooledExecutor):
 
     _shape = _Fan.waves()
 
+    @override
     def execute(self, levels: tuple[tuple[Step, ...], ...], do: Callable[[Step], list[Drift] | None], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
         # attempt() ALWAYS catches, even under FailFast, so an apply() blowing up in a worker thread surfaces
         # back on THIS thread as a clean value rather than a stray cross-thread exception, and carries back the
         # step's own return. The level is a barrier: every step in it runs to completion before we inspect
         # outcomes, so under FailFast we re-raise the first failure only after the level finishes.
-        def attempt(_step):
+        def attempt(_step: Step) -> tuple[Step, list[Drift] | None, Exception | None]:
             try:
                 return _step, do(_step), None
             except Exception as _exception:
@@ -199,6 +207,7 @@ class Parallel(_PooledExecutor):
         return returns, failures
 
 
+@final
 class Pipeline(_PooledExecutor):
     """The dual of Parallel: runs each independent CHAIN concurrently on the pool, the steps WITHIN a chain
     in series. Parallel fans the steps inside a level and bars between levels, Pipeline fans the chains and
@@ -208,13 +217,14 @@ class Pipeline(_PooledExecutor):
 
     _shape = _Fan.chains()
 
+    @override
     def execute(self, chains: tuple[tuple[Step, ...], ...], do: Callable[[Step], list[Drift] | None], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
         # run_chain walks ONE chain in series on a worker thread, checking cancellation between its steps (a
         # chain can be long, unlike a level's single fan). It ALWAYS catches, like Parallel's attempt(): a step
         # blowing up, or a cancellation firing, comes back as a clean value on THIS thread. pool.map is a
         # barrier over the chains and preserves their order, so returns build in resolved order and the FIRST
         # chain (in order) that failed or cancelled is the one re-raised.
-        def run_chain(chain):
+        def run_chain(chain: tuple[Step, ...]) -> tuple[list[Drift], list[Drift], Exception | None]:
             produced_all: list[Drift] = []
             failures_all: list[Drift] = []
             for step in chain:
@@ -242,6 +252,7 @@ class Pipeline(_PooledExecutor):
         return returns, failures
 
 
+@final
 class Async(Executor):
     """Runs each dependency wave on an asyncio event loop instead of a thread pool, the cooperative dual of
     Parallel, for steps whose apply() is a coroutine that closes its gap over I/O (a network call, a socket, a
@@ -258,6 +269,7 @@ class Async(Executor):
     def __init__(self, on_error: OnError = OnError.FailFast):
         self.__on_error = on_error
 
+    @override
     def execute(self, levels: tuple[tuple[Step, ...], ...], do: Callable[[Step], list[Drift] | None], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
         # converge() is sync, so drive the whole wave walk on a fresh loop and hand back plain lists.
         return asyncio.run(self.__walk(levels, do, cancellation))
@@ -268,7 +280,7 @@ class Async(Executor):
         # used as-is, an awaitable one is awaited. gather preserves input order, so returns build in resolved
         # step order, and the wave is a barrier: every coroutine settles before we inspect, so under FailFast
         # the first failure (in order) is re-raised only after the whole wave has finished.
-        async def attempt(step):
+        async def attempt(step: Step) -> tuple[Step, list[Drift] | None, Exception | None]:
             try:
                 outcome = do(step)
                 if inspect.isawaitable(outcome):

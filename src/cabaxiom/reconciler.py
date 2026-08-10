@@ -1,6 +1,6 @@
 """Reconciler: resolves Steps once, then reports drift or converges and self-verifies. A Controller drives it in a loop."""
 from collections.abc import Callable, Iterable, Iterator
-from typing import cast
+from typing import cast, final
 
 from .cancellation import Cancellation
 from .convergence import Convergence, Once
@@ -13,6 +13,7 @@ from .scope import Scope
 from .step import Step
 
 
+@final
 class Residual(list[Drift]):
     """The list converge() returns (empty == verified success), also carrying the applied channel.
 
@@ -30,6 +31,7 @@ class Residual(list[Drift]):
         return f"Residual({super().__repr__()}, applied={self.applied!r})"
 
 
+@final
 class Reconciler:
     """Resolves an explicit, ordered set of Steps once, then either reports drift (read-only) or
     converges actual -> desired (idempotent) and self-verifies by re-probing for the residual.
@@ -153,13 +155,14 @@ class Reconciler:
         # write callable goes in wrapped by the injected Retry, so a transient failure spends its
         # attempts inside the executor's unit of work and only a failure that outlived them meets
         # the OnError policy. Retry is a transparent wrapper that may hand back an awaitable-returning
-        # callable (an async step under Async). The executor's do stays typed sync, since only Async
+        # callable (an async step under Async); the executor's do stays typed sync, since only Async
         # awaits it, so the wrapper is narrowed back to that view here. The Executor owns HOW (serial,
         # level-parallel or chain-pipelined) and the OnError policy, and returns two lists apart:
         # (do-returns, failures). The direction is the caller's.
         return self.__executor.execute(groups, cast(Callable[[Step], list[Drift] | None], self.__retry(do)), self.__cancellation)
 
 
+@final
 class Controller:
     """A continuous control loop composed over a Reconciler (has-a, not is-a).
 
@@ -184,14 +187,14 @@ class Controller:
             self.__on_residual(residual)
         return residual
 
-    def run(self, ticks: Iterable) -> Iterator[Residual]:
+    def run(self, ticks: Iterable[object]) -> Iterator[Residual]:
         # Converge once per tick, yielding each pass's residual as it happens. Lazy on purpose: an
         # infinite `ticks` (itertools.count()) makes this a forever-loop the caller drives one tick at
         # a time. Wrap a finite run in list() for every residual, or just drive it for the side effects.
         for _ in ticks:
             yield self.__tick()
 
-    def settle(self, ticks: Iterable) -> Residual:
+    def settle(self, ticks: Iterable[object]) -> Residual:
         # The bounded twin of run(): converge each tick until one comes back CLEAN (empty residual) or
         # the ticks run out, then return the final residual ([] == reached desired state). With zero
         # ticks it reports the current drift, wrapped so the return is a Residual on every path.

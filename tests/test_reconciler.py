@@ -2,8 +2,25 @@
 import itertools
 import unittest
 
-from cabaxiom import Controller, DriftItem, Reconciler, Residual, Step
-from support import Boom, Fixable, ReportOnly
+from cabaxiom import Controller, DriftItem, Explanation, Reconciler, Residual, Step
+from support import A, B, Boom, C, Fixable, ReportOnly
+
+
+class ExplainTests(unittest.TestCase):
+    def test_explain_shows_resolved_waves_and_edges(self):
+        log: list = []
+        rec = Reconciler((C(log), A(log), B(log)))   # shuffled; Kahn resolves A -> B -> C into waves
+        explanation = rec.explain()
+        self.assertIsInstance(explanation, Explanation)
+        self.assertEqual(explanation.groups, (("A",), ("B",), ("C",)))
+        self.assertEqual(dict(explanation.edges), {"A": (), "B": ("A",), "C": ("B",)})
+        self.assertIn("(A) -> (B) -> (C)", repr(explanation))
+
+    def test_explain_of_empty_run(self):
+        explanation = Reconciler(()).explain()
+        self.assertEqual(explanation.groups, ())
+        self.assertEqual(explanation.edges, ())
+        self.assertEqual(repr(explanation), "Explanation(())")
 
 
 class ConvergeTests(unittest.TestCase):

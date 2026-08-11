@@ -32,6 +32,27 @@ class Residual(list[Drift]):
 
 
 @final
+class Explanation:
+    """What the Reconciler resolved, surfaced read-only: the groups the executor walks in run order, and the
+    `Step.after` edges behind that order.
+
+    `groups` is the resolved run structure, each inner tuple one group of step type names: a wave (independent
+    within, sequential between) under a level executor, or a chain (sequential within, concurrent between)
+    under Pipeline. `edges` pairs each step type with the types it declares in `after`, in the same run order.
+    This is exactly the partition drift() and converge() walk, so it explains the real run and re-resolves
+    nothing.
+    """
+    def __init__(self, groups: tuple[tuple[str, ...], ...], edges: tuple[tuple[str, tuple[str, ...]], ...]):
+        self.groups = groups
+        self.edges = edges
+
+    def __repr__(self) -> str:
+        # One line: each group a parenthesised set of type names, the groups joined in run order.
+        flow = " -> ".join("(" + ", ".join(group) + ")" for group in self.groups) or "()"
+        return f"Explanation({flow})"
+
+
+@final
 class Reconciler:
     """Resolves an explicit, ordered set of Steps once, then either reports drift (read-only) or
     converges actual -> desired (idempotent) and self-verifies by re-probing for the residual.
@@ -89,6 +110,17 @@ class Reconciler:
         # prune() would tear it down. Read-only through the same engine as the other reads, and
         # prune() never consults it.
         return self.__probe(self.__partition.inverse(), lambda step: step.footprint())
+
+    def explain(self) -> Explanation:
+        # The structural read (returns an Explanation, not Drift): what the injected Ordering resolved and the
+        # executor will walk, as step type names in run order plus the Step.after edges behind them. Reads the
+        # same resolved partition every other verb uses, so it explains the actual run and re-resolves nothing.
+        groups = tuple(tuple(type(step).__name__ for step in group) for group in self.__partition)
+        edges = tuple(
+            (type(step).__name__, tuple(dependency.__name__ for dependency in type(step).after))
+            for group in self.__partition for step in group
+        )
+        return Explanation(groups, edges)
 
     def converge(self) -> Residual:
         # Apply every step and re-probe for what is STILL out of desired state. The returned residual

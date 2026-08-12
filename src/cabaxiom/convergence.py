@@ -1,4 +1,5 @@
 """Convergence strategies for how many times to repeat apply -> re-probe: Once, Fixpoint, and the Backoff that paces Fixpoint's retries."""
+import random
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable
@@ -84,6 +85,25 @@ class Exponential(Backoff):
     @override
     def delay(self, stalled: int) -> float:
         return float(min(self.__base * 2 ** (stalled - 1), self.__cap))
+
+
+@final
+class Jitter(Backoff):
+    """Full jitter over a wrapped Backoff: each pause is a uniform random draw in [0, backoff.delay(n)].
+
+    Retrying on a fixed schedule synchronises every client that stalled together, so they retry in lockstep
+    and collide again, a thundering herd. Spreading each pause across [0, the underlying delay] scatters them,
+    the standard defence. Jitter decorates any Backoff (Fixed, Exponential) rather than replacing it, so the
+    wrapped policy still sets the ceiling and the jitter only spreads beneath it. The RNG is injected (a
+    random.Random) and defaults to a fresh one, so a test can seed it and pin the draw.
+    """
+    def __init__(self, backoff: Backoff, *, rng: random.Random | None = None):
+        self.__backoff = backoff
+        self.__rng = rng or random.Random()
+
+    @override
+    def delay(self, stalled: int) -> float:
+        return self.__rng.uniform(0.0, self.__backoff.delay(stalled))
 
 
 @final

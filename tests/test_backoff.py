@@ -1,8 +1,9 @@
 """Backoff pacing for Fixpoint: Fixed and Exponential turn a stalled pass into a paced retry."""
+import random
 import unittest
 from unittest.mock import patch
 
-from cabaxiom import Backoff, DriftItem, Exponential, Fixed, Fixpoint, Reconciler, Step
+from cabaxiom import Backoff, DriftItem, Exponential, Fixed, Fixpoint, Jitter, Reconciler, Step
 
 
 class _ClearsAfter(Step):
@@ -87,3 +88,24 @@ class BackoffTests(unittest.TestCase):
     def test_exponential_rejects_a_cap_below_base(self):
         with self.assertRaises(ValueError):
             Exponential(base=5, cap=1)
+
+
+class JitterTests(unittest.TestCase):
+    def test_jitter_spreads_within_the_wrapped_ceiling(self):
+        inner = Exponential(base=1, cap=8)
+        jitter = Jitter(inner, rng=random.Random(1234))
+        for stall in range(1, 6):
+            drawn = jitter.delay(stall)
+            self.assertGreaterEqual(drawn, 0.0)
+            self.assertLessEqual(drawn, inner.delay(stall))   # never exceeds the wrapped policy's ceiling
+
+    def test_jitter_is_deterministic_under_a_seeded_rng(self):
+        # Same seed, same draw: a test (or a reproducible run) can pin the jitter.
+        first = Jitter(Fixed(1.0), rng=random.Random(7)).delay(1)
+        second = Jitter(Fixed(1.0), rng=random.Random(7)).delay(1)
+        self.assertEqual(first, second)
+
+    def test_jitter_defaults_to_its_own_rng(self):
+        drawn = Jitter(Fixed(2.0)).delay(1)   # no rng given -> a fresh random.Random()
+        self.assertGreaterEqual(drawn, 0.0)
+        self.assertLessEqual(drawn, 2.0)

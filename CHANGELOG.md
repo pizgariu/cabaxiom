@@ -8,6 +8,14 @@ Every release is a pre-release on the road to the 1.0.0 freeze.
 
 Nothing yet.
 
+## [0.3.0] - 2026-08-13
+
+### Added
+- **The full test pyramid.** Property-based tests with Hypothesis pin the invariants across the whole input space. Kahn orders every dependency before its dependent, Parallel accepts every wave Kahn resolves, and Fixpoint always terminates. A stateful state machine drives arbitrary perturb-and-reconcile interleavings, `mutmut` hunts lines the tests cover without pinning their behaviour, and example smoke tests keep the documented runs from rotting.
+- **A strict type gate and a sealed hierarchy.** The kernel type-checks under `mypy --strict` in CI. Every concrete class is `@final` with `@override` on every override, which keeps the pluggable seams exactly the abstract bases and stops a renamed base method from leaving an override dangling.
+- **Run introspection.** `Reconciler.explain()` answers an `Explanation` of the groups the executor walks in run order, plus the `after` edges behind that order. It reads off the same resolved partition every verb uses and re-resolves nothing, which makes it a view of the actual run rather than a second opinion about it.
+- **`Jitter` backoff.** A full-jitter decorator over any `Backoff`, spreading each pause across the range up to the wrapped delay. The standard defence against a thundering herd of clients retrying in lockstep.
+
 ## [0.2.0] - 2026-08-08
 
 ### Breaking

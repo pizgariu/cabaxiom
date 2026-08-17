@@ -8,6 +8,17 @@ Every release is a pre-release on the road to the 1.0.0 freeze.
 
 Nothing yet.
 
+## [0.3.1] - 2026-08-17
+
+**0.3.0 did not import on Python 3.10, and its coverage gate could not pass on 3.10 or 3.11. Both are fixed here and nothing else changed.**
+
+### Fixed
+- **`import cabaxiom` raised `TypeError` on Python 3.10.** Not a degraded feature, the package did not load at all, on a version `requires-python` declares and the classifiers list. `Kahn`'s private graph builder names a `TopologicalSorter` in its return annotation, and `graphlib.TopologicalSorter` only gained `__class_getitem__` in 3.11 - a signature is evaluated when its `def` runs, so importing the module ran that subscript and it raised. The annotation is quoted, which is never evaluated. `tests/test_python_floor.py` walks every signature in the package for a subscript the declared floor cannot take, so the next one is caught before a release rather than after.
+- **The coverage gate could not reach 100% on 3.10 or 3.11.** `_compat.py` picks `typing.override` on 3.12 and up and defines a no-op below it. Exactly one branch runs on any interpreter, and the `# pragma: no cover` sat on only one of them, so the other was uncovered wherever it was not taken. Both sides carry it now.
+
+### BC break
+Nothing. 0.3.1 is 0.3.0 with two defects removed.
+
 ## [0.3.0] - 2026-08-13
 
 ### Added
@@ -82,7 +93,10 @@ Planned milestones, in rough order. Nothing here is a promise of scope.
 - **1.1.0** - Public testing utilities. Ship the reusable doubles the test suite grew - a `Staged` step, a `Fixable` step, a `RecordingBackoff`, a recording `Observer` - as a supported `cabaxiom.testing` module, so a domain tests its own Steps and strategies against ready-made fakes. A backwards-compatible new surface, a minor after the freeze.
 - **2.0.0** - Capability-based dependencies, a fourth edge kind. A step would declare what it PROVIDES (a capability, not a concrete class) and depend on capabilities rather than named types, the order resolved by matching what each step supports against what the others require - the way systemd `Provides=` or a Debian virtual package does. Threaded through the one shared edge derivation so `verify()`, the `Ledger`'s blocking and `Only`'s closure all honour it, which is why it belongs in a major version after the freeze.
 
-[unreleased]: https://github.com/pizgariu/state-reconciler/compare/v0.1.6...HEAD
+[unreleased]: https://github.com/pizgariu/state-reconciler/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/pizgariu/state-reconciler/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/pizgariu/state-reconciler/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/pizgariu/state-reconciler/compare/v0.1.6...v0.2.0
 [0.1.6]: https://github.com/pizgariu/state-reconciler/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/pizgariu/state-reconciler/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/pizgariu/state-reconciler/compare/v0.1.3...v0.1.4

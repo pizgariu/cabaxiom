@@ -38,7 +38,10 @@ class Kahn(Ordering):
     """Default Ordering: topological sort over Step.after via stdlib graphlib.TopologicalSorter (Kahn)."""
 
     @staticmethod
-    def __graph(steps: tuple[Step, ...]) -> tuple[defaultdict[type[Step], list[Step]], TopologicalSorter[type[Step]]]:
+    def __graph(steps: tuple[Step, ...]) -> "tuple[defaultdict[type[Step], list[Step]], TopologicalSorter[type[Step]]]":
+        # The return annotation is QUOTED because graphlib.TopologicalSorter only became subscriptable in
+        # 3.11, and a signature is evaluated when the def runs. Unquoted, this one line stopped the whole
+        # package from importing on 3.10, which pyproject declares as supported.
         # Two invariants the sorter needs help with:
         #   1. SCOPE EDGES to the supplied set: a dep naming a step outside the handed-in tuple is dropped,
         #      so a caller may hand in a filtered subset without the sorter materialising a phantom node.

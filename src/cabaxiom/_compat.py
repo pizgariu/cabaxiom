@@ -5,7 +5,10 @@ from typing import TypeVar
 
 _F = TypeVar("_F", bound=Callable[..., object])
 
-if sys.version_info >= (3, 12):
+# BOTH SIDES excluded, not one. Exactly one branch runs on any given interpreter, so whichever side
+# carries the pragma alone, the other is uncovered on the versions that take it - which is how a suite
+# reporting 100% on 3.13 reported 99% on 3.10 and 3.11 and failed the gate there.
+if sys.version_info >= (3, 12):  # pragma: no cover
     from typing import override
 else:  # pragma: no cover
     def override(func: _F) -> _F:

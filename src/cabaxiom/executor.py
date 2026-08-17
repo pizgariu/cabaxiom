@@ -121,7 +121,7 @@ class Serial(Executor):
                 except Exception as exception:
                     if self.__on_error is OnError.FailFast:
                         raise
-                    failures.append(DriftItem(type(step).__name__, f"step failed: {type(exception).__name__}: {exception}"))
+                    failures.append(DriftItem(Step.named(step), f"step failed: {type(exception).__name__}: {exception}"))
                 else:
                     if produced:  # prune's residue (what survived), or converge's applied items - apply's no-op returns None
                         returns.extend(produced)
@@ -201,7 +201,7 @@ class Parallel(_PooledExecutor):
                 if exception is not None:
                     if self._on_error is OnError.FailFast:
                         raise exception
-                    failures.append(DriftItem(type(step).__name__, f"step failed: {type(exception).__name__}: {exception}"))
+                    failures.append(DriftItem(Step.named(step), f"step failed: {type(exception).__name__}: {exception}"))
                 elif produced:  # prune's residue (what survived), or converge's applied items - apply's no-op returns None
                     returns.extend(produced)
         return returns, failures
@@ -235,7 +235,7 @@ class Pipeline(_PooledExecutor):
                 except Exception as exception:
                     if self._on_error is OnError.FailFast:
                         return produced_all, failures_all, exception
-                    failures_all.append(DriftItem(type(step).__name__, f"step failed: {type(exception).__name__}: {exception}"))
+                    failures_all.append(DriftItem(Step.named(step), f"step failed: {type(exception).__name__}: {exception}"))
                 else:
                     if produced:  # prune's residue, or converge's applied items - apply's no-op returns None
                         produced_all.extend(produced)
@@ -298,7 +298,7 @@ class Async(Executor):
                 if exception is not None:
                     if self.__on_error is OnError.FailFast:
                         raise exception
-                    failures.append(DriftItem(type(step).__name__, f"step failed: {type(exception).__name__}: {exception}"))
+                    failures.append(DriftItem(Step.named(step), f"step failed: {type(exception).__name__}: {exception}"))
                 elif produced:  # prune's residue, or converge's applied items - apply's no-op returns None
                     returns.extend(produced)
         return returns, failures

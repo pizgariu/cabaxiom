@@ -16,6 +16,16 @@ class Step(ABC):
     # Step classes (not instances) that must converge before this one. Reconciler orders on it.
     after: tuple[type["Step"], ...] = ()
 
+    @staticmethod
+    def named(step: "Step") -> str:
+        # One step's name, ignoring the run: its kind's, since a step declares no identity of its own.
+        # The ONE home for the question "what do I call this step in a sentence". It was spelled
+        # type(step).__name__ at eight separate sites before this, which costs nothing until one of them
+        # drifts - and the sites that drift are exactly the ones a person reads, a failure message and a
+        # drawing of the run. A step that wants a name of its own is a later problem, and it will be
+        # solved here rather than at eight call sites.
+        return type(step).__name__
+
     def drift(self) -> list[Drift]:
         # Read-only, never mutates. [] means already in desired state. Any deviation belongs here,
         # even one apply() cannot fix. A finding about a system that already meets desired state is

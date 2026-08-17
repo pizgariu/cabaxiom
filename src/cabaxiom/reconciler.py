@@ -115,9 +115,9 @@ class Reconciler:
         # The structural read (returns an Explanation, not Drift): what the injected Ordering resolved and the
         # executor will walk, as step type names in run order plus the Step.after edges behind them. Reads the
         # same resolved partition every other verb uses, so it explains the actual run and re-resolves nothing.
-        groups = tuple(tuple(type(step).__name__ for step in group) for group in self.__partition)
+        groups = tuple(tuple(Step.named(step) for step in group) for group in self.__partition)
         edges = tuple(
-            (type(step).__name__, tuple(dependency.__name__ for dependency in type(step).after))
+            (Step.named(step), tuple(dependency.__name__ for dependency in type(step).after))
             for group in self.__partition for step in group
         )
         return Explanation(groups, edges)

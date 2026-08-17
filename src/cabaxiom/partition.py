@@ -3,10 +3,9 @@ import operator
 from abc import ABC, abstractmethod
 from collections import namedtuple
 from enum import Enum
-from typing import TYPE_CHECKING, final
+from typing import final
 
-if TYPE_CHECKING:
-    from .step import Step
+from .step import Step
 
 
 @final
@@ -52,9 +51,9 @@ class Partition(tuple[tuple["Step", ...], ...], ABC):
                 for dependency in step.after:
                     if dependency in group_of and not self._placement.holds(group_of[dependency], index):
                         raise ValueError(
-                            f"{type(step).__name__} depends on {dependency.__name__}, but the Ordering "
+                            f"{Step.named(step)} depends on {dependency.__name__}, but the Ordering "
                             f"placed {dependency.__name__} in group {group_of[dependency]} and "
-                            f"{type(step).__name__} in group {index} - a concurrent executor needs a "
+                            f"{Step.named(step)} in group {index} - a concurrent executor needs a "
                             f"dependency {self._placement.described}, so it would ignore Step.after."
                         )
 

@@ -118,6 +118,8 @@ class Serial(Executor):
                     raise Cancelled(f"Run cancelled by {type(cancellation).__name__}")
                 try:
                     produced = do(step)
+                except Cancelled:
+                    raise   # an abort is a DECISION, so it cuts through the error policy entirely
                 except Exception as exception:
                     if self.__on_error is OnError.FailFast:
                         raise
@@ -184,9 +186,15 @@ class Parallel(_PooledExecutor):
         # back on THIS thread as a clean value rather than a stray cross-thread exception, and carries back the
         # step's own return. The level is a barrier: every step in it runs to completion before we inspect
         # outcomes, so under FailFast we re-raise the first failure only after the level finishes.
-        def attempt(_step: Step) -> tuple[Step, list[Drift] | None, Exception | None]:
+        def attempt(_step: Step) -> tuple[Step, list[Drift] | None, Exception | Cancelled | None]:
+            # BOTH clauses catch, and the first one is not redundant. A Cancelled is an Exception today, so
+            # `except Exception` would take it - but it is about to stop being one, and a BaseException loose
+            # in a pool worker does not propagate, it hangs the map. Catching the abort BY NAME here is what
+            # lets the re-parent land without this boundary noticing.
             try:
                 return _step, do(_step), None
+            except Cancelled as _abort:
+                return _step, None, _abort
             except Exception as _exception:
                 return _step, None, _exception
 
@@ -199,6 +207,8 @@ class Parallel(_PooledExecutor):
             # pool.map preserves input order, so `returns` builds in resolved step order on THIS thread.
             for step, produced, exception in pool.map(attempt, level):
                 if exception is not None:
+                    if isinstance(exception, Cancelled):
+                        raise exception   # a decision, never a failure - it cuts through BestEffort
                     if self._on_error is OnError.FailFast:
                         raise exception
                     failures.append(DriftItem(Step.named(step), f"step failed: {type(exception).__name__}: {exception}"))
@@ -232,6 +242,10 @@ class Pipeline(_PooledExecutor):
                     return produced_all, failures_all, Cancelled(f"Run cancelled by {type(cancellation).__name__}")
                 try:
                     produced = do(step)
+                except Cancelled as abort:
+                    # The chain stops and hands the abort back the same way the between-steps check does,
+                    # under EITHER policy. A decision is not a failure, so BestEffort has no say in it.
+                    return produced_all, failures_all, abort
                 except Exception as exception:
                     if self._on_error is OnError.FailFast:
                         return produced_all, failures_all, exception
@@ -280,12 +294,15 @@ class Async(Executor):
         # used as-is, an awaitable one is awaited. gather preserves input order, so returns build in resolved
         # step order, and the wave is a barrier: every coroutine settles before we inspect, so under FailFast
         # the first failure (in order) is re-raised only after the whole wave has finished.
-        async def attempt(step: Step) -> tuple[Step, list[Drift] | None, Exception | None]:
+        async def attempt(step: Step) -> tuple[Step, list[Drift] | None, Exception | Cancelled | None]:
+            # Caught by name for the reason the thread pool catches it by name, one boundary over.
             try:
                 outcome = do(step)
                 if inspect.isawaitable(outcome):
                     outcome = await outcome
                 return step, outcome, None
+            except Cancelled as abort:
+                return step, None, abort
             except Exception as exception:
                 return step, None, exception
 
@@ -296,6 +313,8 @@ class Async(Executor):
                 raise Cancelled(f"Run cancelled by {type(cancellation).__name__}")
             for step, produced, exception in await asyncio.gather(*(attempt(step) for step in level)):
                 if exception is not None:
+                    if isinstance(exception, Cancelled):
+                        raise exception   # a decision, never a failure - it cuts through BestEffort
                     if self.__on_error is OnError.FailFast:
                         raise exception
                     failures.append(DriftItem(Step.named(step), f"step failed: {type(exception).__name__}: {exception}"))

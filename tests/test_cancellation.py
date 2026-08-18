@@ -4,19 +4,25 @@ import unittest
 from cabaxiom import (
     AllOf,
     AnyOf,
+    Async,
     Cancellation,
     Cancelled,
+    Components,
     Deadline,
     Every,
     Flag,
     Kahn,
     Majority,
     Most,
+    OnError,
     Parallel,
+    Pipeline,
     Quorum,
     Reconciler,
+    Serial,
+    Step,
 )
-from support import A, B, C
+from support import A, B, Boom, C
 
 
 class CancellationTests(unittest.TestCase):
@@ -177,3 +183,44 @@ class CombinatorTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             AnyOf()
 
+
+
+class StepRaisedAbortTests(unittest.TestCase):
+    """A step that raises Cancelled itself aborts the run, on every executor, under either error policy.
+
+    An abort is a DECISION and a failure is an accident, so BestEffort must never collect one as the other.
+    Before this the thread pool and the event loop both took a step-raised abort through their ordinary
+    `except Exception` and handed it back as an outcome, where the error policy turned it into a
+    `step failed` DriftItem and the run carried on converging a world somebody had stopped."""
+
+    class Aborting(Step):
+        def apply(self):
+            raise Cancelled("step observed the abort")
+
+    class AsyncAborting(Step):
+        async def apply(self):
+            raise Cancelled("step observed the abort")
+
+    def test_serial_lets_a_step_raised_abort_through_best_effort(self):
+        with self.assertRaises(Cancelled):
+            Reconciler((self.Aborting(),), executor=Serial(OnError.BestEffort)).converge()
+
+    def test_parallel_lets_a_step_raised_abort_through_best_effort(self):
+        with self.assertRaises(Cancelled):
+            with Parallel(OnError.BestEffort) as executor:
+                Reconciler((self.Aborting(),), executor=executor).converge()
+
+    def test_pipeline_lets_a_step_raised_abort_through_best_effort(self):
+        with self.assertRaises(Cancelled):
+            with Pipeline(OnError.BestEffort) as executor:
+                Reconciler((self.Aborting(),), Components(), executor=executor).converge()
+
+    def test_the_async_executor_lets_a_step_raised_abort_through_best_effort(self):
+        with self.assertRaises(Cancelled):
+            Reconciler((self.AsyncAborting(),), executor=Async(OnError.BestEffort)).converge()
+
+    def test_a_real_failure_is_still_collected_under_best_effort(self):
+        # The other half, so the cut-through is not just "everything raises now". An ordinary exception
+        # still lands in the residual rather than aborting the run.
+        residual = Reconciler((Boom(),), executor=Serial(OnError.BestEffort)).converge()
+        self.assertTrue(any("step failed" in item.message for item in residual))

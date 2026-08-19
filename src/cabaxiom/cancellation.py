@@ -7,11 +7,27 @@ from typing import final
 from ._compat import override
 
 
-class Cancelled(Exception):
+class Cancelled(BaseException):
     """Raised when a Cancellation fires mid-run, aborting a converge or prune. Partial applies are
     idempotent, so re-running resumes from where it stopped. There is no rollback or snapshot machinery.
     For a domain whose apply() regenerates what prune() removes, an interrupted teardown has two clean
-    exits: re-run prune to finish it, or converge to restore."""
+    exits - re-run prune to finish it, or converge to restore.
+
+    A BaseException, on the KeyboardInterrupt and SystemExit precedent, and for the same reason those
+    two are. An abort is a DECISION somebody made about this run, not an accident inside it, and a
+    domain hook that writes `except Exception` to guard its own I/O has said nothing whatsoever about
+    whether it wants to keep converging a world that has been stopped. It used to be able to eat one
+    without noticing. Now it structurally cannot, and the executors' own attempt loops cannot either,
+    which turned the abort cut-through from a branch every fan had to remember into a property of the
+    type. The cost is that a caller who really wants to catch one has to name it, which is the correct
+    price for a decision."""
+
+    @classmethod
+    def by(cls, cancellation: object) -> "Cancelled":
+        # ONE wording for an aborted run, so the four raise sites cannot drift apart. They did not drift
+        # yet - all four spelled the same f-string - which is exactly when a shared form is cheap to
+        # introduce and free to keep.
+        return cls(f"Run cancelled by {type(cancellation).__name__}")
 
 
 class Cancellation:
@@ -25,6 +41,11 @@ class Cancellation:
 class Deadline(Cancellation):
     # Cancels once a wall-clock budget (seconds) elapses. The clock starts on the first check, so
     # construction-to-run latency is not counted against the budget.
+    #
+    # ONE-SHOT, and worth knowing before you reuse one. The clock starts once and never restarts, so a
+    # Deadline handed to a loop that runs many passes cancels every pass after the first expiry rather
+    # than budgeting each one. That is the honest reading of a deadline (a moment, not an allowance),
+    # and a per-pass budget is a fresh Deadline per pass.
     def __init__(self, seconds: float):
         if seconds < 0:
             raise ValueError(f"Deadline seconds must be >= 0, got {seconds}")

@@ -1,4 +1,8 @@
-"""Retry: per-step attempts for the write phase, paced by a Backoff, spent before the OnError policy."""
+"""Retry: per-step attempts for the write phase, paced by a Backoff, spent before the OnError policy.
+    A Cancelled raised by a step is never retried, and no branch here says so. It is a BaseException, so
+    the attempt loop's own `except Exception` structurally cannot catch it and the abort propagates with
+    nothing spent asking. The cut-through stopped being code and became a property of the type.
+    """
 import asyncio
 import inspect
 from collections.abc import Awaitable, Callable

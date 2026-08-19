@@ -115,7 +115,7 @@ class Serial(Executor):
         for level in levels:
             for step in level:
                 if cancellation.cancelled():
-                    raise Cancelled(f"Run cancelled by {type(cancellation).__name__}")
+                    raise Cancelled.by(cancellation)
                 try:
                     produced = do(step)
                 except Cancelled:
@@ -203,7 +203,7 @@ class Parallel(_PooledExecutor):
         pool = self._ensure_pool()
         for level in levels:
             if cancellation.cancelled():
-                raise Cancelled(f"Run cancelled by {type(cancellation).__name__}")
+                raise Cancelled.by(cancellation)
             # pool.map preserves input order, so `returns` builds in resolved step order on THIS thread.
             for step, produced, exception in pool.map(attempt, level):
                 if exception is not None:
@@ -239,7 +239,7 @@ class Pipeline(_PooledExecutor):
             failures_all: list[Drift] = []
             for step in chain:
                 if cancellation.cancelled():
-                    return produced_all, failures_all, Cancelled(f"Run cancelled by {type(cancellation).__name__}")
+                    return produced_all, failures_all, Cancelled.by(cancellation)
                 try:
                     produced = do(step)
                 except Cancelled as abort:
@@ -310,7 +310,7 @@ class Async(Executor):
         failures: list[Drift] = []
         for level in levels:
             if cancellation.cancelled():
-                raise Cancelled(f"Run cancelled by {type(cancellation).__name__}")
+                raise Cancelled.by(cancellation)
             for step, produced, exception in await asyncio.gather(*(attempt(step) for step in level)):
                 if exception is not None:
                     if isinstance(exception, Cancelled):

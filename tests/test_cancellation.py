@@ -219,6 +219,24 @@ class StepRaisedAbortTests(unittest.TestCase):
         with self.assertRaises(Cancelled):
             Reconciler((self.AsyncAborting(),), executor=Async(OnError.BestEffort)).converge()
 
+    def test_a_greedy_except_clause_can_no_longer_eat_an_abort(self):
+        # The whole reason Cancelled is a BaseException. A domain hook guarding its own I/O writes
+        # `except Exception` and has said nothing about whether it wants to keep converging a world
+        # somebody stopped. Before the re-parent it ate the abort and the run carried on.
+        class Greedy(Step):
+            seen = []
+
+            def apply(self):
+                try:
+                    raise Cancelled("step observed the abort")
+                except Exception:                       # noqa: BLE001 - the point of the test
+                    Greedy.seen.append("swallowed")
+                return None
+
+        with self.assertRaises(Cancelled):
+            Reconciler((Greedy(),), executor=Serial(OnError.BestEffort)).converge()
+        self.assertEqual(Greedy.seen, [], "the abort was caught by an ordinary except clause")
+
     def test_a_real_failure_is_still_collected_under_best_effort(self):
         # The other half, so the cut-through is not just "everything raises now". An ordinary exception
         # still lands in the residual rather than aborting the run.

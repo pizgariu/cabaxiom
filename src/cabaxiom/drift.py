@@ -1,6 +1,7 @@
 """The drift contract - one thing found out of desired state, read through a two-field protocol,
 and the shapes a hook hands back over it."""
 from collections.abc import Awaitable, Sequence
+from dataclasses import dataclass
 from typing import Protocol, final
 
 
@@ -28,6 +29,29 @@ class DriftItem:
 
     def __str__(self) -> str:
         return f"{self.name}: {self.message}"
+
+
+@final
+@dataclass(frozen=True)
+class Assessment:
+    """One read of the world, whole - the deviation, the plan, the advice and the footprint in a single
+    frozen record, where four separate hooks used to each pay their own probe for a slice of the same
+    reading.
+
+    The four channels keep four meanings apart instead of blurring them into one list. `deviation` is what
+    is out of desired state, and an empty one is the whole proof a run offers. `plan` is what a converge
+    WOULD do. `advisory` is what deserves attention in a system that already MEETS desired state, which is
+    exactly why it is not deviation - advice must never dirty a proof. `footprint` is what this step owns,
+    read in teardown order.
+
+    Frozen, like every verdict this kernel mints, so a reading cannot be rewritten by the hand that
+    received it. Every channel defaults to empty, so a step answering about one of them writes one
+    keyword and says nothing it does not mean."""
+
+    deviation: Sequence[Drift] = ()
+    plan: Sequence[Drift] = ()
+    advisory: Sequence[Drift] = ()
+    footprint: Sequence[Drift] = ()
 
 
 # What a WRITE hands back: what it changed, or None for a clean no-op. A Sequence and deliberately not a

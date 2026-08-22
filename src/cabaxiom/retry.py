@@ -9,14 +9,12 @@ from collections.abc import Awaitable, Callable
 from typing import cast, final
 
 from .convergence import Backoff
-from .drift import Drift
+from .drift import Changes, Outcome
 from .step import Step
 
 # A write's outcome: the changes it reports (or None), returned directly by a sync step, or as an
 # awaitable by an async one under the Async executor. Retry passes the outcome straight through and
 # awaits only its OWN retries, so it stays agnostic to which executor is driving.
-Changes = list[Drift] | None
-Outcome = Changes | Awaitable[Changes]
 
 
 @final

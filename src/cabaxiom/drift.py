@@ -1,4 +1,6 @@
-"""The drift contract: one thing found out of desired state, read through a two-field protocol."""
+"""The drift contract - one thing found out of desired state, read through a two-field protocol,
+and the shapes a hook hands back over it."""
+from collections.abc import Awaitable, Sequence
 from typing import Protocol, final
 
 
@@ -26,3 +28,14 @@ class DriftItem:
 
     def __str__(self) -> str:
         return f"{self.name}: {self.message}"
+
+
+# What a WRITE hands back: what it changed, or None for a clean no-op. A Sequence and deliberately not a
+# list, because list is INVARIANT - a domain writing the obviously correct `def apply(self) -> list[MyDrift]`
+# was a mypy --strict error on an override, since list[MyDrift] is not a list[Drift]. Sequence is covariant
+# and read-only, so it takes the domain's own list without the domain knowing why it now type-checks.
+Changes = Sequence[Drift] | None
+
+# The same, admitting a coroutine, so `async def apply()` is a legal typed override rather than a special
+# case the executor has to be told about.
+Outcome = Changes | Awaitable[Changes]

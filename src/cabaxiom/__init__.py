@@ -29,7 +29,7 @@ from .cancellation import (
     Some,
 )
 from .convergence import Backoff, Convergence, Exponential, Fixed, Fixpoint, Jitter, Once
-from .drift import Drift, DriftItem
+from .drift import Changes, Drift, DriftItem, Outcome
 from .executor import Async, Executor, OnError, Parallel, Pipeline, Serial
 from .observer import Chorus, Observer
 from .ordering import DFS, Components, Kahn, Ordering, Priority
@@ -40,7 +40,7 @@ from .scope import Only, Scope, Skip
 from .step import Step
 
 __all__ = [
-    "Drift", "DriftItem", "Step",
+    "Drift", "DriftItem", "Changes", "Outcome", "Step",
     "Scope", "Only", "Skip",
     "Ordering", "Kahn", "DFS", "Priority", "Components",
     "Placement", "Partition", "Levels", "Chains",

@@ -1,7 +1,7 @@
 """Step - one reconciliation concern that owns its desired state, with read/apply/prune hooks."""
 from abc import ABC
 
-from .drift import Drift
+from .drift import Changes, Drift, Outcome
 
 
 class Step(ABC):
@@ -52,13 +52,14 @@ class Step(ABC):
         # [] means owns nothing worth listing. What ownership means is the domain's business.
         return []
 
-    def apply(self) -> list[Drift] | None:
-        # Idempotent converge toward desired state. Re-running a satisfied step is a no-op. May
+    def apply(self) -> Outcome:
+        # Idempotent converge toward desired state. The return type is a Sequence and admits a coroutine,
+        # so a domain's own `-> list[MyDrift]` and its `async def apply()` are both legal typed overrides. Re-running a satisfied step is a no-op. May
         # return what it changed this run (name + message), which converge() collects on its applied
         # channel. None (the default, and every no-op) contributes nothing.
         return None
 
-    def prune(self) -> list[Drift]:
+    def prune(self) -> Changes:
         # The deletion half of apply(): remove what this step owns, and return what survived (its
         # residue) so Reconciler.prune() self-verifies the teardown. [] means clean. Reconciler runs
         # it in reverse order (a dependent down before what it depends on).

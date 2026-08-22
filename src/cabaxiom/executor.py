@@ -10,7 +10,7 @@ from typing import final
 
 from ._compat import override
 from .cancellation import Cancellation, Cancelled
-from .drift import Drift, DriftItem
+from .drift import Changes, Drift, DriftItem, Outcome
 from .ordering import Ordering
 from .partition import Chains, Levels, Partition
 from .step import Step
@@ -96,7 +96,7 @@ class Executor(ABC):
         return self._shape(type(self).__name__, ordering, steps)
 
     @abstractmethod
-    def execute(self, groups: tuple[tuple[Step, ...], ...], do: Callable[[Step], list[Drift] | None], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
+    def execute(self, groups: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
         ...
 
 
@@ -109,7 +109,7 @@ class Serial(Executor):
         self.__on_error = on_error
 
     @override
-    def execute(self, levels: tuple[tuple[Step, ...], ...], do: Callable[[Step], list[Drift] | None], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
+    def execute(self, levels: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
         returns: list[Drift] = []
         failures: list[Drift] = []
         for level in levels:
@@ -181,12 +181,12 @@ class Parallel(_PooledExecutor):
     _shape = _Fan.waves()
 
     @override
-    def execute(self, levels: tuple[tuple[Step, ...], ...], do: Callable[[Step], list[Drift] | None], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
+    def execute(self, levels: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
         # attempt() ALWAYS catches, even under FailFast, so an apply() blowing up in a worker thread surfaces
         # back on THIS thread as a clean value rather than a stray cross-thread exception, and carries back the
         # step's own return. The level is a barrier: every step in it runs to completion before we inspect
         # outcomes, so under FailFast we re-raise the first failure only after the level finishes.
-        def attempt(_step: Step) -> tuple[Step, list[Drift] | None, Exception | Cancelled | None]:
+        def attempt(_step: Step) -> tuple[Step, Changes, Exception | Cancelled | None]:
             # BOTH clauses catch, and the first one is not redundant. A Cancelled is an Exception today, so
             # `except Exception` would take it - but it is about to stop being one, and a BaseException loose
             # in a pool worker does not propagate, it hangs the map. Catching the abort BY NAME here is what
@@ -228,7 +228,7 @@ class Pipeline(_PooledExecutor):
     _shape = _Fan.chains()
 
     @override
-    def execute(self, chains: tuple[tuple[Step, ...], ...], do: Callable[[Step], list[Drift] | None], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
+    def execute(self, chains: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
         # run_chain walks ONE chain in series on a worker thread, checking cancellation between its steps (a
         # chain can be long, unlike a level's single fan). It ALWAYS catches, like Parallel's attempt(): a step
         # blowing up, or a cancellation firing, comes back as a clean value on THIS thread. pool.map is a
@@ -284,17 +284,17 @@ class Async(Executor):
         self.__on_error = on_error
 
     @override
-    def execute(self, levels: tuple[tuple[Step, ...], ...], do: Callable[[Step], list[Drift] | None], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
+    def execute(self, levels: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
         # converge() is sync, so drive the whole wave walk on a fresh loop and hand back plain lists.
         return asyncio.run(self.__walk(levels, do, cancellation))
 
-    async def __walk(self, levels: tuple[tuple[Step, ...], ...], do: Callable[[Step], list[Drift] | None], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
+    async def __walk(self, levels: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
         # attempt() ALWAYS catches, even under FailFast, so a coroutine blowing up comes back as a clean value
         # rather than cancelling its wave-mates mid-flight, and carries the step's own return. A sync do() is
         # used as-is, an awaitable one is awaited. gather preserves input order, so returns build in resolved
         # step order, and the wave is a barrier: every coroutine settles before we inspect, so under FailFast
         # the first failure (in order) is re-raised only after the whole wave has finished.
-        async def attempt(step: Step) -> tuple[Step, list[Drift] | None, Exception | Cancelled | None]:
+        async def attempt(step: Step) -> tuple[Step, Changes, Exception | Cancelled | None]:
             # Caught by name for the reason the thread pool catches it by name, one boundary over.
             try:
                 outcome = do(step)

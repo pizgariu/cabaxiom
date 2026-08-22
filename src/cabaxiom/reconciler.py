@@ -4,7 +4,7 @@ from typing import cast, final
 
 from .cancellation import Cancellation
 from .convergence import Convergence, Once
-from .drift import Drift
+from .drift import Drift, Outcome
 from .executor import Executor, Serial
 from .observer import Observer
 from .ordering import Kahn, Ordering
@@ -181,7 +181,7 @@ class Reconciler:
         # the direction the caller hands in. A group is a level (waves) or a chain (pipelines).
         return [item for group in groups for step in group for item in read(step)]
 
-    def __execute(self, groups: tuple[tuple[Step, ...], ...], do: Callable[[Step], list[Drift] | None]) -> tuple[list[Drift], list[Drift]]:
+    def __execute(self, groups: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome]) -> tuple[list[Drift], list[Drift]]:
         # The single WRITE engine: sequence steps, funnelling both converge (forward partition,
         # do = apply) and prune (reversed partition, do = prune) through the injected Executor. The
         # write callable goes in wrapped by the injected Retry, so a transient failure spends its
@@ -191,7 +191,7 @@ class Reconciler:
         # awaits it, so the wrapper is narrowed back to that view here. The Executor owns HOW (serial,
         # level-parallel or chain-pipelined) and the OnError policy, and returns two lists apart:
         # (do-returns, failures). The direction is the caller's.
-        return self.__executor.execute(groups, cast(Callable[[Step], list[Drift] | None], self.__retry(do)), self.__cancellation)
+        return self.__executor.execute(groups, cast(Callable[[Step], Outcome], self.__retry(do)), self.__cancellation)
 
 
 @final

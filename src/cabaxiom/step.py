@@ -1,7 +1,8 @@
 """Step - one reconciliation concern that owns its desired state, with read/apply/prune hooks."""
 from abc import ABC
+from typing import final
 
-from .drift import Changes, Drift, Outcome
+from .drift import Assessment, Changes, Drift, DriftItem, Outcome
 
 
 class Step(ABC):
@@ -64,3 +65,51 @@ class Step(ABC):
         # residue) so Reconciler.prune() self-verifies the teardown. [] means clean. Reconciler runs
         # it in reverse order (a dependent down before what it depends on).
         return []
+
+    # --- WHAT A HOOK HANDS BACK ---
+    #
+    # Four named constructors for the two return shapes above, so a hook states what it FOUND or what it
+    # DID instead of assembling the record that carries the answer.
+    #
+    # They are METHODS on the declaration rather than helpers beside it, and that is the whole point. A
+    # subclass inherits them, so `return self.drifted("config file is missing")` needs no import at all and
+    # a first declaration never has to meet Assessment or DriftItem to say a file is missing. Those two are
+    # the kernel's CARRIERS, and a carrier is not the first thing a domain should have to learn. Both stay
+    # public and unchanged for the caller who wants to build one by hand.
+
+    @final
+    def verified(self) -> Assessment:
+        """A read that found nothing out of desired state - the kernel's founding sentence, in one call.
+
+        EMPTY MEANS VERIFIED is the axiom this whole engine rests on, so the way to say it is one word
+        rather than a record with an empty channel in it."""
+        return Assessment()
+
+    @final
+    def drifted(self, *found: str | Drift) -> Assessment:
+        """A read that found something out of desired state, named by this step unless told otherwise.
+
+        A bare string is THIS step's own report and is named through named(), because the name written at
+        such a site is overwhelmingly the step's own kind - a declaration that already knows what it is
+        called should not be asked for it a second time. Pass a Drift instead wherever the subject is not
+        the step, and pass several to report several.
+
+        Found nothing? Then this returns exactly what verified() does, which is not a loophole but the
+        axiom holding - a hook that spreads a computed sequence in here tells the truth at both lengths."""
+        return Assessment(deviation=self.__reported(found))
+
+    @final
+    def unchanged(self) -> Changes:
+        """A write that ran and had nothing to change - the clean no-op, and the commonest write there is."""
+        return None
+
+    @final
+    def changed(self, *made: str | Drift) -> Changes:
+        """A write that changed something, named by this step unless told otherwise - drifted()'s twin."""
+        return self.__reported(made)
+
+    def __reported(self, told: tuple[str | Drift, ...]) -> tuple[Drift, ...]:
+        # The one place a bare message becomes a carrier. Anything that is not a string is already a Drift
+        # and passes through untouched, which keeps a domain's own richer item first-class here - the
+        # kernel reads a drift through two fields and never cares which class exposed them.
+        return tuple(DriftItem(Step.named(self), one) if isinstance(one, str) else one for one in told)

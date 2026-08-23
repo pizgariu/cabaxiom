@@ -1,6 +1,6 @@
 """Reconciler: resolves Steps once, then reports drift or converges and self-verifies. A Controller drives it in a loop."""
 from collections.abc import Callable, Iterable, Iterator
-from typing import cast, final
+from typing import final
 
 from .cancellation import Cancellation
 from .convergence import Convergence, Once
@@ -187,11 +187,11 @@ class Reconciler:
         # write callable goes in wrapped by the injected Retry, so a transient failure spends its
         # attempts inside the executor's unit of work and only a failure that outlived them meets
         # the OnError policy. Retry is a transparent wrapper that may hand back an awaitable-returning
-        # callable (an async step under Async); the executor's do stays typed sync, since only Async
-        # awaits it, so the wrapper is narrowed back to that view here. The Executor owns HOW (serial,
+        # callable (an async step under Async), which is the same Outcome the executor's do already
+        # declares, so the wrapper needs no restating on the way in. The Executor owns HOW (serial,
         # level-parallel or chain-pipelined) and the OnError policy, and returns two lists apart:
         # (do-returns, failures). The direction is the caller's.
-        return self.__executor.execute(groups, cast(Callable[[Step], Outcome], self.__retry(do)), self.__cancellation)
+        return self.__executor.execute(groups, self.__retry(do), self.__cancellation)
 
 
 @final

@@ -6,7 +6,7 @@ from collections.abc import Callable
 from enum import Enum
 from multiprocessing.dummy import Pool
 from multiprocessing.pool import ThreadPool
-from typing import final
+from typing import cast, final
 
 from ._compat import override
 from .cancellation import Cancellation, Cancelled
@@ -99,6 +99,13 @@ class Executor(ABC):
     def execute(self, groups: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
         ...
 
+    def _changes(self, produced: Outcome) -> Changes:
+        # Outcome is wide enough to carry an awaitable, because a step run under Async may hand one back. A
+        # SYNCHRONOUS executor never meets one. It has no loop to await on, and a step returning a coroutine
+        # belongs to Async by construction, so this narrowing states which executor is running rather than
+        # guessing at the value. Said once here instead of three times at the call sites that need it.
+        return cast(Changes, produced)
+
 
 @final
 class Serial(Executor):
@@ -117,7 +124,7 @@ class Serial(Executor):
                 if cancellation.cancelled():
                     raise Cancelled.by(cancellation)
                 try:
-                    produced = do(step)
+                    produced = self._changes(do(step))
                 except Cancelled:
                     raise   # an abort is a DECISION, so it cuts through the error policy entirely
                 except Exception as exception:
@@ -192,7 +199,7 @@ class Parallel(_PooledExecutor):
             # in a pool worker does not propagate, it hangs the map. Catching the abort BY NAME here is what
             # lets the re-parent land without this boundary noticing.
             try:
-                return _step, do(_step), None
+                return _step, self._changes(do(_step)), None
             except Cancelled as _abort:
                 return _step, None, _abort
             except Exception as _exception:
@@ -234,14 +241,14 @@ class Pipeline(_PooledExecutor):
         # blowing up, or a cancellation firing, comes back as a clean value on THIS thread. pool.map is a
         # barrier over the chains and preserves their order, so returns build in resolved order and the FIRST
         # chain (in order) that failed or cancelled is the one re-raised.
-        def run_chain(chain: tuple[Step, ...]) -> tuple[list[Drift], list[Drift], Exception | None]:
+        def run_chain(chain: tuple[Step, ...]) -> tuple[list[Drift], list[Drift], Exception | Cancelled | None]:
             produced_all: list[Drift] = []
             failures_all: list[Drift] = []
             for step in chain:
                 if cancellation.cancelled():
                     return produced_all, failures_all, Cancelled.by(cancellation)
                 try:
-                    produced = do(step)
+                    produced = self._changes(do(step))
                 except Cancelled as abort:
                     # The chain stops and hands the abort back the same way the between-steps check does,
                     # under EITHER policy. A decision is not a failure, so BestEffort has no say in it.

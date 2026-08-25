@@ -2,7 +2,7 @@
 import asyncio
 import unittest
 
-from cabaxiom import DFS, Async, Cancelled, DriftItem, Flag, Kahn, OnError, Reconciler, Step
+from cabaxiom import DFS, Assessment, Async, Cancelled, DriftItem, Flag, Kahn, OnError, Reconciler, Step
 
 
 class _AsyncFix(Step):
@@ -10,8 +10,8 @@ class _AsyncFix(Step):
     def __init__(self) -> None:
         self.__done = False
 
-    def drift(self) -> list:
-        return [] if self.__done else [DriftItem("svc", "needs io")]
+    def assess(self) -> list:
+        return Assessment(deviation=[] if self.__done else [DriftItem("svc", "needs io")])
 
     async def apply(self) -> None:
         await asyncio.sleep(0)

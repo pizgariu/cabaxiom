@@ -89,13 +89,13 @@ class Reconciler:
 
     def drift(self) -> list[Drift]:
         # Flatten every step's drift, in resolved order. [] == fully in desired state.
-        return self.__probe(self.__partition, lambda step: step.drift())
+        return self.__probe(self.__partition, "deviation")
 
     def plan(self) -> list[Drift]:
         # The dry run: what converge WOULD do, without doing it. Flatten every step's plan() preview
         # in resolved order, reusing the Drift channel. [] == nothing to do. Read-only, so it is safe
         # to call before converge() to show the work.
-        return self.__probe(self.__partition, lambda step: step.plan())
+        return self.__probe(self.__partition, "plan")
 
     def audit(self) -> list[Drift]:
         # The advisory read: flatten every step's audit() (findings about a system that meets desired
@@ -103,13 +103,13 @@ class Reconciler:
         # and plan. [] == nothing to advise. converge() never calls this and its findings never enter
         # the residual, so the empty residual stays the proof desired state was reached. A consumer
         # opts in by calling audit() itself, typically alongside drift().
-        return self.__probe(self.__partition, lambda step: step.audit())
+        return self.__probe(self.__partition, "advisory")
 
     def footprint(self) -> list[Drift]:
         # The teardown preview: everything the steps own that exists now, flattened in the order
         # prune() would tear it down. Read-only through the same engine as the other reads, and
         # prune() never consults it.
-        return self.__probe(self.__partition.inverse(), lambda step: step.footprint())
+        return self.__probe(self.__partition.inverse(), "footprint")
 
     def explain(self) -> Explanation:
         # The structural read (returns an Explanation, not Drift): what the injected Ordering resolved and the
@@ -174,12 +174,18 @@ class Reconciler:
         return residue + failures
 
     # noinspection PyMethodMayBeStatic
-    def __probe(self, groups: tuple[tuple[Step, ...], ...], read: Callable[[Step], list[Drift]]) -> list[Drift]:
-        # The single READ engine: flatten a read-only per-step query over every step. drift, plan and
-        # audit walk the resolved partition, footprint walks the teardown order. All four are one shape
-        # (a pure read returning Drift), so they share this flattener and differ only in the method and
-        # the direction the caller hands in. A group is a level (waves) or a chain (pipelines).
-        return [item for group in groups for step in group for item in read(step)]
+    def __probe(self, groups: tuple[tuple[Step, ...], ...], channel: str) -> list[Drift]:
+        # The single READ engine: one assess() per step, flattened over the whole run, with the caller
+        # naming which channel of the reading it came for. drift, plan and audit walk the resolved
+        # partition, footprint walks the teardown order, so the direction is still the caller's to hand
+        # in - what changed is that the four verbs now share one PROBE and not merely one flattener.
+        #
+        # A step with an expensive read used to pay for it four times over, and nothing forced the four
+        # answers to describe the same moment of the world. Now they cannot describe different ones.
+        return [item
+                for group in groups
+                for step in group
+                for item in getattr(step.assess(), channel)]
 
     def __execute(self, groups: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome]) -> tuple[list[Drift], list[Drift]]:
         # The single WRITE engine: sequence steps, funnelling both converge (forward partition,

@@ -2,7 +2,7 @@
 import asyncio
 import unittest
 
-from cabaxiom import Async, Backoff, DriftItem, Kahn, OnError, Parallel, Reconciler, Retry, Serial, Step
+from cabaxiom import Assessment, Async, Backoff, DriftItem, Kahn, OnError, Parallel, Reconciler, Retry, Serial, Step
 
 
 class _FlakyFix(Step):
@@ -12,8 +12,8 @@ class _FlakyFix(Step):
         self.tries = 0
         self.__done = False
 
-    def drift(self) -> list:
-        return [] if self.__done else [DriftItem("svc", "needs fix")]
+    def assess(self) -> list:
+        return Assessment(deviation=[] if self.__done else [DriftItem("svc", "needs fix")])
 
     def apply(self) -> None:
         self.tries += 1
@@ -29,8 +29,8 @@ class _AsyncFlaky(Step):
         self.tries = 0
         self.__done = False
 
-    def drift(self) -> list:
-        return [] if self.__done else [DriftItem("svc", "needs io")]
+    def assess(self) -> list:
+        return Assessment(deviation=[] if self.__done else [DriftItem("svc", "needs io")])
 
     async def apply(self) -> None:
         self.tries += 1
@@ -93,7 +93,7 @@ class RetryTests(unittest.TestCase):
             def __init__(self):
                 self.probes = 0
 
-            def drift(self) -> list:
+            def assess(self) -> list:
                 self.probes += 1
                 raise RuntimeError("probe down")
 

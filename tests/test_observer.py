@@ -1,7 +1,7 @@
 """Observer hooks fired around each converge pass, and Chorus composition."""
 import unittest
 
-from cabaxiom import Chorus, DriftItem, Observer, Reconciler, Step
+from cabaxiom import Assessment, Chorus, DriftItem, Observer, Reconciler, Step
 
 
 class _OneFix(Step):
@@ -9,11 +9,11 @@ class _OneFix(Step):
     def __init__(self) -> None:
         self.__done = False
 
-    def drift(self) -> list[DriftItem]:
-        return [] if self.__done else [DriftItem("x", "needs fix")]
+    def assess(self) -> list[DriftItem]:
+        return Assessment(deviation=[] if self.__done else [DriftItem("x", "needs fix")])
 
     def apply(self) -> list[DriftItem]:
-        changed = self.drift()
+        changed = list(self.assess().deviation)
         self.__done = True
         return changed
 

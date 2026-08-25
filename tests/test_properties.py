@@ -4,7 +4,7 @@ import unittest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from cabaxiom import DriftItem, Fixpoint, Kahn, Parallel, Reconciler, Step
+from cabaxiom import Assessment, DriftItem, Fixpoint, Kahn, Parallel, Reconciler, Step
 
 
 @st.composite
@@ -62,8 +62,8 @@ class ConvergenceProperties(unittest.TestCase):
             def apply(self) -> None:
                 applies.append(1)
 
-            def drift(self) -> list:
-                return [DriftItem("n", f"pass {len(applies)}")]   # a fresh message each pass, so it never settles
+            def assess(self) -> list:
+                return Assessment(deviation=[DriftItem("n", f"pass {len(applies)}")])   # a fresh message each pass, so it never settles
 
         Reconciler((NeverSettles(),), convergence=Fixpoint(max_passes=max_passes)).converge()
         self.assertEqual(len(applies), max_passes)

@@ -1,7 +1,7 @@
 """Scope: which of the handed steps take part, Only with its dependency closure, Skip without cascade."""
 import unittest
 
-from cabaxiom import DriftItem, Only, Reconciler, Scope, Skip, Step
+from cabaxiom import Assessment, DriftItem, Only, Reconciler, Scope, Skip, Step
 from support import A, B, C, X, Y, Z
 
 
@@ -45,12 +45,12 @@ class ScopeTests(unittest.TestCase):
     def test_every_verb_sees_the_scoped_set(self):
         # The scope resolves once at construction, so the reads shrink with it too.
         class InScope(Step):
-            def drift(self) -> list:
-                return [DriftItem("in", "drifting")]
+            def assess(self) -> list:
+                return Assessment(deviation=[DriftItem("in", "drifting")])
 
         class OutOfScope(Step):
-            def drift(self) -> list:
-                return [DriftItem("out", "drifting")]
+            def assess(self) -> list:
+                return Assessment(deviation=[DriftItem("out", "drifting")])
 
         drift = Reconciler((InScope(), OutOfScope()), scope=Only(InScope)).drift()
         self.assertEqual([item.name for item in drift], ["in"])

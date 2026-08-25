@@ -3,7 +3,7 @@ from hypothesis import HealthCheck, settings
 from hypothesis import strategies as st
 from hypothesis.stateful import RuleBasedStateMachine, precondition, rule
 
-from cabaxiom import DriftItem, Fixpoint, Reconciler, Step
+from cabaxiom import Assessment, DriftItem, Fixpoint, Reconciler, Step
 
 _DESIRED = "desired"
 
@@ -14,8 +14,8 @@ class _Managed(Step):
         self._world = world
         self._key = key
 
-    def drift(self) -> list:
-        return [] if self._world.get(self._key) == _DESIRED else [DriftItem(str(self._key), "stale")]
+    def assess(self) -> list:
+        return Assessment(deviation=[] if self._world.get(self._key) == _DESIRED else [DriftItem(str(self._key), "stale")])
 
     def apply(self) -> None:
         self._world[self._key] = _DESIRED
@@ -48,7 +48,7 @@ class ReconcilerMachine(RuleBasedStateMachine):
         steps = tuple(self._steps.values())
         Reconciler(steps, convergence=Fixpoint()).converge()
         for step in steps:
-            assert step.drift() == [], "converge left a managed key off desired"
+            assert list(step.assess().deviation) == [], "converge left a managed key off desired"
         settled = dict(self._world)
         Reconciler(steps, convergence=Fixpoint()).converge()
         assert self._world == settled, "a second converge changed a settled world"

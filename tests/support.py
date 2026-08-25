@@ -1,4 +1,4 @@
-from cabaxiom import DriftItem, Step
+from cabaxiom import Assessment, DriftItem, Step
 
 
 class _RecStep(Step):
@@ -40,8 +40,8 @@ class Z(_RecStep):
 class ReportOnly(Step):
     """A step the reconciler cannot satisfy on its own: drift never clears, apply stays the no-op."""
 
-    def drift(self) -> list:
-        return [DriftItem("svc", "still wrong")]
+    def assess(self) -> list:
+        return Assessment(deviation=[DriftItem("svc", "still wrong")])
 
 
 class Fixable(Step):
@@ -50,8 +50,8 @@ class Fixable(Step):
     def __init__(self):
         self.applied = False
 
-    def drift(self) -> list:
-        return [] if self.applied else [DriftItem("f", "needs fix")]
+    def assess(self) -> list:
+        return Assessment(deviation=[] if self.applied else [DriftItem("f", "needs fix")])
 
     def apply(self) -> None:
         self.applied = True

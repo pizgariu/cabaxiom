@@ -1,32 +1,36 @@
 """Read and teardown step methods: plan, audit, footprint, and prune."""
 import unittest
 
-from cabaxiom import DriftItem, OnError, Reconciler, Serial, Step
+from cabaxiom import Assessment, DriftItem, OnError, Reconciler, Serial, Step
 from support import A, Fixable, _RecStep
 
 
 class PlanTests(unittest.TestCase):
     """plan() is the dry-run: a read-only preview of converge's work, carried on the Drift channel."""
 
-    def test_plan_defaults_to_drift(self):
-        class Fixable(Step):
-            def drift(self) -> list:
-                return [DriftItem("f", "needs fix")]
+    def test_a_plan_is_now_stated_and_never_inherited(self):
+        # THE deliberate break of this release. plan() used to default to drift(), so a step that never
+        # thought about its plan still had one, and nothing could tell that echo from an answer somebody
+        # meant. A step whose plan IS its deviation now says so, in one reading, on purpose.
+        class Silent(Step):
+            def assess(self) -> Assessment:
+                return Assessment(deviation=[DriftItem("f", "needs fix")])
 
-            def apply(self) -> None:
-                pass
+        class Stated(Step):
+            def assess(self) -> Assessment:
+                found = [DriftItem("f", "needs fix")]
+                return Assessment(deviation=found, plan=found)
 
-        rec = Reconciler((Fixable(),))
-        self.assertEqual([(d.name, d.message) for d in rec.plan()],
-                         [(d.name, d.message) for d in rec.drift()])
+        self.assertEqual(Reconciler((Silent(),)).plan(), [])          # never claimed a plan, so it has none
+        self.assertEqual(len(Reconciler((Stated(),)).plan()), 1)      # claimed one, and it is its deviation
 
     def test_plan_does_not_mutate(self):
         class Fixable(Step):
             def __init__(self):
                 self.applied = False
 
-            def drift(self) -> list:
-                return [] if self.applied else [DriftItem("f", "x")]
+            def assess(self) -> list:
+                return Assessment(deviation=[] if self.applied else [DriftItem("f", "x")])
 
             def apply(self) -> None:
                 self.applied = True
@@ -39,11 +43,11 @@ class PlanTests(unittest.TestCase):
 
     def test_custom_plan_is_distinct_from_drift(self):
         class Rewrite(Step):
-            def drift(self) -> list:
-                return [DriftItem("cfg", "content differs")]
-
-            def plan(self) -> list:
-                return [DriftItem("cfg", "would rewrite 3 lines")]
+            def assess(self) -> Assessment:
+                # Both channels, from ONE read. The deviation is what is wrong and the plan is what a
+                # converge would do about it, and they are different sentences for a step that rewrites.
+                return Assessment(deviation=[DriftItem("cfg", "content differs")],
+                                  plan=[DriftItem("cfg", "would rewrite 3 lines")])
 
         rec = Reconciler((Rewrite(),))
         self.assertEqual(rec.drift()[0].message, "content differs")
@@ -51,25 +55,25 @@ class PlanTests(unittest.TestCase):
 
     def test_plan_flattens_in_resolved_order(self):
         class PA(Step):
-            def plan(self) -> list:
-                return [DriftItem("A", "a")]
+            def assess(self) -> list:
+                return Assessment(plan=[DriftItem("A", "a")])
 
         class PB(Step):
             after = (PA,)
 
-            def plan(self) -> list:
-                return [DriftItem("B", "b")]
+            def assess(self) -> list:
+                return Assessment(plan=[DriftItem("B", "b")])
 
         rec = Reconciler((PB(), PA()))               # shuffled, PA must come first
         self.assertEqual([d.name for d in rec.plan()], ["A", "B"])
 
     def test_report_only_step_can_plan_nothing(self):
         class ReportOnly(Step):
-            def drift(self) -> list:
-                return [DriftItem("svc", "still wrong")]
-
-            def plan(self) -> list:
-                return []                            # apply is a no-op, so nothing is planned
+            def assess(self) -> Assessment:
+                # A report-only step: it says what is wrong and plans nothing, because its apply() is a
+                # no-op. The empty plan is now DELIBERATE rather than inherited, which is the point of
+                # plan no longer defaulting to deviation.
+                return Assessment(deviation=[DriftItem("svc", "still wrong")])
 
         rec = Reconciler((ReportOnly(),))
         self.assertEqual(len(rec.drift()), 1)
@@ -82,8 +86,8 @@ class AuditTests(unittest.TestCase):
     invisible to converge - advice never dirties the residual proof."""
 
     class Advising(Step):
-        def audit(self) -> list:
-            return [DriftItem("hint", "a better mode is available")]
+        def assess(self) -> list:
+            return Assessment(advisory=[DriftItem("hint", "a better mode is available")])
 
     def test_audit_defaults_to_no_advice_and_never_echoes_drift(self):
         # A drifting step with no audit() override advises nothing - advice is opt-in, not a drift echo.
@@ -93,14 +97,14 @@ class AuditTests(unittest.TestCase):
 
     def test_audit_flattens_in_resolved_order(self):
         class AdviseFirst(Step):
-            def audit(self) -> list:
-                return [DriftItem("first", "x")]
+            def assess(self) -> list:
+                return Assessment(advisory=[DriftItem("first", "x")])
 
         class AdviseSecond(Step):
             after = (AdviseFirst,)
 
-            def audit(self) -> list:
-                return [DriftItem("second", "y")]
+            def assess(self) -> list:
+                return Assessment(advisory=[DriftItem("second", "y")])
 
         rec = Reconciler((AdviseSecond(), AdviseFirst()))   # shuffled, after= must order the advice
         self.assertEqual([item.name for item in rec.audit()], ["first", "second"])
@@ -125,14 +129,14 @@ class FootprintTests(unittest.TestCase):
 
     def test_footprint_lists_in_teardown_order(self):
         class Base(Step):
-            def footprint(self):
-                return [DriftItem("base", "removed")]
+            def assess(self):
+                return Assessment(footprint=[DriftItem("base", "removed")])
 
         class Dependent(Step):
             after = (Base,)
 
-            def footprint(self):
-                return [DriftItem("dependent", "removed")]
+            def assess(self):
+                return Assessment(footprint=[DriftItem("dependent", "removed")])
 
         rec = Reconciler((Base(), Dependent()))
         self.assertEqual([item.name for item in rec.footprint()], ["dependent", "base"])   # prune's order
@@ -141,8 +145,8 @@ class FootprintTests(unittest.TestCase):
         log = []
 
         class Owning(_RecStep):
-            def footprint(self):
-                return [DriftItem("thing", "removed")]
+            def assess(self):
+                return Assessment(footprint=[DriftItem("thing", "removed")])
 
         rec = Reconciler((Owning(log),))
         self.assertEqual(len(rec.footprint()), 1)

@@ -27,44 +27,36 @@ class Step(ABC):
         # solved here rather than at eight call sites.
         return type(step).__name__
 
-    def drift(self) -> list[Drift]:
-        # Read-only, never mutates. [] means already in desired state. Any deviation belongs here,
-        # even one apply() cannot fix. A finding about a system that already meets desired state is
-        # advice, not drift - route it to audit().
-        return []
-
-    def plan(self) -> list[Drift]:
-        # Dry-run preview of the actions apply() would take, without mutating. Where drift() is the
-        # deviation (what is wrong), plan() is the intended action. Defaults to drift() since for a
-        # fixable step the deviation is the work. Override when they diverge.
-        return self.drift()
-
-    def audit(self) -> list[Drift]:
-        # Advisory findings about a step that is already in desired state (a stale runtime behind a
-        # correct config, a better mode the domain chooses not to force). Read-only, never mutates.
-        # [] means nothing to advise. Not defaulted to drift() like plan(): advice is what remains
-        # when there is no deviation, so echoing drift here would report every deviation twice. If
-        # apply() could fix it, it is drift, not advice.
-        return []
-
-    def footprint(self) -> list[Drift]:
-        # What this step owns that a teardown would remove: the preview an uninstall shows before
-        # pruning, in the same (name, message) shape as every other read. Read-only, never mutates.
-        # [] means owns nothing worth listing. What ownership means is the domain's business.
-        return []
+    def assess(self) -> Assessment:
+        # ONE read of the world, answering four questions from a single probe. It used to be four hooks -
+        # drift, plan, audit and footprint - and a step with an expensive probe paid for it four times over
+        # while nothing forced the four answers to describe the same moment of the world.
+        #
+        # deviation  what is out of desired state. Empty is the whole proof this kernel offers, and a
+        #            deviation apply() cannot fix still belongs here, since a report-only step keeps it in
+        #            the residual.
+        # plan       what a converge WOULD do. Deliberately NOT defaulted to deviation any more - a channel
+        #            that echoes another cannot be told from one somebody meant, so a step whose plan IS its
+        #            deviation now says Assessment(deviation=found, plan=found) and says it on purpose.
+        # advisory   what deserves attention in a system that already MEETS desired state. If apply() could
+        #            fix it, it is deviation and not advice.
+        # footprint  what this step owns that a teardown would remove.
+        #
+        # Read-only, always. Never mutates.
+        return self.verified()
 
     def apply(self) -> Outcome:
         # Idempotent converge toward desired state. The return type is a Sequence and admits a coroutine,
         # so a domain's own `-> list[MyDrift]` and its `async def apply()` are both legal typed overrides. Re-running a satisfied step is a no-op. May
         # return what it changed this run (name + message), which converge() collects on its applied
         # channel. None (the default, and every no-op) contributes nothing.
-        return None
+        return self.unchanged()
 
     def prune(self) -> Changes:
         # The deletion half of apply(): remove what this step owns, and return what survived (its
         # residue) so Reconciler.prune() self-verifies the teardown. [] means clean. Reconciler runs
         # it in reverse order (a dependent down before what it depends on).
-        return []
+        return self.unchanged()
 
     # --- WHAT A HOOK HANDS BACK ---
     #

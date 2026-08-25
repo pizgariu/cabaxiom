@@ -1,7 +1,7 @@
 """Once single pass versus Fixpoint loop-to-settle."""
 import unittest
 
-from cabaxiom import DriftItem, Fixpoint, Reconciler, Step
+from cabaxiom import Assessment, DriftItem, Fixpoint, Reconciler, Step
 
 
 class ConvergenceTests(unittest.TestCase):
@@ -13,8 +13,8 @@ class ConvergenceTests(unittest.TestCase):
         def __init__(self, passes: int):
             self.remaining = passes
 
-        def drift(self) -> list:
-            return [] if self.remaining == 0 else [DriftItem("staged", f"{self.remaining} left")]
+        def assess(self) -> list:
+            return Assessment(deviation=[] if self.remaining == 0 else [DriftItem("staged", f"{self.remaining} left")])
 
         def apply(self) -> None:
             if self.remaining:
@@ -39,8 +39,8 @@ class ConvergenceTests(unittest.TestCase):
             def __init__(self, passes):
                 self.__remaining = passes
 
-            def drift(self) -> list:
-                return [] if self.__remaining == 0 else [DriftItem("staged", "more to do")]
+            def assess(self) -> list:
+                return Assessment(deviation=[] if self.__remaining == 0 else [DriftItem("staged", "more to do")])
 
             def apply(self):
                 if self.__remaining == 0:
@@ -60,8 +60,8 @@ class ConvergenceTests(unittest.TestCase):
             def apply(self) -> None:
                 applies.append(1)
 
-            def drift(self) -> list:
-                return [DriftItem("svc", "stuck")]
+            def assess(self) -> list:
+                return Assessment(deviation=[DriftItem("svc", "stuck")])
 
         residual = Reconciler((Stuck(),), convergence=Fixpoint(max_passes=10)).converge()
         self.assertEqual(len(applies), 2)            # stopped at 2, not 10
@@ -75,8 +75,8 @@ class ConvergenceTests(unittest.TestCase):
             def apply(self) -> None:
                 applies.append(1)
 
-            def drift(self) -> list:
-                return [DriftItem("n", f"pass {len(applies)}")]   # always a different message
+            def assess(self) -> list:
+                return Assessment(deviation=[DriftItem("n", f"pass {len(applies)}")])   # always a different message
 
         Reconciler((NeverSettles(),), convergence=Fixpoint(max_passes=4)).converge()
         self.assertEqual(len(applies), 4)

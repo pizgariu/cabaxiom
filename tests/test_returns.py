@@ -51,14 +51,18 @@ class TheWriteHandsBackTests(unittest.TestCase):
                          [("Quiet", "config file written")])
 
     def test_a_declaration_needs_no_carrier_imported_to_write_a_hook(self):
-        # The sell. Nothing a domain writes below names Assessment or DriftItem, which is why the
-        # constructors are methods rather than helpers sitting beside the class.
+        # The sell, and the reason these are methods rather than helpers beside the class. Nothing the
+        # domain writes below names Assessment or DriftItem. Reconciler and Step are the whole import.
         class Config(Step):
-            def drift(self):
-                return list(self.drifted("missing").deviation)
+            def assess(self):
+                return self.drifted("config file is missing")
 
             def apply(self):
-                return self.changed("written")
+                return self.changed("config file written")
 
-        self.assertEqual(Config().drift()[0].name, "Config")
-        self.assertEqual(list(Config().apply() or ())[0].message, "written")
+        found = list(Config().assess().deviation)
+        self.assertEqual([(item.name, item.message) for item in found],
+                         [("Config", "config file is missing")])
+        made = list(Config().apply() or ())
+        self.assertEqual([(item.name, item.message) for item in made],
+                         [("Config", "config file written")])

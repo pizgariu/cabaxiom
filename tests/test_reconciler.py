@@ -2,7 +2,7 @@
 import itertools
 import unittest
 
-from cabaxiom import Controller, DriftItem, Explanation, Reconciler, Residual, Step
+from cabaxiom import Assessment, Controller, DriftItem, Explanation, Reconciler, Residual, Step
 from support import A, B, Boom, C, Fixable, ReportOnly
 
 
@@ -48,14 +48,14 @@ class ConvergeTests(unittest.TestCase):
 
     def test_drift_flattens_in_resolved_order(self):
         class D1(Step):
-            def drift(self) -> list:
-                return [DriftItem("1", "x")]
+            def assess(self) -> list:
+                return Assessment(deviation=[DriftItem("1", "x")])
 
         class D2(Step):
             after = (D1,)
 
-            def drift(self) -> list:
-                return [DriftItem("2", "y")]
+            def assess(self) -> list:
+                return Assessment(deviation=[DriftItem("2", "y")])
 
         rec = Reconciler((D2(), D1()))   # shuffled, D1 must come first
         self.assertEqual([d.name for d in rec.drift()], ["1", "2"])
@@ -66,8 +66,8 @@ class ConvergeTests(unittest.TestCase):
             def __init__(self):
                 self.__written = False
 
-            def drift(self) -> list:
-                return [] if self.__written else [DriftItem("thing.conf", "out of date")]
+            def assess(self) -> list:
+                return Assessment(deviation=[] if self.__written else [DriftItem("thing.conf", "out of date")])
 
             def apply(self):
                 if self.__written:
@@ -93,10 +93,10 @@ class ConvergeTests(unittest.TestCase):
             def __init__(self):
                 self.touched = False
 
-            def drift(self) -> list:
+            def assess(self) -> list:
                 if self.touched:
                     raise RuntimeError("probe broke after apply")
-                return [DriftItem("f", "needs fix")]
+                return Assessment(deviation=[DriftItem("f", "needs fix")])
 
             def apply(self):
                 self.touched = True
@@ -128,8 +128,8 @@ class ControllerTests(unittest.TestCase):
         def apply(self) -> None:
             self.n += 1
 
-        def drift(self) -> list:
-            return [] if self.n >= self.passes else [DriftItem("w", f"{self.n}/{self.passes}")]
+        def assess(self) -> list:
+            return Assessment(deviation=[] if self.n >= self.passes else [DriftItem("w", f"{self.n}/{self.passes}")])
 
     def test_controller_is_composition_not_inheritance(self):
         self.assertFalse(issubclass(Controller, Reconciler))
@@ -156,8 +156,8 @@ class ControllerTests(unittest.TestCase):
 
     def test_settle_drains_ticks_when_never_clean(self):
         class Stuck(Step):
-            def drift(self) -> list:
-                return [DriftItem("svc", "stuck")]
+            def assess(self) -> list:
+                return Assessment(deviation=[DriftItem("svc", "stuck")])
 
         residual = Controller(Reconciler((Stuck(),))).settle(range(3))
         self.assertEqual(len(residual), 1)

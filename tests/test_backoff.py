@@ -3,7 +3,7 @@ import random
 import unittest
 from unittest.mock import patch
 
-from cabaxiom import Backoff, DriftItem, Exponential, Fixed, Fixpoint, Jitter, Reconciler, Step
+from cabaxiom import Assessment, Backoff, DriftItem, Exponential, Fixed, Fixpoint, Jitter, Reconciler, Step
 
 
 class _ClearsAfter(Step):
@@ -13,9 +13,9 @@ class _ClearsAfter(Step):
         self.__stalls = stalls
         self.__probes = 0
 
-    def drift(self) -> list:
+    def assess(self) -> list:
         self.__probes += 1
-        return [] if self.__probes > self.__stalls else [DriftItem("svc", "settling")]
+        return Assessment(deviation=[] if self.__probes > self.__stalls else [DriftItem("svc", "settling")])
 
     def apply(self) -> None:
         return None
@@ -50,11 +50,11 @@ class BackoffTests(unittest.TestCase):
                 self.__probes = 0
                 self.__script = ["a", "a", "b", "b", "c"]   # stall, move, stall, move, then clear
 
-            def drift(self) -> list:
+            def assess(self) -> list:
                 self.__probes += 1
                 if self.__probes > len(self.__script):
-                    return []
-                return [DriftItem("svc", self.__script[self.__probes - 1])]
+                    return Assessment(deviation=[])
+                return Assessment(deviation=[DriftItem("svc", self.__script[self.__probes - 1])])
 
             def apply(self) -> None:
                 return None

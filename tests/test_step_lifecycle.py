@@ -27,19 +27,19 @@ class PlanTests(unittest.TestCase):
     def test_plan_does_not_mutate(self):
         class Fixable(Step):
             def __init__(self):
-                self.applied = False
+                self.applied = [False]
 
             def assess(self) -> list:
-                return Assessment(deviation=[] if self.applied else [DriftItem("f", "x")])
+                return Assessment(deviation=[] if self.applied[0] else [DriftItem("f", "x")])
 
             def apply(self) -> None:
-                self.applied = True
+                self.applied[0] = True
 
         f = Fixable()
         rec = Reconciler((f,))
         rec.plan()
         rec.plan()
-        self.assertFalse(f.applied)                  # plan() is read-only, never applies
+        self.assertFalse(f.applied[0])                  # plan() is read-only, never applies
 
     def test_custom_plan_is_distinct_from_drift(self):
         class Rewrite(Step):

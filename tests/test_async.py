@@ -8,14 +8,14 @@ from cabaxiom import DFS, Assessment, Async, Cancelled, DriftItem, Flag, Kahn, O
 class _AsyncFix(Step):
     # Async write, sync re-probe: apply() awaits its I/O, drift() is the quick read every executor runs serially.
     def __init__(self) -> None:
-        self.__done = False
+        self.__done = [False]
 
     def assess(self) -> list:
-        return Assessment(deviation=[] if self.__done else [DriftItem("svc", "needs io")])
+        return Assessment(deviation=[] if self.__done[0] else [DriftItem("svc", "needs io")])
 
     async def apply(self) -> None:
         await asyncio.sleep(0)
-        self.__done = True
+        self.__done[0] = True
 
 
 class AsyncTests(unittest.TestCase):

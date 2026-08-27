@@ -7,14 +7,14 @@ from cabaxiom import Assessment, Chorus, DriftItem, Observer, Reconciler, Step
 class _OneFix(Step):
     # Drifts once, then apply() clears it. Enough to make a converge pass do real work.
     def __init__(self) -> None:
-        self.__done = False
+        self.__done = [False]
 
     def assess(self) -> list[DriftItem]:
-        return Assessment(deviation=[] if self.__done else [DriftItem("x", "needs fix")])
+        return Assessment(deviation=[] if self.__done[0] else [DriftItem("x", "needs fix")])
 
     def apply(self) -> list[DriftItem]:
         changed = list(self.assess().deviation)
-        self.__done = True
+        self.__done[0] = True
         return changed
 
 

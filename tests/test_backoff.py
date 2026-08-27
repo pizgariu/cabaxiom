@@ -11,11 +11,11 @@ class _ClearsAfter(Step):
     # waiting on external state: apply() does nothing new, the world settles on its own after a while.
     def __init__(self, stalls: int):
         self.__stalls = stalls
-        self.__probes = 0
+        self.__probes = [0]
 
     def assess(self) -> list:
-        self.__probes += 1
-        return Assessment(deviation=[] if self.__probes > self.__stalls else [DriftItem("svc", "settling")])
+        self.__probes[0] += 1
+        return Assessment(deviation=[] if self.__probes[0] > self.__stalls else [DriftItem("svc", "settling")])
 
     def apply(self) -> None:
         return None
@@ -47,14 +47,14 @@ class BackoffTests(unittest.TestCase):
         # A pass that moves the residual resets the streak, so a later stall backs off from 1, not 2.
         class _TwoStalls(Step):
             def __init__(self):
-                self.__probes = 0
-                self.__script = ["a", "a", "b", "b", "c"]   # stall, move, stall, move, then clear
+                self.__probes = [0]
+                self.__script = [["a", "a", "b", "b", "c"]]   # stall, move, stall, move, then clear
 
             def assess(self) -> list:
-                self.__probes += 1
-                if self.__probes > len(self.__script):
+                self.__probes[0] += 1
+                if self.__probes[0] > len(self.__script[0]):
                     return Assessment(deviation=[])
-                return Assessment(deviation=[DriftItem("svc", self.__script[self.__probes - 1])])
+                return Assessment(deviation=[DriftItem("svc", self.__script[0][self.__probes[0] - 1])])
 
             def apply(self) -> None:
                 return None

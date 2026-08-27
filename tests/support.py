@@ -48,13 +48,13 @@ class Fixable(Step):
     """A step that drifts until applied once."""
 
     def __init__(self):
-        self.applied = False
+        self.applied = [False]
 
     def assess(self) -> list:
-        return Assessment(deviation=[] if self.applied else [DriftItem("f", "needs fix")])
+        return Assessment(deviation=[] if self.applied[0] else [DriftItem("f", "needs fix")])
 
     def apply(self) -> None:
-        self.applied = True
+        self.applied[0] = True
 
 
 class Boom(Step):

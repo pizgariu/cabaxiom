@@ -9,35 +9,35 @@ class _FlakyFix(Step):
     # Raises on the first `failures` apply() calls, then applies cleanly. Counts every try.
     def __init__(self, failures: int):
         self.__failures = failures
-        self.tries = 0
-        self.__done = False
+        self.tries = [0]
+        self.__done = [False]
 
     def assess(self) -> list:
-        return Assessment(deviation=[] if self.__done else [DriftItem("svc", "needs fix")])
+        return Assessment(deviation=[] if self.__done[0] else [DriftItem("svc", "needs fix")])
 
     def apply(self) -> None:
-        self.tries += 1
-        if self.tries <= self.__failures:
+        self.tries[0] += 1
+        if self.tries[0] <= self.__failures:
             raise RuntimeError("transient io failure")
-        self.__done = True
+        self.__done[0] = True
 
 
 class _AsyncFlaky(Step):
     # The coroutine twin of _FlakyFix: each attempt awaits, then fails or settles.
     def __init__(self, failures: int):
         self.__failures = failures
-        self.tries = 0
-        self.__done = False
+        self.tries = [0]
+        self.__done = [False]
 
     def assess(self) -> list:
-        return Assessment(deviation=[] if self.__done else [DriftItem("svc", "needs io")])
+        return Assessment(deviation=[] if self.__done[0] else [DriftItem("svc", "needs io")])
 
     async def apply(self) -> None:
-        self.tries += 1
+        self.tries[0] += 1
         await asyncio.sleep(0)
-        if self.tries <= self.__failures:
+        if self.tries[0] <= self.__failures:
             raise RuntimeError("transient io failure")
-        self.__done = True
+        self.__done[0] = True
 
 
 class _Recording(Backoff):
@@ -55,18 +55,18 @@ class RetryTests(unittest.TestCase):
         step = _FlakyFix(failures=2)
         residual = Reconciler((step,), retry=Retry(3)).converge()
         self.assertEqual(residual, [])
-        self.assertEqual(step.tries, 3)
+        self.assertEqual(step.tries[0], 3)
 
     def test_exhausted_attempts_propagate_under_failfast(self):
         step = _FlakyFix(failures=5)
         with self.assertRaises(RuntimeError):
             Reconciler((step,), retry=Retry(2)).converge()
-        self.assertEqual(step.tries, 2)   # both tries spent, then the failure aborted the run
+        self.assertEqual(step.tries[0], 2)   # both tries spent, then the failure aborted the run
 
     def test_an_exhausted_failure_reaches_best_effort_as_one_residual_entry(self):
         step = _FlakyFix(failures=5)
         residual = Reconciler((step,), executor=Serial(OnError.BestEffort), retry=Retry(2)).converge()
-        self.assertEqual(step.tries, 2)
+        self.assertEqual(step.tries[0], 2)
         self.assertEqual(sum("step failed" in item.message for item in residual), 1)
 
     def test_a_backoff_paces_the_attempts_with_the_stall_count(self):
@@ -91,32 +91,32 @@ class RetryTests(unittest.TestCase):
         # The guard covers only the write phase, so a probe that raises does so once, not per attempt.
         class _BrokenProbe(Step):
             def __init__(self):
-                self.probes = 0
+                self.probes = [0]
 
             def assess(self) -> list:
-                self.probes += 1
+                self.probes[0] += 1
                 raise RuntimeError("probe down")
 
         step = _BrokenProbe()
         with self.assertRaises(RuntimeError):
             Reconciler((step,), retry=Retry(3)).converge()
-        self.assertEqual(step.probes, 1)
+        self.assertEqual(step.probes[0], 1)
 
     def test_prune_is_guarded_too(self):
         class _FlakyPrune(Step):
             def __init__(self):
-                self.tries = 0
+                self.tries = [0]
 
             def prune(self) -> list:
-                self.tries += 1
-                if self.tries == 1:
+                self.tries[0] += 1
+                if self.tries[0] == 1:
                     raise RuntimeError("transient teardown failure")
                 return []
 
         step = _FlakyPrune()
         residue = Reconciler((step,), retry=Retry(2)).prune()
         self.assertEqual(residue, [])
-        self.assertEqual(step.tries, 2)
+        self.assertEqual(step.tries[0], 2)
 
     def test_retries_are_uniform_under_a_fanning_executor(self):
         # The retries live inside the write callable, so a pool worker retries its own step inline.
@@ -124,7 +124,7 @@ class RetryTests(unittest.TestCase):
         with Parallel() as executor:
             residual = Reconciler((step,), Kahn(), executor=executor, retry=Retry(3)).converge()
         self.assertEqual(residual, [])
-        self.assertEqual(step.tries, 2)   # failed once, recovered on the second, third never spent
+        self.assertEqual(step.tries[0], 2)   # failed once, recovered on the second, third never spent
 
 
 class AsyncRetryTests(unittest.TestCase):
@@ -132,19 +132,19 @@ class AsyncRetryTests(unittest.TestCase):
         step = _AsyncFlaky(failures=2)
         residual = Reconciler((step,), Kahn(), executor=Async(), retry=Retry(3)).converge()
         self.assertEqual(residual, [])
-        self.assertEqual(step.tries, 3)
+        self.assertEqual(step.tries[0], 3)
 
     def test_a_recovery_mid_attempts_stops_the_retrying(self):
         step = _AsyncFlaky(failures=1)
         residual = Reconciler((step,), Kahn(), executor=Async(), retry=Retry(3)).converge()
         self.assertEqual(residual, [])
-        self.assertEqual(step.tries, 2)   # failed once, recovered on the second, third never spent
+        self.assertEqual(step.tries[0], 2)   # failed once, recovered on the second, third never spent
 
     def test_exhausted_coroutine_attempts_propagate(self):
         step = _AsyncFlaky(failures=5)
         with self.assertRaises(RuntimeError):
             Reconciler((step,), Kahn(), executor=Async(), retry=Retry(2)).converge()
-        self.assertEqual(step.tries, 2)
+        self.assertEqual(step.tries[0], 2)
 
     def test_a_backoff_paces_the_attempts_on_the_event_loop(self):
         backoff = _Recording()

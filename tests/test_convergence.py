@@ -11,25 +11,25 @@ class ConvergenceTests(unittest.TestCase):
         """Clears one unit of drift per apply(), needs `passes` applies to reach desired state."""
 
         def __init__(self, passes: int):
-            self.remaining = passes
+            self.remaining = [passes]
 
         def assess(self) -> list:
-            return Assessment(deviation=[] if self.remaining == 0 else [DriftItem("staged", f"{self.remaining} left")])
+            return Assessment(deviation=[] if self.remaining[0] == 0 else [DriftItem("staged", f"{self.remaining[0]} left")])
 
         def apply(self) -> None:
-            if self.remaining:
-                self.remaining -= 1
+            if self.remaining[0]:
+                self.remaining[0] -= 1
 
     def test_once_is_the_default_single_pass(self):
         step = self.Staged(3)
         residual = Reconciler((step,)).converge()    # one apply only
-        self.assertEqual(step.remaining, 2)
+        self.assertEqual(step.remaining[0], 2)
         self.assertEqual(len(residual), 1)
 
     def test_fixpoint_loops_until_clean(self):
         step = self.Staged(3)
         residual = Reconciler((step,), convergence=Fixpoint()).converge()
-        self.assertEqual(step.remaining, 0)
+        self.assertEqual(step.remaining[0], 0)
         self.assertEqual(residual, [])
 
     def test_applied_accumulates_across_fixpoint_passes(self):
@@ -37,15 +37,15 @@ class ConvergenceTests(unittest.TestCase):
         # over the cycle closure), and a settled apply() that returns None adds nothing - so no overcount.
         class StagedRecording(Step):
             def __init__(self, passes):
-                self.__remaining = passes
+                self.__remaining = [passes]
 
             def assess(self) -> list:
-                return Assessment(deviation=[] if self.__remaining == 0 else [DriftItem("staged", "more to do")])
+                return Assessment(deviation=[] if self.__remaining[0] == 0 else [DriftItem("staged", "more to do")])
 
             def apply(self):
-                if self.__remaining == 0:
+                if self.__remaining[0] == 0:
                     return None
-                self.__remaining -= 1
+                self.__remaining[0] -= 1
                 return [DriftItem("staged", "did a pass")]
 
         result = Reconciler((StagedRecording(2),), convergence=Fixpoint()).converge()

@@ -131,12 +131,12 @@ class QuorumTests(unittest.TestCase):
 
         class Watching(Cancellation):
             def __init__(self, name, fires):
-                self.__name = name
-                self.__fires = fires
+                self.__name = [name]
+                self.__fires = [fires]
 
             def cancelled(self) -> bool:
-                polled.append(self.__name)
-                return self.__fires
+                polled.append(self.__name[0])
+                return self.__fires[0]
 
         self.assertTrue(Quorum(Watching("a", True), Watching("b", True)).cancelled())
         self.assertEqual(polled, ["a"])   # b never polled - short-circuited on a

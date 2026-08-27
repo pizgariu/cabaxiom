@@ -64,15 +64,15 @@ class ConvergeTests(unittest.TestCase):
         # A write-oriented step reports its change from apply(). It lands on applied, NOT the residual.
         class Writer(Step):
             def __init__(self):
-                self.__written = False
+                self.__written = [False]
 
             def assess(self) -> list:
-                return Assessment(deviation=[] if self.__written else [DriftItem("thing.conf", "out of date")])
+                return Assessment(deviation=[] if self.__written[0] else [DriftItem("thing.conf", "out of date")])
 
             def apply(self):
-                if self.__written:
+                if self.__written[0]:
                     return None
-                self.__written = True
+                self.__written[0] = True
                 return [DriftItem("thing.conf", "rewrote /etc/thing.conf")]
 
         result = Reconciler((Writer(),)).converge()
@@ -91,15 +91,15 @@ class ConvergeTests(unittest.TestCase):
         # real invariant keeps drift() total (return Drift, never raise).
         class Fragile(Step):
             def __init__(self):
-                self.touched = False
+                self.touched = [False]
 
             def assess(self) -> list:
-                if self.touched:
+                if self.touched[0]:
                     raise RuntimeError("probe broke after apply")
                 return Assessment(deviation=[DriftItem("f", "needs fix")])
 
             def apply(self):
-                self.touched = True
+                self.touched[0] = True
                 return [DriftItem("f", "fixed it")]
 
         with self.assertRaises(RuntimeError):
@@ -122,14 +122,14 @@ class ControllerTests(unittest.TestCase):
         """Reaches desired state only after `passes` converge() calls - external drift settling in time."""
 
         def __init__(self, passes: int = 3):
-            self.n = 0
+            self.n = [0]
             self.passes = passes
 
         def apply(self) -> None:
-            self.n += 1
+            self.n[0] += 1
 
         def assess(self) -> list:
-            return Assessment(deviation=[] if self.n >= self.passes else [DriftItem("w", f"{self.n}/{self.passes}")])
+            return Assessment(deviation=[] if self.n[0] >= self.passes else [DriftItem("w", f"{self.n[0]}/{self.passes}")])
 
     def test_controller_is_composition_not_inheritance(self):
         self.assertFalse(issubclass(Controller, Reconciler))

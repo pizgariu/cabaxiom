@@ -1,11 +1,31 @@
 """Step - one reconciliation concern that owns its desired state, with read/apply/prune hooks."""
-from abc import ABC
-from typing import final
+from abc import ABC, ABCMeta
+from typing import Any, final
 
+from ._compat import override
 from .drift import Assessment, Changes, Drift, DriftItem, Outcome
 
 
-class Step(ABC):
+class _Sealed(ABCMeta):
+    """The freeze's clock. Construction runs whole, THEN the instance seals - one object.__setattr__ in
+    the metaclass's __call__, after the outermost __init__ has returned.
+
+    A metaclass rather than an __init__ wrapper, and the clock is the whole reason. A wrapper installed
+    per subclass seals at the WRONG level: a derived __init__ calling super().__init__() would be sealed
+    by the super call and crash on its own next assignment, so it would need a re-entrancy flag to find
+    the outermost frame. __call__ IS the outermost frame. A wrapper would also occupy
+    cls.__dict__["__init__"] at class-definition time, which makes a later @dataclass decorator skip
+    generating its own - so a dataclass Step with a constructor field would crash on object.__init__
+    instead of taking its argument. The metaclass touches no __init__ at all."""
+
+    @override
+    def __call__(cls, *args: Any, **kwargs: Any) -> Any:
+        instance = super().__call__(*args, **kwargs)
+        object.__setattr__(instance, "_Step__frozen", True)
+        return instance
+
+
+class Step(ABC, metaclass=_Sealed):
     """One reconciliation concern that owns its desired state.
 
     drift() and apply() default to no-ops (not abstract), so a probe-only step
@@ -14,8 +34,31 @@ class Step(ABC):
     caller-side Step subclass.
     """
 
+    # The declaration slots a caller may still set on a constructed step. `after` is configuration the
+    # run reads once before anything executes, so setting it late changes the plan and never the state
+    # a pass carries into the next one.
+    _SLOTS = frozenset({"after"})
+
     # Step classes (not instances) that must converge before this one. Reconciler orders on it.
     after: tuple[type["Step"], ...] = ()
+
+    def __setattr__(self, key: str, value: Any) -> None:
+        # The freeze's teeth. Construction assigns freely, the metaclass seals the instance the moment it
+        # ends, and after that only a declaration slot may still be set - anything else is refused with
+        # the reason and the sanctioned channel.
+        #
+        # A STEP IS A DECLARATION, NOT A SESSION. What a step IS was decided when it was written, so two
+        # passes over one step must read the same declaration. State accumulating on self between passes
+        # is the hidden-state class of bug this kernel refuses everywhere else, and it is also what stops
+        # a step being handed to a worker that does not share this process.
+        if getattr(self, "_Step__frozen", False) and key not in Step._SLOTS:
+            raise TypeError(
+                f"{type(self).__name__} is frozen. A step is a declaration, and mutating one after "
+                f"construction is how state hides between passes. A declaration slot "
+                f"({', '.join(sorted(Step._SLOTS))}) stays settable. For anything else, keep the value in "
+                f"__init__ or hand it back from the hook that computed it."
+            )
+        super().__setattr__(key, value)
 
     @staticmethod
     def named(step: "Step") -> str:

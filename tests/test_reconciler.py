@@ -86,7 +86,7 @@ class ConvergeTests(unittest.TestCase):
         self.assertEqual(result.applied, [])
 
     def test_a_raising_drift_during_the_reprobe_propagates_and_loses_applied(self):
-        # Contract pin: the reads have no OnError policy, so a drift() that raises during converge's
+        # Contract pin. The reads have no OnError policy, so a drift() that raises during converge's
         # re-probe propagates - and the applied record is lost with the exception. A step guarding a
         # real invariant keeps drift() total (return Drift, never raise).
         class Fragile(Step):

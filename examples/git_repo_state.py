@@ -10,11 +10,11 @@ through plain subprocess calls:
                  must point at a commit)
 
 The `after` edges form the chain GitConfig -> InitialCommit -> LocalBranch. The steps are
-handed to the Reconciler in a scrambled order on purpose, and the default Kahn ordering
+handed to the Reconciler in a scrambled order on purpose, so the default Kahn ordering
 resolves them back into a runnable sequence.
 
 Every step's drift() is a genuine read of the repository and every apply() is a genuine
-mutation. converge() applies the plan and then RE-PROBES: the residual it returns is the
+mutation. converge() applies the plan and then RE-PROBES. The residual it returns is the
 proof. An empty residual means the repository now matches the desired state, verified by
 reading it back, not merely assumed because apply() did not raise.
 
@@ -22,7 +22,7 @@ Run it:
 
     python examples/git_repo_state.py
 
-Expected stdout: the plan lists every pending change (the three config keys, the missing
+Expected stdout - the plan lists every pending change (the three config keys, the missing
 initial commit and the missing branch), the first converge reports what it changed and
 returns an empty residual, a second converge is a clean no-op (idempotent), and
 a direct git inspection confirms the config, the commit and the branch are all in place. The
@@ -160,7 +160,7 @@ def main() -> None:
             "commit.gpgsign": "false",
         }
 
-        # Handed in scrambled: branch before commit before config. Kahn resolves the after
+        # Handed in scrambled - branch before commit before config. Kahn resolves the after
         # edges, so the reconciler still runs config -> commit -> branch.
         steps = [
             LocalBranch(repo, branch_name),

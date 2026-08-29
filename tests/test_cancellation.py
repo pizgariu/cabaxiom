@@ -26,7 +26,7 @@ from support import A, B, Boom, C
 
 
 class CancellationTests(unittest.TestCase):
-    """The injected Cancellation: the executor checks it before each step (Serial) or level (Parallel)
+    """The injected Cancellation. The dispatcher checks it before each step (Serial) or level (Parallel)
     and raises Cancelled. The default never cancels, so an un-configured Reconciler is unaffected."""
 
     class _CancelAfter(Cancellation):
@@ -53,7 +53,7 @@ class CancellationTests(unittest.TestCase):
     def test_cancellation_aborts_parallel_before_a_level(self):
         log = []
         with self.assertRaises(Cancelled):
-            Reconciler((C(log), A(log), B(log)), Kahn(), executor=Parallel(),
+            Reconciler((C(log), A(log), B(log)), Kahn(), dispatcher=Parallel(),
                        cancellation=self._CancelAfter(1)).converge()
         self.assertEqual(log, ["A"])   # level A ran, checked before level B, raised
 
@@ -84,7 +84,7 @@ class CancellationTests(unittest.TestCase):
         self.assertEqual(log, [])
 
     def test_cancelled_names_the_cancellation_that_fired(self):
-        # The executor knows WHICH cancellation it consulted - the exception says so, for any consumer
+        # The dispatcher knows WHICH cancellation it consulted - the exception says so, for any consumer
         # that lets it reach a traceback or a log.
         flag = Flag()
         flag.cancel()
@@ -186,7 +186,7 @@ class CombinatorTests(unittest.TestCase):
 
 
 class StepRaisedAbortTests(unittest.TestCase):
-    """A step that raises Cancelled itself aborts the run, on every executor, under either error policy.
+    """A step that raises Cancelled itself aborts the run, on every dispatcher, under either error policy.
 
     An abort is a DECISION and a failure is an accident, so BestEffort must never collect one as the other.
     Before this the thread pool and the event loop both took a step-raised abort through their ordinary
@@ -203,21 +203,21 @@ class StepRaisedAbortTests(unittest.TestCase):
 
     def test_serial_lets_a_step_raised_abort_through_best_effort(self):
         with self.assertRaises(Cancelled):
-            Reconciler((self.Aborting(),), executor=Serial(OnError.BestEffort)).converge()
+            Reconciler((self.Aborting(),), dispatcher=Serial(OnError.BestEffort)).converge()
 
     def test_parallel_lets_a_step_raised_abort_through_best_effort(self):
         with self.assertRaises(Cancelled):
-            with Parallel(OnError.BestEffort) as executor:
-                Reconciler((self.Aborting(),), executor=executor).converge()
+            with Parallel(OnError.BestEffort) as dispatcher:
+                Reconciler((self.Aborting(),), dispatcher=dispatcher).converge()
 
     def test_pipeline_lets_a_step_raised_abort_through_best_effort(self):
         with self.assertRaises(Cancelled):
-            with Pipeline(OnError.BestEffort) as executor:
-                Reconciler((self.Aborting(),), Components(), executor=executor).converge()
+            with Pipeline(OnError.BestEffort) as dispatcher:
+                Reconciler((self.Aborting(),), Components(), dispatcher=dispatcher).converge()
 
     def test_the_async_executor_lets_a_step_raised_abort_through_best_effort(self):
         with self.assertRaises(Cancelled):
-            Reconciler((self.AsyncAborting(),), executor=Async(OnError.BestEffort)).converge()
+            Reconciler((self.AsyncAborting(),), dispatcher=Async(OnError.BestEffort)).converge()
 
     def test_a_greedy_except_clause_can_no_longer_eat_an_abort(self):
         # The whole reason Cancelled is a BaseException. A domain hook guarding its own I/O writes
@@ -234,11 +234,11 @@ class StepRaisedAbortTests(unittest.TestCase):
                 return None
 
         with self.assertRaises(Cancelled):
-            Reconciler((Greedy(),), executor=Serial(OnError.BestEffort)).converge()
+            Reconciler((Greedy(),), dispatcher=Serial(OnError.BestEffort)).converge()
         self.assertEqual(Greedy.seen, [], "the abort was caught by an ordinary except clause")
 
     def test_a_real_failure_is_still_collected_under_best_effort(self):
         # The other half, so the cut-through is not just "everything raises now". An ordinary exception
         # still lands in the residual rather than aborting the run.
-        residual = Reconciler((Boom(),), executor=Serial(OnError.BestEffort)).converge()
+        residual = Reconciler((Boom(),), dispatcher=Serial(OnError.BestEffort)).converge()
         self.assertTrue(any("step failed" in item.message for item in residual))

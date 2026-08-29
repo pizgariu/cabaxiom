@@ -1,4 +1,4 @@
-"""Scope: which of the handed steps take part in a run, everything by default, or Only / Skip by step type."""
+"""Scope - which of the handed steps take part in a run. Everything by default or Only / Skip by step type."""
 from typing import final
 
 from ._compat import override
@@ -18,7 +18,7 @@ class Scope:
 
 
 class _Named(Scope):
-    # Shared plumbing for the scopes that name step types: the selection cannot be empty, and every
+    # Shared plumbing for the scopes that name step types. The selection cannot be empty and every
     # named type must match a step actually handed in, so a typo fails loudly at construction
     # instead of silently converging a smaller world than asked for.
     def __init__(self, *step_types: type[Step]):
@@ -40,7 +40,7 @@ class _Named(Scope):
 class Only(_Named):
     """Keep the named step types plus the transitive dependencies of each, in the handed order.
 
-    A targeted run must stay a correct run: a target converging before its prerequisites would
+    A targeted run must stay a correct run. A target converging before its prerequisites would
     trust state nobody put there. So Only grows its selection along Step.after until it closes,
     the way a targeted apply pulls in what its target depends on."""
 
@@ -64,7 +64,7 @@ class Only(_Named):
 class Skip(_Named):
     """Drop exactly the named step types and keep everything else, with no cascade.
 
-    A dependent of a skipped step still runs: `after` orders the steps present, it does not demand
+    A dependent of a skipped step still runs. `after` orders the steps present, it does not demand
     their presence (the kernel already ignores an after-edge to an absent type), so skipping a
     prerequisite means trusting the world already satisfies it, which is precisely what the caller
     asked for."""

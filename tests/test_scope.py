@@ -1,4 +1,4 @@
-"""Scope: which of the handed steps take part, Only with its dependency closure, Skip without cascade."""
+"""Scope - which of the handed steps take part, Only with its dependency closure, Skip without cascade."""
 import unittest
 
 from cabaxiom import Assessment, DriftItem, Only, Reconciler, Scope, Skip, Step
@@ -12,7 +12,7 @@ class ScopeTests(unittest.TestCase):
         self.assertEqual(log, ["A", "B", "C"])
 
     def test_only_pulls_in_the_transitive_dependencies_of_its_target(self):
-        # C alone is named, yet its whole prerequisite chain comes along: a target converging
+        # C alone is named, yet its whole prerequisite chain comes along, since a target converging
         # before its prerequisites would trust state nobody put there.
         log = []
         Reconciler((C(log), A(log), B(log)), scope=Only(C)).converge()
@@ -30,7 +30,7 @@ class ScopeTests(unittest.TestCase):
         self.assertEqual(log, ["A", "B", "C"])
 
     def test_skip_drops_the_named_steps_and_does_not_cascade(self):
-        # C is after B, yet skipping B leaves C in: `after` orders the steps present, it does not
+        # C is after B, yet skipping B leaves C in. `after` orders the steps present, it does not
         # demand their presence, so a skipped prerequisite is trusted, not propagated.
         log = []
         Reconciler((A(log), B(log), C(log)), scope=Skip(B)).converge()
@@ -62,7 +62,7 @@ class ScopeTests(unittest.TestCase):
                     scope_type()
 
     def test_a_named_type_with_no_step_in_the_run_is_rejected(self):
-        # Strict on purpose: the typo fails loudly instead of silently converging a smaller world.
+        # Strict on purpose. The typo fails loudly instead of silently converging a smaller world.
         for scope_type in (Only, Skip):
             with self.subTest(scope=scope_type.__name__):
                 with self.assertRaises(ValueError) as ctx:

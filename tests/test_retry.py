@@ -1,4 +1,4 @@
-"""Retry guarding the write phase: per-step attempts, paced by a Backoff, spent before OnError."""
+"""Retry guarding the write phase - per-step attempts, paced by a Backoff, spent before OnError."""
 import asyncio
 import unittest
 
@@ -23,7 +23,7 @@ class _FlakyFix(Step):
 
 
 class _AsyncFlaky(Step):
-    # The coroutine twin of _FlakyFix: each attempt awaits, then fails or settles.
+    # The coroutine twin of _FlakyFix. Each attempt awaits, then fails or settles.
     def __init__(self, failures: int):
         self.__failures = failures
         self.tries = [0]
@@ -65,7 +65,7 @@ class RetryTests(unittest.TestCase):
 
     def test_an_exhausted_failure_reaches_best_effort_as_one_residual_entry(self):
         step = _FlakyFix(failures=5)
-        residual = Reconciler((step,), executor=Serial(OnError.BestEffort), retry=Retry(2)).converge()
+        residual = Reconciler((step,), dispatcher=Serial(OnError.BestEffort), retry=Retry(2)).converge()
         self.assertEqual(step.tries[0], 2)
         self.assertEqual(sum("step failed" in item.message for item in residual), 1)
 
@@ -121,8 +121,8 @@ class RetryTests(unittest.TestCase):
     def test_retries_are_uniform_under_a_fanning_executor(self):
         # The retries live inside the write callable, so a pool worker retries its own step inline.
         step = _FlakyFix(failures=1)
-        with Parallel() as executor:
-            residual = Reconciler((step,), Kahn(), executor=executor, retry=Retry(3)).converge()
+        with Parallel() as dispatcher:
+            residual = Reconciler((step,), Kahn(), dispatcher=dispatcher, retry=Retry(3)).converge()
         self.assertEqual(residual, [])
         self.assertEqual(step.tries[0], 2)   # failed once, recovered on the second, third never spent
 
@@ -130,24 +130,24 @@ class RetryTests(unittest.TestCase):
 class AsyncRetryTests(unittest.TestCase):
     def test_a_flaky_coroutine_gets_a_fresh_attempt_on_the_loop(self):
         step = _AsyncFlaky(failures=2)
-        residual = Reconciler((step,), Kahn(), executor=Async(), retry=Retry(3)).converge()
+        residual = Reconciler((step,), Kahn(), dispatcher=Async(), retry=Retry(3)).converge()
         self.assertEqual(residual, [])
         self.assertEqual(step.tries[0], 3)
 
     def test_a_recovery_mid_attempts_stops_the_retrying(self):
         step = _AsyncFlaky(failures=1)
-        residual = Reconciler((step,), Kahn(), executor=Async(), retry=Retry(3)).converge()
+        residual = Reconciler((step,), Kahn(), dispatcher=Async(), retry=Retry(3)).converge()
         self.assertEqual(residual, [])
         self.assertEqual(step.tries[0], 2)   # failed once, recovered on the second, third never spent
 
     def test_exhausted_coroutine_attempts_propagate(self):
         step = _AsyncFlaky(failures=5)
         with self.assertRaises(RuntimeError):
-            Reconciler((step,), Kahn(), executor=Async(), retry=Retry(2)).converge()
+            Reconciler((step,), Kahn(), dispatcher=Async(), retry=Retry(2)).converge()
         self.assertEqual(step.tries[0], 2)
 
     def test_a_backoff_paces_the_attempts_on_the_event_loop(self):
         backoff = _Recording()
         step = _AsyncFlaky(failures=2)
-        Reconciler((step,), Kahn(), executor=Async(), retry=Retry(3, backoff=backoff)).converge()
+        Reconciler((step,), Kahn(), dispatcher=Async(), retry=Retry(3, backoff=backoff)).converge()
         self.assertEqual(backoff.stalls, [1, 2])

@@ -1,4 +1,4 @@
-"""Provision a small dependency graph with the Parallel executor and settle it with Fixpoint.
+"""Provision a small dependency graph with the Parallel dispatcher and settle it with Fixpoint.
 
 The graph models bringing up a tiny service stack:
 
@@ -15,8 +15,8 @@ Kahn resolves that into three waves:
 
 Two behaviours are on show at once:
 
-  Parallel executor  runs the steps inside a wave on a thread pool, with a barrier between
-                     waves so Network is fully up before Database and Cache start, and both of
+  Parallel dispatcher  runs the steps inside a wave on a thread pool, with a barrier between
+                     waves so Network is fully up before Database and Cache start, with both of
                      those are up before AppServers. The example records which worker thread
                      handled each resource to make the fan-out visible.
 
@@ -27,15 +27,15 @@ Two behaviours are on show at once:
                      re-probe comes back clean.
 
 An empty residual at the end is the proof the whole stack reached desired state, checked by
-re-probing, and `applied` is the running record of every change made across all passes.
+re-probing, while `applied` is the running record of every change made across all passes.
 
 Run it:
 
     python examples/parallel_fixpoint.py
 
-Expected stdout: the resolved waves, evidence that Database and Cache ran on pool worker
+Expected stdout - the resolved waves, evidence that Database and Cache ran on pool worker
 threads (not the main thread), a converge that took several Fixpoint passes with an empty
-residual, and a clean idempotent second converge.
+residual and a clean idempotent second converge.
 """
 
 import sys
@@ -77,7 +77,7 @@ class Cluster:
 
 
 class _Resource(Step):
-    """A single-shot resource: provisioned once, ready forever after."""
+    """A single-shot resource - provisioned once, ready forever after."""
 
     name = "?"
 
@@ -113,7 +113,7 @@ class Cache(_Resource):
 
 class AppServers(Step):
     """Brings up one replica per pass until it reaches the desired count. This is what makes
-    Fixpoint loop: a single apply() makes partial progress, so the re-probe stays dirty until
+    Fixpoint loop. A single apply() makes partial progress, so the re-probe stays dirty until
     enough passes have run."""
 
     after = (Database, Cache)
@@ -168,11 +168,11 @@ def main() -> None:
     # Parallel fans each wave across a thread pool. The context manager releases the pool's
     # worker threads when the block exits. Fixpoint loops apply -> re-probe until the residual
     # settles or the ceiling is hit.
-    with Parallel() as executor:
+    with Parallel() as dispatcher:
         reconciler = Reconciler(
             steps,
             Kahn(),
-            executor=executor,
+            dispatcher=dispatcher,
             convergence=Fixpoint(max_passes=10),
         )
 
@@ -181,7 +181,7 @@ def main() -> None:
             print(f"    - {item}")
         print()
 
-        print("Converge (Parallel executor, Fixpoint convergence):")
+        print("Converge (Parallel dispatcher, Fixpoint convergence):")
         report(reconciler.converge())
         print()
 

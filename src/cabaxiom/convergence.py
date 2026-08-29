@@ -1,4 +1,4 @@
-"""Convergence strategies for how many times to repeat apply -> re-probe: Once, Fixpoint, and the Backoff that paces Fixpoint's retries."""
+"""Convergence strategies for how many times to repeat apply -> re-probe. Once, Fixpoint and the Backoff that paces Fixpoint's retries."""
 import random
 import time
 from abc import ABC, abstractmethod
@@ -35,7 +35,7 @@ class Backoff(ABC):
     Fixpoint stops the moment a pass leaves the residual unchanged, reading it as settled or stuck.
     That is right for an in-process convergence, where re-probing at once cannot change the answer.
     It is wrong for a step whose drift clears only once some external state catches up (a rollout
-    finishing, a cache expiring, a queue draining): there the same drift now can be gone in a moment.
+    finishing, a cache expiring, a queue draining). There the same drift now can be gone in a moment.
     Hand Fixpoint a Backoff and an unchanged pass no longer ends the loop. Fixpoint waits, then
     retries, still bounded by max_passes, giving the world time to settle. Retry paces a single
     step's write attempts with the same vocabulary. delay() is the pure policy, the seconds to
@@ -89,7 +89,7 @@ class Exponential(Backoff):
 
 @final
 class Jitter(Backoff):
-    """Full jitter over a wrapped Backoff: each pause is a uniform random draw in [0, backoff.delay(n)].
+    """Full jitter over a wrapped Backoff. Each pause is a uniform random draw in [0, backoff.delay(n)].
 
     Retrying on a fixed schedule synchronises every client that stalled together, so they retry in lockstep
     and collide again, a thundering herd. Spreading each pause across [0, the underlying delay] scatters them,
@@ -110,14 +110,14 @@ class Jitter(Backoff):
 class Fixpoint(Convergence):
     """Repeat the apply -> re-probe cycle until the residual stops changing or max_passes is reached.
 
-    Some steps only reach desired state once an earlier step's apply() has made room: one pass
-    clears what it can, the next clears what the first unblocked, and so on. Settling is by value:
+    Some steps only reach desired state once an earlier step's apply() has made room. One pass
+    clears what it can, the next clears what the first unblocked and so on. Settling is by value.
     two residuals are equal when their (name, message) multisets match, so the loop stops as soon
-    as a pass changes nothing (converged clean, or genuinely stuck). max_passes is the hard ceiling
+    as a pass changes nothing (converged clean or genuinely stuck). max_passes is the hard ceiling
     that guarantees termination even when a step never settles.
 
     An optional backoff changes what an unchanged pass means. Without one it is terminal. With one
-    it becomes a paced retry: Fixpoint waits (growing the wait as stalls repeat) and re-probes again,
+    it becomes a paced retry. Fixpoint waits (growing the wait as stalls repeat) and re-probes again,
     up to max_passes, for drift that clears only once external state catches up. See Backoff.
     """
 
@@ -139,7 +139,7 @@ class Fixpoint(Convergence):
             if sorted((item.name, item.message) for item in residual) != previous:
                 stalled = 0   # progress this pass, so a later stall backs off from scratch
                 continue
-            # The pass changed nothing: settled or stuck. Terminal, unless a backoff turns it into a
+            # The pass changed nothing - settled or stuck. Terminal, unless a backoff turns it into a
             # paced retry for drift that is only waiting on external state to catch up.
             if self.__backoff is None:
                 break

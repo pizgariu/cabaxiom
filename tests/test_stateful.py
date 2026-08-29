@@ -1,4 +1,4 @@
-"""Stateful tests: across any interleaving of perturbation and reconcile, converge reaches a drift-free fixpoint and is idempotent."""
+"""Stateful tests - across any interleaving of perturbation and reconcile, converge reaches a drift-free fixpoint and is idempotent."""
 from hypothesis import HealthCheck, settings
 from hypothesis import strategies as st
 from hypothesis.stateful import RuleBasedStateMachine, precondition, rule

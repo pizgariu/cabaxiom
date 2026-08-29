@@ -1,4 +1,4 @@
-"""The Assessment: one read of the world in four named channels, frozen once it is minted."""
+"""The Assessment - one read of the world in four named channels, frozen once it is minted."""
 import unittest
 
 from cabaxiom import Assessment, DriftItem
@@ -7,7 +7,7 @@ from cabaxiom import Assessment, DriftItem
 class AssessmentTests(unittest.TestCase):
 
     def test_an_empty_reading_is_empty_on_every_channel(self):
-        # The default a step that overrides nothing answers with, and the shape "empty means verified"
+        # The default a step that overrides nothing answers with, where the shape "empty means verified"
         # rests on. All four, not just deviation, because a silent step advises nothing either.
         reading = Assessment()
         self.assertEqual((list(reading.deviation), list(reading.plan)), ([], []))

@@ -1,4 +1,4 @@
-"""Cancellation strategies for a cooperative run stop: Deadline, Flag, and a Quorum composite over Rules."""
+"""Cancellation strategies for a cooperative run stop. Deadline, Flag and a Quorum composite over Rules."""
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
@@ -11,13 +11,13 @@ class Cancelled(BaseException):
     """Raised when a Cancellation fires mid-run, aborting a converge or prune. Partial applies are
     idempotent, so re-running resumes from where it stopped. There is no rollback or snapshot machinery.
     For a domain whose apply() regenerates what prune() removes, an interrupted teardown has two clean
-    exits - re-run prune to finish it, or converge to restore.
+    exits - re-run prune to finish it or converge to restore.
 
-    A BaseException, on the KeyboardInterrupt and SystemExit precedent, and for the same reason those
-    two are. An abort is a DECISION somebody made about this run, not an accident inside it, and a
+    A BaseException, on the KeyboardInterrupt and SystemExit precedent, for the same reason those
+    two are. An abort is a DECISION somebody made about this run, not an accident inside it, so a
     domain hook that writes `except Exception` to guard its own I/O has said nothing whatsoever about
     whether it wants to keep converging a world that has been stopped. It used to be able to eat one
-    without noticing. Now it structurally cannot, and the executors' own attempt loops cannot either,
+    without noticing. Now it structurally cannot. The dispatchers' own attempt loops cannot either,
     which turned the abort cut-through from a branch every fan had to remember into a property of the
     type. The cost is that a caller who really wants to catch one has to name it, which is the correct
     price for a decision."""
@@ -31,7 +31,7 @@ class Cancelled(BaseException):
 
 
 class Cancellation:
-    # A cooperative stop for a long run. The Executor checks it before each step (Serial) or each level
+    # A cooperative stop for a long run. The Dispatcher checks it before each step (Serial) or each level
     # (Parallel) and raises Cancelled if it fires. The base never cancels.
     def cancelled(self) -> bool:
         return False
@@ -42,7 +42,7 @@ class Deadline(Cancellation):
     # Cancels once a wall-clock budget (seconds) elapses. The clock starts on the first check, so
     # construction-to-run latency is not counted against the budget.
     #
-    # ONE-SHOT, and worth knowing before you reuse one. The clock starts once and never restarts, so a
+    # ONE-SHOT, worth knowing before you reuse one. The clock starts once and never restarts, so a
     # Deadline handed to a loop that runs many passes cancels every pass after the first expiry rather
     # than budgeting each one. That is the honest reading of a deadline (a moment, not an allowance),
     # and a per-pass budget is a fresh Deadline per pass.
@@ -101,7 +101,7 @@ class Every(Rule):
 
 @final
 class Most(Rule):
-    # Cancel when MORE members fired than not: a strict majority, a tie does not cancel.
+    # Cancel when MORE members fired than not - a strict majority, a tie does not cancel.
     @override
     def __call__(self, fired: Iterable[bool]) -> bool:
         tally = list(fired)
@@ -109,7 +109,7 @@ class Most(Rule):
 
 
 class Quorum(Cancellation):
-    # A composite Cancellation that fires when an injected Rule is met across its members: Some (the
+    # A composite Cancellation that fires when an injected Rule is met across its members - Some (the
     # default), Every, Most. A Quorum is itself a Cancellation, so it nests. Members are polled lazily,
     # so Some stops at the first that fired. An empty Quorum is rejected because its answer would hinge
     # on the Rule's vacuous case (Every would fire on all([]) is True).

@@ -23,7 +23,7 @@ class TheReadHandsBackTests(unittest.TestCase):
                          [("Quiet", "config file is missing")])
 
     def test_a_drift_of_your_own_passes_through_untouched(self):
-        # A subject that is not this step keeps its own name, and a domain's richer carrier stays
+        # A subject that is not this step keeps its own name, while a domain's richer carrier stays
         # first-class - the kernel reads two fields and never asks which class exposed them.
         mine = DriftItem("/etc/hosts", "unreadable")
         self.assertIs(list(Quiet().drifted(mine).deviation)[0], mine)
@@ -51,7 +51,7 @@ class TheWriteHandsBackTests(unittest.TestCase):
                          [("Quiet", "config file written")])
 
     def test_a_declaration_needs_no_carrier_imported_to_write_a_hook(self):
-        # The sell, and the reason these are methods rather than helpers beside the class. Nothing the
+        # The sell, plus the reason these are methods rather than helpers beside the class. Nothing the
         # domain writes below names Assessment or DriftItem. Reconciler and Step are the whole import.
         class Config(Step):
             def assess(self):

@@ -1,4 +1,4 @@
-"""Read and teardown step methods: plan, audit, footprint, and prune."""
+"""Read and teardown step methods. plan, audit, footprint and prune."""
 import unittest
 
 from cabaxiom import Assessment, DriftItem, OnError, Reconciler, Serial, Step
@@ -6,11 +6,11 @@ from support import A, Fixable, _RecStep
 
 
 class PlanTests(unittest.TestCase):
-    """plan() is the dry-run: a read-only preview of converge's work, carried on the Drift channel."""
+    """plan() is the dry-run - a read-only preview of converge's work, carried on the Drift channel."""
 
     def test_a_plan_is_now_stated_and_never_inherited(self):
         # THE deliberate break of this release. plan() used to default to drift(), so a step that never
-        # thought about its plan still had one, and nothing could tell that echo from an answer somebody
+        # thought about its plan still had one, so nothing could tell that echo from an answer somebody
         # meant. A step whose plan IS its deviation now says so, in one reading, on purpose.
         class Silent(Step):
             def assess(self) -> Assessment:
@@ -22,7 +22,7 @@ class PlanTests(unittest.TestCase):
                 return Assessment(deviation=found, plan=found)
 
         self.assertEqual(Reconciler((Silent(),)).plan(), [])          # never claimed a plan, so it has none
-        self.assertEqual(len(Reconciler((Stated(),)).plan()), 1)      # claimed one, and it is its deviation
+        self.assertEqual(len(Reconciler((Stated(),)).plan()), 1)      # claimed one, its own deviation
 
     def test_plan_does_not_mutate(self):
         class Fixable(Step):
@@ -45,7 +45,7 @@ class PlanTests(unittest.TestCase):
         class Rewrite(Step):
             def assess(self) -> Assessment:
                 # Both channels, from ONE read. The deviation is what is wrong and the plan is what a
-                # converge would do about it, and they are different sentences for a step that rewrites.
+                # converge would do about it, which are different sentences for a step that rewrites.
                 return Assessment(deviation=[DriftItem("cfg", "content differs")],
                                   plan=[DriftItem("cfg", "would rewrite 3 lines")])
 
@@ -70,7 +70,7 @@ class PlanTests(unittest.TestCase):
     def test_report_only_step_can_plan_nothing(self):
         class ReportOnly(Step):
             def assess(self) -> Assessment:
-                # A report-only step: it says what is wrong and plans nothing, because its apply() is a
+                # A report-only step. It says what is wrong and plans nothing, because its apply() is a
                 # no-op. The empty plan is now DELIBERATE rather than inherited, which is the point of
                 # plan no longer defaulting to deviation.
                 return Assessment(deviation=[DriftItem("svc", "still wrong")])
@@ -81,7 +81,7 @@ class PlanTests(unittest.TestCase):
 
 
 class AuditTests(unittest.TestCase):
-    """audit() is the advisory read channel: findings about a system IN desired state that still
+    """audit() is the advisory read channel - findings about a system IN desired state that still
     deserve attention. Opt-in per step, flattened by the same read engine as drift and plan, and
     invisible to converge - advice never dirties the residual proof."""
 
@@ -110,7 +110,7 @@ class AuditTests(unittest.TestCase):
         self.assertEqual([item.name for item in rec.audit()], ["first", "second"])
 
     def test_converge_never_touches_audit_findings(self):
-        # An advising step in desired state: converge proves clean (empty residual, empty applied)
+        # An advising step in desired state. converge proves clean (empty residual, empty applied)
         # while the advice stays fully readable on its own channel.
         rec = Reconciler((self.Advising(),))
         result = rec.converge()
@@ -120,8 +120,8 @@ class AuditTests(unittest.TestCase):
 
 
 class FootprintTests(unittest.TestCase):
-    """footprint() is the teardown preview: what the steps own that exists right now, flattened in the
-    order prune() would tear it down. Opt-in per step (default []), read-only, and converge never
+    """footprint() is the teardown preview - what the steps own that exists right now, flattened in the
+    order prune() would tear it down. Opt-in per step (default []), read-only, so converge never
     consults it."""
 
     def test_footprint_defaults_to_nothing(self):
@@ -155,7 +155,7 @@ class FootprintTests(unittest.TestCase):
 
 
 class PruneTests(unittest.TestCase):
-    """prune() is the deletion half: Reconciler.prune() runs step.prune() in REVERSE resolved order."""
+    """prune() is the deletion half. Reconciler.prune() runs step.prune() in REVERSE resolved order."""
 
     def test_prune_runs_in_reverse_of_build_order(self):
         log = []
@@ -215,7 +215,7 @@ class PruneTests(unittest.TestCase):
             def prune(self) -> None:
                 log.append("ok")
 
-        failures = Reconciler((BoomPrune(), OkPrune()), executor=Serial(OnError.BestEffort)).prune()
+        failures = Reconciler((BoomPrune(), OkPrune()), dispatcher=Serial(OnError.BestEffort)).prune()
         self.assertEqual(log, ["ok"])
         self.assertEqual(len(failures), 1)
 
@@ -227,7 +227,7 @@ class PruneTests(unittest.TestCase):
         self.assertEqual(Reconciler((CreateOnly(),)).prune(), [])
 
     def test_prune_returns_the_residue_a_step_reports(self):
-        # Self-verification: prune() returns whatever a step says SURVIVED its teardown.
+        # Self-verification. prune() returns whatever a step says SURVIVED its teardown.
         class Stubborn(Step):
             def prune(self) -> list:
                 return [DriftItem("artifact", "survived teardown")]
@@ -253,7 +253,7 @@ class PruneTests(unittest.TestCase):
             def prune(self) -> list:
                 raise RuntimeError("rm failed")
 
-        residual = Reconciler((Survivor(), BoomPrune()), executor=Serial(OnError.BestEffort)).prune()
+        residual = Reconciler((Survivor(), BoomPrune()), dispatcher=Serial(OnError.BestEffort)).prune()
         names = {d.name for d in residual}
         self.assertIn("a", names)            # the soft residue
         self.assertIn("BoomPrune", names)

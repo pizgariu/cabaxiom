@@ -1,4 +1,4 @@
-"""Property-based tests: invariants of the algorithmic core hold across generated graphs, not just picked cases."""
+"""Property-based tests - invariants of the algorithmic core hold across generated graphs, not just picked cases."""
 import unittest
 
 from hypothesis import HealthCheck, given, settings
@@ -37,7 +37,7 @@ class OrderingProperties(unittest.TestCase):
     def test_kahn_applies_every_dependency_before_its_dependent(self, edges):
         # The core ordering invariant. Whatever the DAG, no step runs before something it declares in `after`.
         log: list[str] = []
-        Reconciler(_build(edges, log)).converge()   # Serial executor, Kahn ordering, both defaults
+        Reconciler(_build(edges, log)).converge()   # Serial dispatcher, Kahn ordering, both defaults
         position = {name: i for i, name in enumerate(log)}
         for index, deps in enumerate(edges):
             for dep in deps:
@@ -47,8 +47,8 @@ class OrderingProperties(unittest.TestCase):
     @given(dependency_graphs())
     def test_parallel_accepts_every_dag_kahn_resolves(self, edges):
         # Kahn's waves are always safe to fan out. For any DAG, arrange plus verify under Parallel never rejects.
-        with Parallel() as executor:
-            Reconciler(_build(edges, []), Kahn(), executor=executor)
+        with Parallel() as dispatcher:
+            Reconciler(_build(edges, []), Kahn(), dispatcher=dispatcher)
 
 
 class ConvergenceProperties(unittest.TestCase):

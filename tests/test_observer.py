@@ -1,4 +1,4 @@
-"""Observer hooks fired around each converge pass, and Chorus composition."""
+"""Observer hooks fired around each converge pass, plus Chorus composition."""
 import unittest
 
 from cabaxiom import Assessment, Chorus, DriftItem, Observer, Reconciler, Step

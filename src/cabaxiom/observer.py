@@ -1,4 +1,4 @@
-"""Observer: optional trace hooks fired around each converge pass, composed via Chorus."""
+"""Observer - optional trace hooks fired around each converge pass, composed via Chorus."""
 from typing import final
 
 from ._compat import override
@@ -9,7 +9,7 @@ class Observer:
     """Trace hooks the Reconciler fires around each converge pass. Subclass and override only the hooks
     you need, the rest stay no-ops, so a reconciler with the default observer behaves byte-for-byte as
     one with none. It is deliberately not abstract for that reason. Every hook runs on the calling thread
-    after the executor has collected its results, so an implementation never faces the worker threads.
+    after the dispatcher has collected its results, so an implementation never faces the worker threads.
     Trace what was acted on and what the world still shows, without instrumenting a single Step by hand.
     """
 

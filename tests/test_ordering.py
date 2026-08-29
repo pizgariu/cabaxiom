@@ -1,4 +1,4 @@
-"""Flat ordering strategies: Kahn, DFS, and Priority."""
+"""Flat ordering strategies. Kahn, DFS and Priority."""
 import random
 import unittest
 
@@ -77,7 +77,7 @@ class OrderingStrategyTests(unittest.TestCase):
                 self.assertEqual(log, ["B"])
 
     def test_both_keep_every_instance_of_a_class(self):
-        # Two A instances collapse to one graph node, but BOTH must come out, before B.
+        # Two A instances collapse to one graph node, yet BOTH must come out, before B.
         for ordering in self.STRATEGIES:
             with self.subTest(ordering=type(ordering).__name__):
                 log = []
@@ -106,8 +106,8 @@ class OrderingStrategyTests(unittest.TestCase):
         self.assertEqual(log, ["A", "B"])
 
     def test_base_chains_falls_back_to_one_chain_of_the_flat_order(self):
-        # An Ordering that does not override chains() inherits the base fallback: ONE chain equal to its flat
-        # order, the sentinel a pipelining executor rejects since it runs nothing concurrently. Kahn overrides
+        # An Ordering that does not override chains() inherits the base fallback - ONE chain equal to its flat
+        # order, the sentinel a pipelining dispatcher rejects since it runs nothing concurrently. Kahn overrides
         # levels() but not chains(), so it lands on the fallback here.
         chains = Kahn().chains((C([]), A([]), B([])))
         [chain] = chains   # exactly one chain of everything
@@ -115,7 +115,7 @@ class OrderingStrategyTests(unittest.TestCase):
 
 
 class OrderingContractTests(unittest.TestCase):
-    """The ordering contract proven over RANDOMIZED DAGs, for both strategies at once: the resolved order
+    """The ordering contract proven over RANDOMIZED DAGs, for both strategies at once. The resolved order
     honours after=, Kahn's waves pass verify, flattening the waves equals the flat order, and
     a planted cycle raises ValueError. Seeded, so any failure reproduces byte-for-byte."""
 
@@ -147,7 +147,7 @@ class OrderingContractTests(unittest.TestCase):
                             self.assertLess(position[dependency], position[type(step)])
 
     def test_levels_inverse_reverses_waves_and_their_contents(self):
-        # The exact inverse of build order, owned by the Levels type: both the wave order and the steps
+        # The exact inverse of build order, owned by the Levels type. Both the wave order and the steps
         # within each wave flip, so a flat one-wave order inverts too (the DFS case).
         self.assertEqual(Levels((("a", "b"), ("c",))).inverse(), (("c",), ("b", "a")))
         self.assertEqual(Levels((("a", "b", "c"),)).inverse(), (("c", "b", "a"),))   # flat one-wave
@@ -159,7 +159,7 @@ class OrderingContractTests(unittest.TestCase):
             steps = tuple(cls() for cls in supplied)
             kahn = Kahn()
             levels = Levels(kahn.levels(steps))
-            levels.verify()   # raises on any mis-split - the fanning executor's own guard
+            levels.verify()   # raises on any mis-split - the fanning dispatcher's own guard
             flattened = tuple(step for level in levels for step in level)
             self.assertEqual(flattened, kahn(steps))
 
@@ -180,7 +180,7 @@ class OrderingContractTests(unittest.TestCase):
 
 
 class PriorityOrderingTests(unittest.TestCase):
-    """Priority - the best-first Ordering: the ready frontier is a priority queue, so among independent
+    """Priority - the best-first Ordering. The ready frontier is a priority queue, so among independent
     steps the smallest key wins, a canonical order independent of how the steps were supplied."""
 
     def test_orders_independent_steps_by_key_default_class_name(self):
@@ -189,7 +189,7 @@ class PriorityOrderingTests(unittest.TestCase):
         self.assertEqual([type(step).__name__ for step in order], ["X", "Y", "Z"])
 
     def test_after_dominates_the_key(self):
-        # C -> B -> A: the key cannot pull a dependency ahead of the thing that depends on it.
+        # C -> B -> A. The key cannot pull a dependency ahead of the thing that depends on it.
         order = Priority()((C([]), A([]), B([])))
         self.assertEqual([type(step).__name__ for step in order], ["A", "B", "C"])
 
@@ -203,9 +203,9 @@ class PriorityOrderingTests(unittest.TestCase):
         self.assertEqual([type(step).__name__ for step in order], ["A", "A", "B"])
 
     def test_is_flat_only_and_rejected_by_a_fanning_executor(self):
-        # Best-first is a total order, so it does not override levels() - a fanning executor refuses it.
+        # Best-first is a total order, so it does not override levels() - a fanning dispatcher refuses it.
         with self.assertRaises(ValueError) as ctx:
-            Reconciler((A([]), B([])), Priority(), executor=Parallel())
+            Reconciler((A([]), B([])), Priority(), dispatcher=Parallel())
         self.assertIn("Kahn", str(ctx.exception))
 
     def test_raises_valueerror_naming_a_cycle(self):
@@ -223,5 +223,5 @@ class PriorityOrderingTests(unittest.TestCase):
 
     def test_converges_through_serial_in_priority_order(self):
         log = []
-        Reconciler((Z(log), X(log), Y(log)), Priority(), executor=Serial()).converge()
+        Reconciler((Z(log), X(log), Y(log)), Priority(), dispatcher=Serial()).converge()
         self.assertEqual(log, ["X", "Y", "Z"])

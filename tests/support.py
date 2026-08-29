@@ -3,7 +3,7 @@ from cabaxiom import Assessment, DriftItem, Step
 
 class _RecStep(Step):
     """A step that records its apply() call into a shared log, for ordering assertions. Distinct
-    subclasses (A, B, …) are needed because `after` refers to step CLASSES, and the topo-sort keys on
+    subclasses (A, B, …) are needed because `after` refers to step CLASSES, while the topo-sort keys on
     type(step) - two instances of one class would collapse to a single node."""
 
     def __init__(self, log: list):
@@ -38,7 +38,7 @@ class Z(_RecStep):
 
 
 class ReportOnly(Step):
-    """A step the reconciler cannot satisfy on its own: drift never clears, apply stays the no-op."""
+    """A step the reconciler cannot satisfy on its own. drift never clears, apply stays the no-op."""
 
     def assess(self) -> list:
         return Assessment(deviation=[DriftItem("svc", "still wrong")])

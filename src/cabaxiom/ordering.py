@@ -1,4 +1,4 @@
-"""Ordering strategies - sequence Steps by Step.after: Kahn (readiness waves), DFS (depth-first flat), Priority (best-first flat), Components (independent chains)."""
+"""Ordering strategies - sequence Steps by Step.after. Kahn (readiness waves), DFS (depth-first flat), Priority (best-first flat), Components (independent chains)."""
 import heapq
 from abc import ABC, abstractmethod
 from collections import defaultdict
@@ -13,21 +13,21 @@ from .step import Step
 class Ordering(ABC):
     # Strategy interface for sequencing steps. A Reconciler is handed ONE Ordering and uses it to turn the
     # supplied steps into a run order that honours Step.after, so the algorithm can be swapped without
-    # touching converge logic. Contract for every implementation: scope after= to the supplied set, key the
-    # graph by class (every instance of a class comes out, in supplied order), and raise ValueError on a
+    # touching converge logic. Contract for every implementation - scope after= to the supplied set, key the
+    # graph by class (every instance of a class comes out, in supplied order) and raise ValueError on a
     # cycle or unsatisfiable order.
     @abstractmethod
     def __call__(self, steps: tuple[Step, ...]) -> tuple[Step, ...]:
         ...
 
     def levels(self, steps: tuple[Step, ...]) -> tuple[tuple[Step, ...], ...]:
-        # Topological LEVELS: each inner tuple is a wave of mutually-independent steps, waves in dependency
+        # Topological LEVELS. Each inner tuple is a wave of mutually-independent steps, waves in dependency
         # order. Default is ONE wave equal to the flat __call__ order. A level-capable ordering overrides.
         return (self(steps),)
 
     def chains(self, steps: tuple[Step, ...]) -> tuple[tuple[Step, ...], ...]:
-        # Topological CHAINS: dual of levels(). Each inner tuple is one chain run in series, the chains
-        # mutually independent so a pipelining executor runs them concurrently. Default is ONE chain of the
+        # Topological CHAINS, the dual of levels(). Each inner tuple is one chain run in series, the chains
+        # mutually independent so a pipelining dispatcher runs them concurrently. Default is ONE chain of the
         # whole flat order, the sentinel a pipelining Reconciler rejects since it runs nothing concurrently.
         # A chain-capable ordering overrides.
         return (self(steps),)
@@ -35,19 +35,19 @@ class Ordering(ABC):
 
 @final
 class Kahn(Ordering):
-    """Default Ordering: topological sort over Step.after via stdlib graphlib.TopologicalSorter (Kahn)."""
+    """Default Ordering - topological sort over Step.after via stdlib graphlib.TopologicalSorter (Kahn)."""
 
     @staticmethod
     def __graph(steps: tuple[Step, ...]) -> "tuple[defaultdict[type[Step], list[Step]], TopologicalSorter[type[Step]]]":
         # The return annotation is QUOTED because graphlib.TopologicalSorter only became subscriptable in
-        # 3.11, and a signature is evaluated when the def runs. Unquoted, this one line stopped the whole
+        # 3.11, while a signature is evaluated when the def runs. Unquoted, this one line stopped the whole
         # package from importing on 3.10, which pyproject declares as supported.
         # Two invariants the sorter needs help with:
-        #   1. SCOPE EDGES to the supplied set: a dep naming a step outside the handed-in tuple is dropped,
+        #   1. SCOPE EDGES to the supplied set. A dep naming a step outside the handed-in tuple is dropped,
         #      so a caller may hand in a filtered subset without the sorter materialising a phantom node.
-        #   2. KEY NODES BY CLASS: after= names classes and the sorter keys by ==/hash, so run the graph
+        #   2. KEY NODES BY CLASS. after= names classes and the sorter keys by ==/hash, so run the graph
         #      over type(step) and keep a class -> instances map. Two instances of one class collapse to one
-        #      node, but each node maps back to every instance in supplied order, so nothing is dropped.
+        #      node, yet each node maps back to every instance in supplied order, so nothing is dropped.
         present = {type(step) for step in steps}
         instances_of = defaultdict(list)  # class -> [instances], keeps supplied order, never drops a dupe
         for step in steps:
@@ -89,7 +89,7 @@ class Kahn(Ordering):
 
 @final
 class DFS(Ordering):
-    """Swap-in alternative to Kahn: same result contract, a different (still valid) order on branching
+    """Swap-in alternative to Kahn - same result contract, a different (still valid) order on branching
     graphs. Recurses into a node's deps and emits post-order, one chain to the bottom before siblings, so it
     agrees with Kahn on a linear chain but differs on a diamond. Recursive (a deep after= chain leans on the
     call stack) and catches a cycle by hitting a node already on the recursion path."""
@@ -121,16 +121,16 @@ class DFS(Ordering):
 
 
 def _by_class_name(step_class: type) -> str:
-    # Default Priority key: lexicographic by class name, a canonical order independent of input.
+    # Default Priority key - lexicographic by class name, a canonical order independent of input.
     return step_class.__name__
 
 
 @final
 class Priority(Ordering):
-    """Best-first Ordering: the ready set is a PRIORITY QUEUE, so at each step the ready class with the
-    smallest key is emitted next. The key maps a Step class to a sort key and is injected: the default is
-    the class name (reproducible output independent of input), or pass a domain priority to run more
-    important ready steps first. Flat-only like DFS, so it pairs with Serial, not a fanning executor."""
+    """Best-first Ordering. The ready set is a PRIORITY QUEUE, so at each step the ready class with the
+    smallest key is emitted next. The key maps a Step class to a sort key and is injected. The default is
+    the class name (reproducible output independent of input) or pass a domain priority to run more
+    important ready steps first. Flat-only like DFS, so it pairs with Serial, not a fanning dispatcher."""
 
     def __init__(self, key: Callable[[type], object] | None = None):
         # Resolved via None so no shared default leaks across instances. The key sees the Step CLASS, never
@@ -139,7 +139,7 @@ class Priority(Ordering):
 
     @override
     def __call__(self, steps: tuple[Step, ...]) -> tuple[Step, ...]:
-        # Kahn with a PRIORITY-QUEUE frontier (heapq): pop the ready class with the smallest key, emit it,
+        # Kahn with a PRIORITY-QUEUE frontier (heapq). Pop the ready class with the smallest key, emit it,
         # unlock its dependents, repeat. Keyed by CLASS, every instance out in supplied order. The heap tuple
         # carries an integer tiebreak so equal keys keep first-ready order and the class is never compared.
         # RAISE ValueError on a cycle, naming the stuck steps.
@@ -172,13 +172,13 @@ class Priority(Ordering):
 
 @final
 class Components(Ordering):
-    """Chain-capable Ordering for a pipelining executor: partitions the steps into weakly-connected
+    """Chain-capable Ordering for a pipelining dispatcher. It partitions the steps into weakly-connected
     components (maximal groups with no Step.after edge crossing between them), each component internally in
     Kahn topological order. The components share no edge so they are mutually independent, letting a Pipeline
     run each as its own serial chain with all chains concurrent. The flat __call__ concatenates the
     components into a valid topological order.
 
-    Weakly-connected components, not a minimum path cover: path-cover chains still share edges (a diamond's
+    Weakly-connected components, not a minimum path cover. Path-cover chains still share edges (a diamond's
     two sides both depend on the fork and feed the join), so running them concurrently would ignore those
     edges. A component is the largest group genuinely independent of every other."""
 

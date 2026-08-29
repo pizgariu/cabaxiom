@@ -78,8 +78,8 @@ class TheClockTests(unittest.TestCase):
             Configured("/etc/app.conf").path = "/tmp/other"
 
     def test_a_derived_init_calling_super_is_not_sealed_by_the_super_call(self):
-        # The failure a per-subclass wrapper has without a re-entrancy flag: super().__init__() returns,
-        # the wrapper seals, and the derived __init__ crashes on its very next line. __call__ is the
+        # The failure a per-subclass wrapper has without a re-entrancy flag. super().__init__() returns,
+        # the wrapper seals, so the derived __init__ crashes on its very next line. __call__ is the
         # outermost frame, so there is no inner frame to seal at.
         class Base(Step):
             def __init__(self):

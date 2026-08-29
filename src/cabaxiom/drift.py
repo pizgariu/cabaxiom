@@ -8,7 +8,7 @@ from typing import Protocol, final
 class Drift(Protocol):
     # One thing found out of desired state. These two fields are the entire contract a drift exposes,
     # so any domain item satisfies the kernel just by structurally exposing them. Richer payload stays
-    # private to the domain item. Read by duck typing, never isinstance-tested: the Protocol names the
+    # private to the domain item. Read by duck typing, never isinstance-tested. The Protocol names the
     # boundary, it does not gate at runtime.
     name: str     # the subject that drifted (a config file, an env var, a service)
     message: str  # human-readable one-liner: what is wrong
@@ -39,7 +39,7 @@ class Assessment:
     reading.
 
     The four channels keep four meanings apart instead of blurring them into one list. `deviation` is what
-    is out of desired state, and an empty one is the whole proof a run offers. `plan` is what a converge
+    is out of desired state, where an empty one is the whole proof a run offers. `plan` is what a converge
     WOULD do. `advisory` is what deserves attention in a system that already MEETS desired state, which is
     exactly why it is not deviation - advice must never dirty a proof. `footprint` is what this step owns,
     read in teardown order.
@@ -54,12 +54,12 @@ class Assessment:
     footprint: Sequence[Drift] = ()
 
 
-# What a WRITE hands back: what it changed, or None for a clean no-op. A Sequence and deliberately not a
+# What a WRITE hands back. What it changed or None for a clean no-op. A Sequence and deliberately not a
 # list, because list is INVARIANT - a domain writing the obviously correct `def apply(self) -> list[MyDrift]`
 # was a mypy --strict error on an override, since list[MyDrift] is not a list[Drift]. Sequence is covariant
 # and read-only, so it takes the domain's own list without the domain knowing why it now type-checks.
 Changes = Sequence[Drift] | None
 
 # The same, admitting a coroutine, so `async def apply()` is a legal typed override rather than a special
-# case the executor has to be told about.
+# case the dispatcher has to be told about.
 Outcome = Changes | Awaitable[Changes]

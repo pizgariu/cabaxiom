@@ -1,4 +1,4 @@
-"""Backoff pacing for Fixpoint: Fixed and Exponential turn a stalled pass into a paced retry."""
+"""Backoff pacing for Fixpoint. Fixed and Exponential turn a stalled pass into a paced retry."""
 import random
 import unittest
 from unittest.mock import patch
@@ -8,7 +8,7 @@ from cabaxiom import Assessment, Backoff, DriftItem, Exponential, Fixed, Fixpoin
 
 class _ClearsAfter(Step):
     # Reports the same drift until drift() has been probed `stalls` times, then clears. Models a step
-    # waiting on external state: apply() does nothing new, the world settles on its own after a while.
+    # waiting on external state. apply() does nothing new, the world settles on its own after a while.
     def __init__(self, stalls: int):
         self.__stalls = stalls
         self.__probes = [0]
@@ -100,7 +100,7 @@ class JitterTests(unittest.TestCase):
             self.assertLessEqual(drawn, inner.delay(stall))   # never exceeds the wrapped policy's ceiling
 
     def test_jitter_is_deterministic_under_a_seeded_rng(self):
-        # Same seed, same draw: a test (or a reproducible run) can pin the jitter.
+        # Same seed, same draw, so a test (or a reproducible run) can pin the jitter.
         first = Jitter(Fixed(1.0), rng=random.Random(7)).delay(1)
         second = Jitter(Fixed(1.0), rng=random.Random(7)).delay(1)
         self.assertEqual(first, second)

@@ -1,4 +1,4 @@
-"""DriftItem value object: name and message access, repr, slots guard, and str form."""
+"""DriftItem value object - name and message access, repr, slots guard and str form."""
 import unittest
 
 from cabaxiom import DriftItem

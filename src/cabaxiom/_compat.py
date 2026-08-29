@@ -1,4 +1,4 @@
-"""Compatibility shims kept dependency-free: `override` from the standard library on 3.12+, a transparent no-op below it."""
+"""Compatibility shims kept dependency-free. `override` from the standard library on 3.12+, a transparent no-op below it."""
 import sys
 from collections.abc import Callable
 from typing import TypeVar

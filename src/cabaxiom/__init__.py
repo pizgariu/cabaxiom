@@ -1,15 +1,15 @@
-"""A domain-agnostic reconciliation kernel: Steps own desired state, a Reconciler resolves their
+"""A domain-agnostic reconciliation kernel. Steps own desired state, a Reconciler resolves their
 order and converges actual -> desired, self-verifying by re-probing for residual drift.
 
 No domain vocabulary lives here. A drift item is read ONLY through the Drift protocol's two
 fields (name + message). Everything richer is the domain's own payload. Two reusable behaviours
-live here once and are inherited by every caller: sequencing steps by Step.after (dependencies
+live here once and are inherited by every caller - sequencing steps by Step.after (dependencies
 declared explicitly, resolved by a pluggable Ordering strategy, graphlib Kahn by default), and
 the self-verifying converge (apply -> re-probe -> residual).
 
-The re-probe is only as strong as a step's drift(): a step that mutates but reports no drift is
+The re-probe is only as strong as a step's drift(). A step that mutates but reports no drift is
 trusted to have worked, not verified, so a step guarding a real invariant must expose it through
-drift(). That limit also decides what belongs here: a domain whose state cannot be probed
+drift(). That limit also decides what belongs here. A domain whose state cannot be probed
 completely and cheaply enough for skip-when-clean to stay correct is no fit, however much it
 resembles desired-state work.
 """
@@ -29,8 +29,8 @@ from .cancellation import (
     Some,
 )
 from .convergence import Backoff, Convergence, Exponential, Fixed, Fixpoint, Jitter, Once
+from .dispatcher import Async, Dispatcher, OnError, Parallel, Pipeline, Serial
 from .drift import Assessment, Changes, Drift, DriftItem, Outcome
-from .executor import Async, Executor, OnError, Parallel, Pipeline, Serial
 from .observer import Chorus, Observer
 from .ordering import DFS, Components, Kahn, Ordering, Priority
 from .partition import Chains, Levels, Partition, Placement
@@ -44,7 +44,7 @@ __all__ = [
     "Scope", "Only", "Skip",
     "Ordering", "Kahn", "DFS", "Priority", "Components",
     "Placement", "Partition", "Levels", "Chains",
-    "OnError", "Executor", "Serial", "Parallel", "Pipeline", "Async",
+    "OnError", "Dispatcher", "Serial", "Parallel", "Pipeline", "Async",
     "Cancelled", "Cancellation", "Deadline", "Flag", "Rule", "Some", "Every", "Most", "Quorum", "AnyOf", "AllOf", "Majority",
     "Convergence", "Once", "Fixpoint", "Backoff", "Fixed", "Exponential", "Jitter",
     "Retry",

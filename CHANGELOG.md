@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Cabaxiom are recorded here. This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html). What reconciliation is, and why this kernel exists, lives in the [README](README.md).
+All notable changes to Cabaxiom are recorded here. This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html). What reconciliation is and why this kernel exists, lives in the [README](README.md).
 
 Every release is a pre-release on the road to the 1.0.0 freeze.
 
@@ -10,11 +10,11 @@ Nothing yet.
 
 ## [0.3.1] - 2026-08-17
 
-**0.3.0 did not import on Python 3.10, and its coverage gate could not pass on 3.10 or 3.11. Both are fixed here and nothing else changed.**
+**0.3.0 did not import on Python 3.10 and its coverage gate could not pass on 3.10 or 3.11. Both are fixed here and nothing else changed.**
 
 ### Fixed
-- **`import cabaxiom` raised `TypeError` on Python 3.10.** Not a degraded feature, the package did not load at all, on a version `requires-python` declares and the classifiers list. `Kahn`'s private graph builder names a `TopologicalSorter` in its return annotation, and `graphlib.TopologicalSorter` only gained `__class_getitem__` in 3.11 - a signature is evaluated when its `def` runs, so importing the module ran that subscript and it raised. The annotation is quoted, which is never evaluated. `tests/test_python_floor.py` walks every signature in the package for a subscript the declared floor cannot take, so the next one is caught before a release rather than after.
-- **The coverage gate could not reach 100% on 3.10 or 3.11.** `_compat.py` picks `typing.override` on 3.12 and up and defines a no-op below it. Exactly one branch runs on any interpreter, and the `# pragma: no cover` sat on only one of them, so the other was uncovered wherever it was not taken. Both sides carry it now.
+- **`import cabaxiom` raised `TypeError` on Python 3.10.** Not a degraded feature, the package did not load at all, on a version `requires-python` declares and the classifiers list. `Kahn`'s private graph builder names a `TopologicalSorter` in its return annotation and `graphlib.TopologicalSorter` only gained `__class_getitem__` in 3.11 - a signature is evaluated when its `def` runs, so importing the module ran that subscript and it raised. The annotation is quoted, which is never evaluated. `tests/test_python_floor.py` walks every signature in the package for a subscript the declared floor cannot take, so the next one is caught before a release rather than after.
+- **The coverage gate could not reach 100% on 3.10 or 3.11.** `_compat.py` picks `typing.override` on 3.12 and up and defines a no-op below it. Exactly one branch runs on any interpreter and the `# pragma: no cover` sat on only one of them, so the other was uncovered wherever it was not taken. Both sides carry it now.
 
 ### BC break
 Nothing. 0.3.1 is 0.3.0 with two defects removed.
@@ -22,7 +22,7 @@ Nothing. 0.3.1 is 0.3.0 with two defects removed.
 ## [0.3.0] - 2026-08-13
 
 ### Added
-- **The full test pyramid.** Property-based tests with Hypothesis pin the invariants across the whole input space. Kahn orders every dependency before its dependent, Parallel accepts every wave Kahn resolves, and Fixpoint always terminates. A stateful state machine drives arbitrary perturb-and-reconcile interleavings, `mutmut` hunts lines the tests cover without pinning their behaviour, and example smoke tests keep the documented runs from rotting.
+- **The full test pyramid.** Property-based tests with Hypothesis pin the invariants across the whole input space. Kahn orders every dependency before its dependent, Parallel accepts every wave Kahn resolves and Fixpoint always terminates. A stateful state machine drives arbitrary perturb-and-reconcile interleavings, `mutmut` hunts lines the tests cover without pinning their behaviour and example smoke tests keep the documented runs from rotting.
 - **A strict type gate and a sealed hierarchy.** The kernel type-checks under `mypy --strict` in CI. Every concrete class is `@final` with `@override` on every override, which keeps the pluggable seams exactly the abstract bases and stops a renamed base method from leaving an override dangling.
 - **Run introspection.** `Reconciler.explain()` answers an `Explanation` of the groups the executor walks in run order, plus the `after` edges behind that order. It reads off the same resolved partition every verb uses and re-resolves nothing, which makes it a view of the actual run rather than a second opinion about it.
 - **`Jitter` backoff.** A full-jitter decorator over any `Backoff`, spreading each pause across the range up to the wrapped delay. The standard defence against a thundering herd of clients retrying in lockstep.
@@ -30,16 +30,16 @@ Nothing. 0.3.1 is 0.3.0 with two defects removed.
 ## [0.2.0] - 2026-08-08
 
 ### Breaking
-- **Renamed to `cabaxiom`.** The distribution, the import and the package directory. CABAL, the artificial intelligence of Command and Conquer Tiberian Sun, plus axiom. A thing that holds a world to a declaration and does not negotiate about it. Import `cabaxiom`, not `state_reconciler`. The rename lands here rather than later because its cost grows with every release, and 1.0.0 has to signal stability rather than churn. The public surface is untouched, all 45 names included. The import line is the only edit a consumer makes. The 0.1.x releases stay published under the old name.
+- **Renamed to `cabaxiom`.** The distribution, the import and the package directory. CABAL, the artificial intelligence of Command and Conquer Tiberian Sun, plus axiom. A thing that holds a world to a declaration and does not negotiate about it. Import `cabaxiom`, not `state_reconciler`. The rename lands here rather than later because its cost grows with every release and 1.0.0 has to signal stability rather than churn. The public surface is untouched, all 45 names included. The import line is the only edit a consumer makes. The 0.1.x releases stay published under the old name.
 
 ### Added
 - **Scope.** Choose which of the handed steps take part in a run, resolved once so every verb sees the same set. `Only(TypeA, ...)` keeps its targets plus everything they transitively depend on. A targeted run never converges against state nobody put there. `Skip(TypeB, ...)` drops the named types and keeps the rest. Both fail loudly on a named type that no step in the run carries. That catches a typo instead of quietly reconciling a smaller world.
-- **Retry and backoff.** Every `apply()` and `prune()` is guarded by an injected `Retry`. A transient failure is retried inside the executor's own unit of work, and only a failure that outlives every attempt reaches the error policy. An optional `Backoff` paces the attempts, `Fixed` holding a constant delay and `Exponential` doubling up to a cap. The same backoff turns an unchanged `Fixpoint` pass into a paced retry. Drift that waits on external state gets the time to settle. `Retry(1)` is the neutral, zero-cost guard.
+- **Retry and backoff.** Every `apply()` and `prune()` is guarded by an injected `Retry`. A transient failure is retried inside the executor's own unit of work and only a failure that outlives every attempt reaches the error policy. An optional `Backoff` paces the attempts, `Fixed` holding a constant delay and `Exponential` doubling up to a cap. The same backoff turns an unchanged `Fixpoint` pass into a paced retry. Drift that waits on external state gets the time to settle. `Retry(1)` is the neutral, zero-cost guard.
 - **The async executor.** Fans each dependency wave onto an asyncio event loop instead of a thread pool, the cooperative dual of `Parallel`, for steps whose `apply()` is a coroutine that closes its gap over I/O. It awaits a wave concurrently and bars between waves. Every `after` edge still holds.
 - **Observer.** Trace hooks fired around each converge pass (`began`, `acted`, `remained`). A run's changes and what the world still shows can be followed without instrumenting a Step by hand. Silent by default. Compose several with `Chorus`, which is itself an `Observer` and nests.
 
 ### Fixed
-- **The source distribution ships an explicit file list.** The wheel already named what it packed, the sdist did not. A build inherited whatever the builder's working tree happened to hold, and the artifact differed from machine to machine. It now names src, tests, examples and the metadata files. What ships is the same whoever builds it.
+- **The source distribution ships an explicit file list.** The wheel already named what it packed, the sdist did not. A build inherited whatever the builder's working tree happened to hold and the artifact differed from machine to machine. It now names src, tests, examples and the metadata files. What ships is the same whoever builds it.
 - **A read-engine helper stopped being a staticmethod.** `__probe` took the groups and the read callable but never `self`. It was marked static and then reached through the class. One word removed, one indirection gone.
 
 ## [0.1.6] - 2026-07-21
@@ -60,7 +60,7 @@ Nothing. 0.3.1 is 0.3.0 with two defects removed.
 ## [0.1.3] - 2026-07-18
 
 ### Added
-- **README.** The full documentation: the reconciliation principle, the building blocks, the pluggable behaviour axes, and the runnable examples walked through end to end.
+- **README.** The full documentation - the reconciliation principle, the building blocks, the pluggable behaviour axes and the runnable examples walked through end to end.
 
 ## [0.1.2] - 2026-07-18
 
@@ -77,13 +77,13 @@ Nothing. 0.3.1 is 0.3.0 with two defects removed.
 ### Added
 
 - **Reconciliation kernel.** A domain-agnostic engine with zero dependencies. Steps own the desired state. A Reconciler resolves their order, converges actual toward desired, then self-verifies by re-probing for any drift that survived. The kernel carries no domain vocabulary. It reads a drift item only through the two fields of the `Drift` protocol, its `name` and its `message`.
-- **Drift surface.** The `Drift` protocol as the single interface the kernel reads drift through, and `DriftItem` as the concrete carrier of a name and a message.
-- **Step surface.** `Step`, the unit of desired state, with an `after` class attribute that declares dependencies on other step types. A step reports through `drift()`, `plan()`, `audit()`, `footprint()` and `prune()`, and closes gaps through `apply()`.
-- **Reconciler and Controller.** `Reconciler` wires steps to an ordering, an executor, a convergence policy, and a cancellation source. It exposes `drift()`, `plan()`, `audit()`, `footprint()`, `prune()` and `converge()`. `converge()` returns a `Residual`, the drift that outlived the pass, with the applied changes carried on a separate channel. An empty residual means the state was verified clean. `Controller` drives one convergence per tick, with `run()` for a lazy stream of residuals and `settle()` to stop on the first clean pass.
+- **Drift surface.** The `Drift` protocol as the single interface the kernel reads drift through and `DriftItem` as the concrete carrier of a name and a message.
+- **Step surface.** `Step`, the unit of desired state, with an `after` class attribute that declares dependencies on other step types. A step reports through `drift()`, `plan()`, `audit()`, `footprint()` and `prune()` and closes gaps through `apply()`.
+- **Reconciler and Controller.** `Reconciler` wires steps to an ordering, an executor, a convergence policy and a cancellation source. It exposes `drift()`, `plan()`, `audit()`, `footprint()`, `prune()` and `converge()`. `converge()` returns a `Residual`, the drift that outlived the pass, with the applied changes carried on a separate channel. An empty residual means the state was verified clean. `Controller` drives one convergence per tick, with `run()` for a lazy stream of residuals and `settle()` to stop on the first clean pass.
 - **Ordering strategies.** Run order is resolved from the `after` dependency graph. `Kahn` is the default and sorts into dependency waves. For a flat post-order, use `DFS`. `Priority` walks a best-first frontier over a caller-supplied key. `Components` splits the graph into independent chains.
 - **Executors.** `Serial` runs one step at a time and is the default. `Parallel` fans each dependency wave across a thread pool. `Pipeline` runs independent chains concurrently. Both concurrent executors are context managers that release their pool on exit. An `OnError` policy chooses between `FailFast` and `BestEffort`.
 - **Convergence policies.** `Once` runs a single apply-then-probe pass and is the default. `Fixpoint` repeats the loop until the residual stops changing or a pass ceiling is reached.
-- **Cancellation.** Cooperative abort between steps through the `Cancellation` base, a wall-clock `Deadline`, a manual `Flag`, and the composites `AnyOf`, `AllOf` and `Majority` that nest into a tree, or a `Quorum` under a custom `Some`, `Every` or `Most` rule. `Cancelled` is raised when a run is aborted.
+- **Cancellation.** Cooperative abort between steps through the `Cancellation` base, a wall-clock `Deadline`, a manual `Flag` and the composites `AnyOf`, `AllOf` and `Majority` that nest into a tree or a `Quorum` under a custom `Some`, `Every` or `Most` rule. `Cancelled` is raised when a run is aborted.
 
 ## Roadmap
 

@@ -5,7 +5,7 @@ from cabaxiom import Assessment, DriftItem, Fixpoint, Reconciler, Step
 
 
 class ConvergenceTests(unittest.TestCase):
-    """The injected Convergence: Once (default, single pass) vs Fixpoint (loop to a fixed point)."""
+    """The injected Convergence - Once (default, single pass) vs Fixpoint (loop to a fixed point)."""
 
     class Staged(Step):
         """Clears one unit of drift per apply(), needs `passes` applies to reach desired state."""
@@ -34,7 +34,7 @@ class ConvergenceTests(unittest.TestCase):
 
     def test_applied_accumulates_across_fixpoint_passes(self):
         # The applied channel carries EVERY productive pass, not just the last (the accumulator is closed
-        # over the cycle closure), and a settled apply() that returns None adds nothing - so no overcount.
+        # over the cycle closure), while a settled apply() that returns None adds nothing - so no overcount.
         class StagedRecording(Step):
             def __init__(self, passes):
                 self.__remaining = [passes]

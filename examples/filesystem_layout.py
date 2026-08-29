@@ -1,4 +1,4 @@
-"""Bring a directory tree to a desired layout: the right directories, the right files, the right content.
+"""Bring a directory tree to a desired layout - the right directories, the right files, the right content.
 
 Two Step kinds model an on-disk scaffold:
 
@@ -8,20 +8,20 @@ Two Step kinds model an on-disk scaffold:
 TextFile declares `after = (Directory,)`. Because after edges are keyed by CLASS, that one
 line means every directory is created before any file is written, no matter what order the
 steps are supplied in. The files deliberately do NOT create their own parent directories, so
-the dependency is load-bearing: without it, a file could be written before its directory
+the dependency is load-bearing. Without it, a file could be written before its directory
 exists.
 
-drift() reads the filesystem (missing directory, missing file, or wrong content) and apply()
+drift() reads the filesystem (missing directory, missing file or wrong content) and apply()
 writes it. converge() re-probes afterward, so an empty residual is a checked fact.
 
-The example also shows self-healing: after the tree converges, it tampers with one file on
+The example also shows self-healing. After the tree converges, it tampers with one file on
 disk, then converges again. drift() catches the changed content and apply() rewrites it.
 
 Run it:
 
     python examples/filesystem_layout.py
 
-Expected stdout: an initial plan listing the missing directories and files, a first converge
+Expected stdout - an initial plan listing the missing directories and files, a first converge
 that creates them and returns an empty residual, a clean second converge, then a tamper step
 that reintroduces exactly one drift which the next converge repairs. The whole tree is built
 under a temp directory and removed at the end.
@@ -76,7 +76,7 @@ class TextFile(Step):
     def apply(self) -> list[DriftItem] | None:
         if not self.drift():
             return None
-        # No parents=True on purpose: the Directory step must have run first.
+        # No parents=True on purpose. The Directory step must have run first.
         self.path.write_text(self.content, encoding="utf-8")
         return [DriftItem(str(self.path), "wrote desired content")]
 

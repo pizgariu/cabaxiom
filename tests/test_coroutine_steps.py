@@ -1,12 +1,16 @@
-"""Async dispatcher - fan each wave onto an asyncio event loop, awaiting coroutine steps concurrently."""
+"""A step whose write is a coroutine, on the one engine there is.
+
+These used to be the Async executor's tests. There is no Async executor now - the kernel is async native,
+so a coroutine apply() needs no special dispatcher and these cases belong to whichever dispatcher is
+driving. They are kept because the SHAPE they exercise is still real, not because the executor was."""
 import asyncio
 import unittest
 
-from cabaxiom import DFS, Assessment, Async, Cancelled, DriftItem, Flag, Kahn, OnError, Reconciler, Step
+from cabaxiom import DFS, Assessment, Cancelled, DriftItem, Flag, Kahn, OnError, Parallel, Reconciler, Step
 
 
 class _AsyncFix(Step):
-    # Async write, sync re-probe. apply() awaits its I/O, drift() is the quick read every dispatcher runs serially.
+    # Parallel write, sync re-probe. apply() awaits its I/O, drift() is the quick read every dispatcher runs serially.
     def __init__(self) -> None:
         self.__done = [False]
 
@@ -20,18 +24,18 @@ class _AsyncFix(Step):
 
 class AsyncTests(unittest.TestCase):
     def test_converge_awaits_a_coroutine_apply_and_clears_the_drift(self):
-        residual = Reconciler((_AsyncFix(),), Kahn(), dispatcher=Async()).converge()
+        residual = asyncio.run(Reconciler((_AsyncFix(),), Kahn(), dispatcher=Parallel()).converge())
         self.assertEqual(residual, [])
 
     def test_a_sync_apply_still_runs_inline_under_async(self):
-        # A plain (non-coroutine) apply() is used as-is, so a sync step drops into Async unchanged.
+        # A plain (non-coroutine) apply() is used as-is, so a sync step drops into Parallel unchanged.
         log = []
 
         class _SyncStep(Step):
             def apply(self) -> None:
                 log.append("ran")
 
-        Reconciler((_SyncStep(),), Kahn(), dispatcher=Async()).converge()
+        asyncio.run(Reconciler((_SyncStep(),), Kahn(), dispatcher=Parallel()).converge())
         self.assertEqual(log, ["ran"])
 
     def test_a_wave_of_coroutines_runs_concurrently(self):
@@ -51,7 +55,7 @@ class AsyncTests(unittest.TestCase):
         class Q(_Interleaving):
             pass
 
-        Reconciler((P(), Q()), Kahn(), dispatcher=Async()).converge()
+        asyncio.run(Reconciler((P(), Q()), Kahn(), dispatcher=Parallel()).converge())
         starts = {log.index("P-start"), log.index("Q-start")}
         ends = {log.index("P-end"), log.index("Q-end")}
         self.assertLess(max(starts), min(ends))   # both started before either finished -> concurrent
@@ -72,7 +76,7 @@ class AsyncTests(unittest.TestCase):
                 await asyncio.sleep(0)
                 log.append("second")
 
-        Reconciler((Second(), First()), Kahn(), dispatcher=Async()).converge()
+        asyncio.run(Reconciler((Second(), First()), Kahn(), dispatcher=Parallel()).converge())
         self.assertEqual(log, ["first", "second"])
 
     def test_failfast_reraises_a_coroutine_failure_on_the_calling_thread(self):
@@ -82,7 +86,7 @@ class AsyncTests(unittest.TestCase):
                 raise RuntimeError("async io failure")
 
         with self.assertRaises(RuntimeError):
-            Reconciler((_AsyncBoom(),), Kahn(), dispatcher=Async()).converge()
+            asyncio.run(Reconciler((_AsyncBoom(),), Kahn(), dispatcher=Parallel()).converge())
 
     def test_best_effort_collects_a_coroutine_failure_as_residual_drift(self):
         class _AsyncBoom(Step):
@@ -90,7 +94,7 @@ class AsyncTests(unittest.TestCase):
                 await asyncio.sleep(0)
                 raise RuntimeError("async io failure")
 
-        residual = Reconciler((_AsyncBoom(),), Kahn(), dispatcher=Async(OnError.BestEffort)).converge()
+        residual = asyncio.run(Reconciler((_AsyncBoom(),), Kahn(), dispatcher=Parallel(OnError.BestEffort)).converge())
         self.assertEqual(len(residual), 1)
         self.assertIn("step failed", residual[0].message)
 
@@ -100,19 +104,19 @@ class AsyncTests(unittest.TestCase):
                 await asyncio.sleep(0)
                 return [DriftItem("svc", "created")]
 
-        residual = Reconciler((_Creates(),), Kahn(), dispatcher=Async()).converge()
+        residual = asyncio.run(Reconciler((_Creates(),), Kahn(), dispatcher=Parallel()).converge())
         self.assertEqual(residual, [])
         self.assertEqual([item.message for item in residual.applied], ["created"])
 
     def test_a_flat_only_ordering_is_rejected_at_build(self):
-        # DFS yields only the one-wave fallback, which fanned out would ignore after=, so Async refuses it.
+        # DFS yields only the one-wave fallback, which fanned out would ignore after=, so Parallel refuses it.
         with self.assertRaises(ValueError) as ctx:
-            Reconciler((_AsyncFix(),), DFS(), dispatcher=Async())
-        self.assertIn("Async", str(ctx.exception))
+            Reconciler((_AsyncFix(),), DFS(), dispatcher=Parallel())
+        self.assertIn("Parallel", str(ctx.exception))
 
     def test_cancellation_aborts_before_a_wave(self):
         flag = Flag()
         flag.cancel()
         with self.assertRaises(Cancelled) as ctx:
-            Reconciler((_AsyncFix(),), Kahn(), dispatcher=Async(), cancellation=flag).converge()
+            asyncio.run(Reconciler((_AsyncFix(),), Kahn(), dispatcher=Parallel(), cancellation=flag).converge())
         self.assertIn("Flag", str(ctx.exception))

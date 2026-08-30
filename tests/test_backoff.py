@@ -1,4 +1,5 @@
 """Backoff pacing for Fixpoint. Fixed and Exponential turn a stalled pass into a paced retry."""
+import asyncio
 import random
 import unittest
 from unittest.mock import patch
@@ -34,13 +35,13 @@ class _Recording(Backoff):
 class BackoffTests(unittest.TestCase):
     def test_backoff_turns_a_stalled_pass_into_a_paced_retry(self):
         backoff = _Recording()
-        residual = Reconciler((_ClearsAfter(3),), convergence=Fixpoint(backoff=backoff)).converge()
+        residual = asyncio.run(Reconciler((_ClearsAfter(3),), convergence=Fixpoint(backoff=backoff)).converge())
         self.assertEqual(residual, [])              # cleared once the retries gave it time
         self.assertEqual(backoff.waits, [1, 2])     # two consecutive stalls, each paced in turn
 
     def test_without_a_backoff_the_same_stall_is_terminal(self):
         # The identical step, with no backoff, stops at the first unchanged pass instead of waiting.
-        residual = Reconciler((_ClearsAfter(3),), convergence=Fixpoint()).converge()
+        residual = asyncio.run(Reconciler((_ClearsAfter(3),), convergence=Fixpoint()).converge())
         self.assertEqual(len(residual), 1)
 
     def test_progress_resets_the_stall_streak(self):
@@ -60,22 +61,25 @@ class BackoffTests(unittest.TestCase):
                 return None
 
         backoff = _Recording()
-        Reconciler((_TwoStalls(),), convergence=Fixpoint(backoff=backoff)).converge()
+        asyncio.run(Reconciler((_TwoStalls(),), convergence=Fixpoint(backoff=backoff)).converge())
         self.assertEqual(backoff.waits, [1, 1])   # each stall episode restarts at 1, proving the reset
 
     def test_fixed_waits_a_constant_duration(self):
+        # delay() is pure and wait() awaits the loop's own sleep off it, so the DELAY is what a test has
+        # business asserting. Patching the sleep would be asserting that asyncio works.
         backoff = Fixed(2.5)
-        with patch("cabaxiom.convergence.time.sleep") as slept:
-            backoff.wait(1)
-            backoff.wait(6)
-        self.assertEqual([call.args[0] for call in slept.call_args_list], [2.5, 2.5])
+        self.assertEqual([backoff.delay(1), backoff.delay(6)], [2.5, 2.5])
 
     def test_exponential_doubles_each_stall_then_holds_at_the_cap(self):
         backoff = Exponential(base=1, cap=8)
-        with patch("cabaxiom.convergence.time.sleep") as slept:
-            for stall in range(1, 6):
-                backoff.wait(stall)
-        self.assertEqual([call.args[0] for call in slept.call_args_list], [1, 2, 4, 8, 8])
+        self.assertEqual([backoff.delay(stall) for stall in range(1, 6)], [1, 2, 4, 8, 8])
+
+    def test_a_pause_is_awaited_on_the_loop_and_never_blocks_it(self):
+        # The whole reason the pacing moved off time.sleep. A blocking sleep inside a fanned wave stops
+        # every coroutine sharing that loop, not just the one being paced.
+        with patch("cabaxiom.convergence.asyncio.sleep") as slept:
+            asyncio.run(Fixed(2.5).wait(1))
+        self.assertEqual([call.args[0] for call in slept.call_args_list], [2.5])
 
     def test_fixed_rejects_a_negative_delay(self):
         with self.assertRaises(ValueError):

@@ -26,7 +26,7 @@ that creates them and returns an empty residual, a clean second converge, then a
 that reintroduces exactly one drift which the next converge repairs. The whole tree is built
 under a temp directory and removed at the end.
 """
-
+import asyncio
 import shutil
 import sys
 import tempfile
@@ -118,11 +118,11 @@ def main() -> None:
         print()
 
         print("First converge:")
-        report(reconciler.converge())
+        report(asyncio.run(reconciler.converge()))
         print()
 
         print("Second converge (should be a clean no-op):")
-        report(reconciler.converge())
+        report(asyncio.run(reconciler.converge()))
         print()
 
         print("Tampering: overwrite config/app.toml with the wrong content")
@@ -134,7 +134,7 @@ def main() -> None:
         print()
 
         print("Converge again to self-heal:")
-        report(reconciler.converge())
+        report(asyncio.run(reconciler.converge()))
         print()
 
         print(f"Final config/app.toml content:\n{app_toml.read_text(encoding='utf-8')}")

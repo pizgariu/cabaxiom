@@ -1,4 +1,6 @@
 """Stateful tests - across any interleaving of perturbation and reconcile, converge reaches a drift-free fixpoint and is idempotent."""
+import asyncio
+
 from hypothesis import HealthCheck, settings
 from hypothesis import strategies as st
 from hypothesis.stateful import RuleBasedStateMachine, precondition, rule
@@ -46,11 +48,11 @@ class ReconcilerMachine(RuleBasedStateMachine):
     @rule()
     def reconcile(self):
         steps = tuple(self._steps.values())
-        Reconciler(steps, convergence=Fixpoint()).converge()
+        asyncio.run(Reconciler(steps, convergence=Fixpoint()).converge())
         for step in steps:
             assert list(step.assess().deviation) == [], "converge left a managed key off desired"
         settled = dict(self._world)
-        Reconciler(steps, convergence=Fixpoint()).converge()
+        asyncio.run(Reconciler(steps, convergence=Fixpoint()).converge())
         assert self._world == settled, "a second converge changed a settled world"
 
 

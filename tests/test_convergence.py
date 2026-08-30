@@ -1,4 +1,5 @@
 """Once single pass versus Fixpoint loop-to-settle."""
+import asyncio
 import unittest
 
 from cabaxiom import Assessment, DriftItem, Fixpoint, Reconciler, Step
@@ -22,13 +23,13 @@ class ConvergenceTests(unittest.TestCase):
 
     def test_once_is_the_default_single_pass(self):
         step = self.Staged(3)
-        residual = Reconciler((step,)).converge()    # one apply only
+        residual = asyncio.run(Reconciler((step,)).converge())    # one apply only
         self.assertEqual(step.remaining[0], 2)
         self.assertEqual(len(residual), 1)
 
     def test_fixpoint_loops_until_clean(self):
         step = self.Staged(3)
-        residual = Reconciler((step,), convergence=Fixpoint()).converge()
+        residual = asyncio.run(Reconciler((step,), convergence=Fixpoint()).converge())
         self.assertEqual(step.remaining[0], 0)
         self.assertEqual(residual, [])
 
@@ -48,7 +49,7 @@ class ConvergenceTests(unittest.TestCase):
                 self.__remaining[0] -= 1
                 return [DriftItem("staged", "did a pass")]
 
-        result = Reconciler((StagedRecording(2),), convergence=Fixpoint()).converge()
+        result = asyncio.run(Reconciler((StagedRecording(2),), convergence=Fixpoint()).converge())
         self.assertEqual(result, [])                     # settled clean
         self.assertEqual(len(result.applied), 2)         # both productive passes accumulated, no overcount
 
@@ -63,7 +64,7 @@ class ConvergenceTests(unittest.TestCase):
             def assess(self) -> list:
                 return Assessment(deviation=[DriftItem("svc", "stuck")])
 
-        residual = Reconciler((Stuck(),), convergence=Fixpoint(max_passes=10)).converge()
+        residual = asyncio.run(Reconciler((Stuck(),), convergence=Fixpoint(max_passes=10)).converge())
         self.assertEqual(len(applies), 2)            # stopped at 2, not 10
         self.assertEqual(len(residual), 1)
 
@@ -78,7 +79,7 @@ class ConvergenceTests(unittest.TestCase):
             def assess(self) -> list:
                 return Assessment(deviation=[DriftItem("n", f"pass {len(applies)}")])   # always a different message
 
-        Reconciler((NeverSettles(),), convergence=Fixpoint(max_passes=4)).converge()
+        asyncio.run(Reconciler((NeverSettles(),), convergence=Fixpoint(max_passes=4)).converge())
         self.assertEqual(len(applies), 4)
 
     def test_fixpoint_max_passes_must_be_positive(self):

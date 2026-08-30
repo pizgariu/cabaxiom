@@ -5,8 +5,8 @@
     """
 import asyncio
 import inspect
-from collections.abc import Awaitable, Callable
-from typing import cast, final
+from collections.abc import Callable
+from typing import final
 
 from .convergence import Backoff
 from .drift import Changes, Outcome
@@ -39,43 +39,31 @@ class Retry:
         self.__backoff = backoff
 
     def __call__(self, do: Callable[[Step], Outcome]) -> Callable[[Step], Outcome]:
-        # Wrap the per-step write callable in the attempt loop and hand back the wrapped form. The
-        # neutral single try hands back do itself, so the default costs nothing. A coroutine outcome
-        # goes to the async twin, since a coroutine is single-use and its exception only surfaces on await.
+        # Wrap the per-step write callable in the attempt loop and hand back the wrapped form. The neutral
+        # single try hands back do itself, so the default costs nothing.
         if self.__attempts == 1:
             return do
 
-        def retrying(step: Step) -> Outcome:
+        async def retrying(step: Step) -> Changes:
+            # ONE loop, because the engine is one colour now. A write that raises synchronously on the call
+            # (a connection setup dying before the coroutine is even built) and one that raises on await
+            # both land in the same try and spend one attempt, so neither escapes the budget or the pacing.
+            # The two loops this replaces differed only in the shape of their wait, while a mirror is two
+            # implementations of one idea with the second one always slightly wrong.
             for failed in range(1, self.__attempts):
                 try:
                     outcome = do(step)
-                except Exception:   # any write failure is a retry candidate, the same net the dispatcher catches
-                    self.__pace(failed)
-                else:
-                    if inspect.isawaitable(outcome):
-                        return self.__rerun(step, do, outcome)
-                    return outcome
-            return do(step)   # the last try: its failure is the real one and propagates to OnError
+                    return await outcome if inspect.isawaitable(outcome) else outcome
+                except Exception:   # any write failure is a retry candidate, the net the dispatcher also uses
+                    await self.__pace(failed)
+            last = do(step)   # the last try, its failure is the real one and propagates to OnError
+            return await last if inspect.isawaitable(last) else last
 
         return retrying
 
-    def __pace(self, failed: int) -> None:
-        # The pause between tries, if any. `failed` counts the consecutive failures so far, the
-        # same stall count Fixpoint hands its backoff.
+    async def __pace(self, failed: int) -> None:
+        # The pause between tries, if any, awaited on the event loop's own sleep off the pure delay(), so a
+        # paced retry never blocks the wave-mates it shares the loop with. `failed` counts the consecutive
+        # failures so far, the same stall count Fixpoint hands its backoff, so both axes speak one vocabulary.
         if self.__backoff is not None:
-            self.__backoff.wait(failed)
-
-    async def __rerun(self, step: Step, do: Callable[[Step], Outcome], first: Awaitable[Changes]) -> Changes:
-        # The async twin of the attempt loop, for a step whose write is a coroutine. Each retry calls
-        # do again for a fresh coroutine (one cannot be re-awaited), while the pause awaits the event
-        # loop's own sleep off the backoff's pure delay(), never blocking wave-mates. On this path do
-        # yields awaitables (its first outcome was one), so each fresh call is cast back to one.
-        pending = first
-        for failed in range(1, self.__attempts):
-            try:
-                return await pending
-            except Exception:   # same broad net as the sync loop, only the shape of the wait differs
-                if self.__backoff is not None:
-                    await asyncio.sleep(self.__backoff.delay(failed))
-                pending = cast(Awaitable[Changes], do(step))
-        return await pending   # the last try, its failure propagates to OnError
+            await asyncio.sleep(self.__backoff.delay(failed))

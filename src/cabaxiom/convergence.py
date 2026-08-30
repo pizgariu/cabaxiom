@@ -1,8 +1,8 @@
 """Convergence strategies for how many times to repeat apply -> re-probe. Once, Fixpoint and the Backoff that paces Fixpoint's retries."""
+import asyncio
 import random
-import time
 from abc import ABC, abstractmethod
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import final
 
 from ._compat import override
@@ -17,7 +17,7 @@ class Convergence(ABC):
     construction so the public converge() stays argument-free.
     """
     @abstractmethod
-    def __call__(self, converge: Callable[[], list[Drift]]) -> list[Drift]:
+    async def __call__(self, converge: Callable[[], Awaitable[list[Drift]]]) -> list[Drift]:
         ...
 
 
@@ -25,8 +25,8 @@ class Convergence(ABC):
 class Once(Convergence):
     """Run exactly one apply -> re-probe cycle."""
     @override
-    def __call__(self, converge: Callable[[], list[Drift]]) -> list[Drift]:
-        return converge()
+    async def __call__(self, converge: Callable[[], Awaitable[list[Drift]]]) -> list[Drift]:
+        return await converge()
 
 
 class Backoff(ABC):
@@ -48,8 +48,8 @@ class Backoff(ABC):
     def delay(self, stalled: int) -> float:
         ...
 
-    def wait(self, stalled: int) -> None:
-        time.sleep(self.delay(stalled))
+    async def wait(self, stalled: int) -> None:
+        await asyncio.sleep(self.delay(stalled))
 
 
 @final
@@ -128,14 +128,14 @@ class Fixpoint(Convergence):
         self.__backoff = backoff
 
     @override
-    def __call__(self, converge: Callable[[], list[Drift]]) -> list[Drift]:
-        residual = converge()
+    async def __call__(self, converge: Callable[[], Awaitable[list[Drift]]]) -> list[Drift]:
+        residual = await converge()
         stalled = 0
         for _ in range(self.__max_passes - 1):
             if not residual:
                 break  # converged clean
             previous = sorted((item.name, item.message) for item in residual)
-            residual = converge()
+            residual = await converge()
             if sorted((item.name, item.message) for item in residual) != previous:
                 stalled = 0   # progress this pass, so a later stall backs off from scratch
                 continue
@@ -144,5 +144,5 @@ class Fixpoint(Convergence):
             if self.__backoff is None:
                 break
             stalled += 1
-            self.__backoff.wait(stalled)
+            await self.__backoff.wait(stalled)
         return residual

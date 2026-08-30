@@ -4,9 +4,7 @@ import inspect
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from enum import Enum
-from multiprocessing.dummy import Pool
-from multiprocessing.pool import ThreadPool
-from typing import cast, final
+from typing import final
 
 from ._compat import override
 from .cancellation import Cancellation, Cancelled
@@ -96,10 +94,16 @@ class BaseDispatcher(ABC):
 
 
 class Dispatcher(BaseDispatcher, ABC):
-    # Strategy for HOW a resolved set of steps is run. Serial walks them on one thread, Parallel fans each
-    # level to a pool, Pipeline fans each independent chain. The Executor is the ONLY thing that invokes a
-    # step, so it is the ONLY thing that can catch, which is why the OnError policy lives here. It checks the
-    # injected cancellation before each unit of work and raises Cancelled if it fires.
+    # Strategy for HOW a resolved set of steps is run. Serial walks them in order on the caller's loop,
+    # Parallel gathers each dependency wave, Pipeline gathers each independent chain. The dispatcher is the
+    # ONLY thing that invokes a step, so it is the ONLY thing that can catch, which is why the OnError
+    # policy lives here. It checks the injected cancellation before each unit of work.
+    #
+    # ASYNC NATIVE, AND THERE IS EXACTLY ONE OF IT. The kernel used to ship a synchronous family beside an
+    # Async executor that spun a private event loop per pass, so a caller who already had a loop ended up
+    # with two, so an apply() that wanted to share the caller's connection pool could not. A mirror is two
+    # implementations of one idea and the second one is always slightly wrong. A step whose apply() is a
+    # plain function still runs inline and pays nothing for the colour of the engine around it.
     #
     # execute() returns TWO lists, kept apart on purpose - (returns, failures). `returns` is everything do()
     # itself handed back (converge's applied items, prune's surviving residue), `failures` is the exception
@@ -108,212 +112,75 @@ class Dispatcher(BaseDispatcher, ABC):
     # are residual.
 
     @abstractmethod
-    def execute(self, groups: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
+    async def execute(self, groups: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
         ...
 
-    def _changes(self, produced: Outcome) -> Changes:
-        # Outcome is wide enough to carry an awaitable, because a step run under Async may hand one back. A
-        # SYNCHRONOUS executor never meets one. It has no loop to await on, so a step returning a coroutine
-        # belongs to Async by construction, so this narrowing states which executor is running rather than
-        # guessing at the value. Said once here instead of three times at the call sites that need it.
-        return cast(Changes, produced)
+    @staticmethod
+    async def _settle(outcome: Outcome) -> Changes:
+        # One write's outcome, awaited when the step handed back a coroutine and taken as-is otherwise.
+        # The ONE place the two shapes of a write meet, so no dispatcher has to know a step's colour.
+        return await outcome if inspect.isawaitable(outcome) else outcome
+
+    def _record(self, step: Step, produced: Changes, broke: BaseException | None,
+                returns: list[Drift], failures: list[Drift]) -> None:
+        # The ONE raise-or-collect rule, shared by all three. An abort cuts through first, since it is a
+        # decision and not a failure. Then FailFast re-raises and BestEffort records exactly one entry.
+        if isinstance(broke, Cancelled):
+            raise broke
+        if broke is not None:
+            if self._on_error is OnError.FailFast:
+                raise broke
+            failures.append(DriftItem(Step.named(step), f"step failed: {type(broke).__name__}: {broke}"))
+        elif produced:  # prune's residue or converge's applied items - apply's no-op returns None
+            returns.extend(produced)
 
 
 @final
 class Serial(Dispatcher):
-    """Default executor - every level in order, every step within a level in order, on one thread.
-    FailFast (default) lets an apply() exception propagate."""
+    """One step at a time, in resolved order, on the caller's own event loop.
+
+    No concurrency and no threads, which makes it the shape to reach for when a domain's writes cannot
+    overlap at all. A coroutine apply() is still awaited here - serial means one at a time, not synchronous.
+    """
 
     @override
-    def execute(self, levels: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
+    async def execute(self, levels: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
         returns: list[Drift] = []
         failures: list[Drift] = []
         for level in levels:
             for step in level:
                 if cancellation.cancelled():
                     raise Cancelled.by(cancellation)
+                broke: BaseException | None = None
+                produced: Changes = None
                 try:
-                    produced = self._changes(do(step))
+                    produced = await self._settle(do(step))
                 except Cancelled:
-                    raise   # an abort is a DECISION, so it cuts through the error policy entirely
+                    raise   # nothing is in flight beside it, so it propagates rather than being ferried
                 except Exception as exception:
-                    if self._on_error is OnError.FailFast:
-                        raise
-                    failures.append(DriftItem(Step.named(step), f"step failed: {type(exception).__name__}: {exception}"))
-                else:
-                    if produced:  # prune's residue (what survived) or converge's applied items - apply's no-op returns None
-                        returns.extend(produced)
+                    broke = exception
+                self._record(step, produced, broke, returns, failures)
         return returns, failures
 
 
-class _Pooled(Dispatcher, ABC):
-    """Shared thread-pool plumbing for the two fanning executors. Parallel fans the steps within a level,
-    Pipeline fans the independent chains. One Pool per instance (multiprocessing.dummy.Pool, the threaded
-    twin of multiprocessing.Pool), created lazily on first run and reused across runs, released by close()
-    or the context manager.
-
-    Threads, not processes. A Step's apply() is almost always I/O (files, subprocesses, network) where the
-    GIL is released and threads genuinely overlap, while Steps are ordinary live objects that need not pickle.
-    The fence. This makes the fan I/O-parallel, not CPU-parallel. A domain whose steps grind pure-Python
-    computation serializes on the GIL (until a free-threaded build changes that) and should inject its own
-    Executor (a process pool needs picklable steps and a module-level do)."""
-
-    def __init__(self, on_error: OnError = OnError.FailFast, *, width: int | None = None):
-        super().__init__(on_error)
-        # width is the pool size (None defaults to os.cpu_count()). The failure policy is the base's.
-        self.__width = width
-        self.__pool: ThreadPool | None = None
-
-    def _ensure_pool(self) -> ThreadPool:
-        # One pool per instance, created on first use and reused across execute() calls, so a Fixpoint converge
-        # calls execute() once per pass, so a fresh pool each pass would spin worker threads up and down
-        # repeatedly. Closed by close() or the context manager, else finalised on garbage collection.
-        if self.__pool is None:
-            self.__pool = Pool(self.__width)
-        return self.__pool
-
-    def close(self) -> None:
-        # Release the worker threads deterministically (close then join). A short-lived caller can skip this
-        # and let the pool finalise on garbage collection, yet a long-lived owner (a Controller looping for
-        # hours) should close it, which is what the context-manager protocol below wraps.
-        if self.__pool is not None:
-            self.__pool.close()
-            self.__pool.join()
-            self.__pool = None
-
-    def __enter__(self) -> "_Pooled":
-        return self
-
-    def __exit__(self, *exception: object) -> None:
-        self.close()
-
-
 @final
-class Parallel(_Pooled):
-    """Runs each topo LEVEL concurrently on the pool, with the levels themselves still walked in dependency
-    order. The steps WITHIN one level are mutually independent by construction, so fanning them out is safe,
-    and the barrier between levels preserves every Step.after edge. Composes the WAVES shape."""
+class Parallel(Dispatcher):
+    """Each dependency wave gathered on the event loop, with a barrier between waves.
+
+    The wave IS the barrier - every step in it settles before the next wave starts, which is what makes
+    Step.after hold under concurrency. It absorbs what used to be a separate Async executor, because once
+    the engine has one colour there is nothing left for a second fanning dispatcher to be.
+    """
 
     _shape = _Fan.waves()
 
     @override
-    def execute(self, levels: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
-        # attempt() ALWAYS catches, even under FailFast, so an apply() blowing up in a worker thread surfaces
-        # back on THIS thread as a clean value rather than a stray cross-thread exception. It carries back the
-        # step's own return. The level is a barrier. Every step in it runs to completion before we inspect
-        # outcomes, so under FailFast we re-raise the first failure only after the level finishes.
-        def attempt(_step: Step) -> tuple[Step, Changes, Exception | Cancelled | None]:
-            # BOTH clauses catch and the first one is not redundant. A Cancelled is an Exception today, so
-            # `except Exception` would take it - yet it is about to stop being one. A BaseException loose
-            # in a pool worker does not propagate, it hangs the map. Catching the abort BY NAME here is what
-            # lets the re-parent land without this boundary noticing.
+    async def execute(self, levels: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
+        # attempt() ALWAYS catches, including the abort, then hands the step back beside its outcome, because
+        # a gathered wave settles out of order and the caller has to know which result belongs to which step.
+        async def attempt(step: Step) -> tuple[Step, Changes, BaseException | None]:
             try:
-                return _step, self._changes(do(_step)), None
-            except Cancelled as _abort:
-                return _step, None, _abort
-            except Exception as _exception:
-                return _step, None, _exception
-
-        returns: list[Drift] = []
-        failures: list[Drift] = []
-        pool = self._ensure_pool()
-        for level in levels:
-            if cancellation.cancelled():
-                raise Cancelled.by(cancellation)
-            # pool.map preserves input order, so `returns` builds in resolved step order on THIS thread.
-            for step, produced, exception in pool.map(attempt, level):
-                if exception is not None:
-                    if isinstance(exception, Cancelled):
-                        raise exception   # a decision, never a failure - it cuts through BestEffort
-                    if self._on_error is OnError.FailFast:
-                        raise exception
-                    failures.append(DriftItem(Step.named(step), f"step failed: {type(exception).__name__}: {exception}"))
-                elif produced:  # prune's residue (what survived) or converge's applied items - apply's no-op returns None
-                    returns.extend(produced)
-        return returns, failures
-
-
-@final
-class Pipeline(_Pooled):
-    """The dual of Parallel. It runs each independent CHAIN concurrently on the pool, the steps WITHIN a chain
-    in series. Parallel fans the steps inside a level and bars between levels, Pipeline fans the chains and
-    serialises inside each. Correct only when the chains share no Step.after edge, which the Reconciler proves
-    upfront via the partition's verify(), so a chain never waits on another and needs no barrier. Composes the
-    CHAINS shape."""
-
-    _shape = _Fan.chains()
-
-    @override
-    def execute(self, chains: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
-        # run_chain walks ONE chain in series on a worker thread, checking cancellation between its steps (a
-        # chain can be long, unlike a level's single fan). It ALWAYS catches, like Parallel's attempt(). A step
-        # blowing up or a cancellation firing comes back as a clean value on THIS thread. pool.map is a
-        # barrier over the chains and preserves their order, so returns build in resolved order and the FIRST
-        # chain (in order) that failed or cancelled is the one re-raised.
-        def run_chain(chain: tuple[Step, ...]) -> tuple[list[Drift], list[Drift], Exception | Cancelled | None]:
-            produced_all: list[Drift] = []
-            failures_all: list[Drift] = []
-            for step in chain:
-                if cancellation.cancelled():
-                    return produced_all, failures_all, Cancelled.by(cancellation)
-                try:
-                    produced = self._changes(do(step))
-                except Cancelled as abort:
-                    # The chain stops and hands the abort back the same way the between-steps check does,
-                    # under EITHER policy. A decision is not a failure, so BestEffort has no say in it.
-                    return produced_all, failures_all, abort
-                except Exception as exception:
-                    if self._on_error is OnError.FailFast:
-                        return produced_all, failures_all, exception
-                    failures_all.append(DriftItem(Step.named(step), f"step failed: {type(exception).__name__}: {exception}"))
-                else:
-                    if produced:  # prune's residue or converge's applied items - apply's no-op returns None
-                        produced_all.extend(produced)
-            return produced_all, failures_all, None
-
-        returns: list[Drift] = []
-        failures: list[Drift] = []
-        pool = self._ensure_pool()
-        for chain_returns, chain_failures, error in pool.map(run_chain, chains):
-            if error is not None:
-                raise error   # a Cancelled (under any on_error) or under FailFast the chain's first failure
-            returns.extend(chain_returns)
-            failures.extend(chain_failures)
-        return returns, failures
-
-
-@final
-class Async(Dispatcher):
-    """Runs each dependency wave on an asyncio event loop instead of a thread pool, the cooperative dual of
-    Parallel, for steps whose apply() is a coroutine that closes its gap over I/O (a network call, a socket, a
-    subprocess awaited without blocking). It awaits a wave's coroutines concurrently and bars between waves, so
-    every Step.after edge holds, composing the same WAVES shape as Parallel.
-
-    A step method may be a coroutine (awaited) or a plain sync call (run inline, so a sync apply() still works,
-    it just does not overlap). converge() stays synchronous. Async drives a fresh event loop per pass with
-    asyncio.run, so call it from sync code, not from inside an already-running loop. Like every executor it
-    fans only the write phase (apply, prune), the drift re-probe stays a serial read."""
-
-    _shape = _Fan.waves()
-
-    @override
-    def execute(self, levels: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
-        # converge() is sync, so drive the whole wave walk on a fresh loop and hand back plain lists.
-        return asyncio.run(self.__walk(levels, do, cancellation))
-
-    async def __walk(self, levels: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
-        # attempt() ALWAYS catches, even under FailFast, so a coroutine blowing up comes back as a clean value
-        # rather than cancelling its wave-mates mid-flight. It carries the step's own return. A sync do() is
-        # used as-is, an awaitable one is awaited. gather preserves input order, so returns build in resolved
-        # step order. The wave is a barrier - every coroutine settles before we inspect, so under FailFast
-        # the first failure (in order) is re-raised only after the whole wave has finished.
-        async def attempt(step: Step) -> tuple[Step, Changes, Exception | Cancelled | None]:
-            # Caught by name for the reason the thread pool catches it by name, one boundary over.
-            try:
-                outcome = do(step)
-                if inspect.isawaitable(outcome):
-                    outcome = await outcome
-                return step, outcome, None
+                return step, await self._settle(do(step)), None
             except Cancelled as abort:
                 return step, None, abort
             except Exception as exception:
@@ -324,13 +191,50 @@ class Async(Dispatcher):
         for level in levels:
             if cancellation.cancelled():
                 raise Cancelled.by(cancellation)
-            for step, produced, exception in await asyncio.gather(*(attempt(step) for step in level)):
-                if exception is not None:
-                    if isinstance(exception, Cancelled):
-                        raise exception   # a decision, never a failure - it cuts through BestEffort
+            # gather preserves input order, so `returns` builds in resolved step order, while every coroutine
+            # in the wave has settled before a single outcome is inspected.
+            for step, produced, broke in await asyncio.gather(*(attempt(step) for step in level)):
+                self._record(step, produced, broke, returns, failures)
+        return returns, failures
+
+
+@final
+class Pipeline(Dispatcher):
+    """Each independent chain its own coroutine, the steps within a chain in series.
+
+    The dual of Parallel. Where Parallel overlaps the steps that share a wave, this overlaps whole chains
+    that share no edge, which suits a graph of long independent strands better than a wide shallow one.
+    """
+
+    _shape = _Fan.chains()
+
+    @override
+    async def execute(self, chains: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
+        # A chain is walked in series and checks the cancellation between its own steps, since a chain can
+        # be long where a wave is one fan. It hands back settled outcomes rather than recording them, so the
+        # raise-or-collect rule still runs once, on the caller, in chain order.
+        async def run_chain(chain: tuple[Step, ...]) -> list[tuple[Step, Changes, BaseException | None]]:
+            settled: list[tuple[Step, Changes, BaseException | None]] = []
+            for step in chain:
+                if cancellation.cancelled():
+                    settled.append((step, None, Cancelled.by(cancellation)))
+                    return settled
+                try:
+                    settled.append((step, await self._settle(do(step)), None))
+                except Cancelled as abort:
+                    settled.append((step, None, abort))
+                    return settled
+                except Exception as exception:
+                    settled.append((step, None, exception))
                     if self._on_error is OnError.FailFast:
-                        raise exception
-                    failures.append(DriftItem(Step.named(step), f"step failed: {type(exception).__name__}: {exception}"))
-                elif produced:  # prune's residue or converge's applied items - apply's no-op returns None
-                    returns.extend(produced)
+                        return settled
+            return settled
+
+        returns: list[Drift] = []
+        failures: list[Drift] = []
+        if cancellation.cancelled():
+            raise Cancelled.by(cancellation)
+        for chain in await asyncio.gather(*(run_chain(chain) for chain in chains)):
+            for step, produced, broke in chain:
+                self._record(step, produced, broke, returns, failures)
         return returns, failures

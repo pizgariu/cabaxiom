@@ -1,11 +1,11 @@
 """Cancellation signals and Quorum composition."""
+import asyncio
 import unittest
 
 from cabaxiom import (
     AllOf,
     AnyOf,
-    Async,
-    Cancellation,
+        Cancellation,
     Cancelled,
     Components,
     Deadline,
@@ -41,26 +41,26 @@ class CancellationTests(unittest.TestCase):
 
     def test_default_never_cancels(self):
         log = []
-        Reconciler((A(log), B(log), C(log))).converge()
+        asyncio.run(Reconciler((A(log), B(log), C(log))).converge())
         self.assertEqual(log, ["A", "B", "C"])
 
     def test_cancellation_aborts_serial_mid_run(self):
         log = []
         with self.assertRaises(Cancelled):
-            Reconciler((A(log), B(log), C(log)), cancellation=self._CancelAfter(2)).converge()
+            asyncio.run(Reconciler((A(log), B(log), C(log)), cancellation=self._CancelAfter(2)).converge())
         self.assertEqual(log, ["A", "B"])   # checked before C, raised, C never ran
 
     def test_cancellation_aborts_parallel_before_a_level(self):
         log = []
         with self.assertRaises(Cancelled):
-            Reconciler((C(log), A(log), B(log)), Kahn(), dispatcher=Parallel(),
-                       cancellation=self._CancelAfter(1)).converge()
+            asyncio.run(Reconciler((C(log), A(log), B(log)), Kahn(), dispatcher=Parallel(),
+                                   cancellation=self._CancelAfter(1)).converge())
         self.assertEqual(log, ["A"])   # level A ran, checked before level B, raised
 
     def test_deadline_zero_cancels_before_the_first_step(self):
         log = []
         with self.assertRaises(Cancelled):
-            Reconciler((A(log),), cancellation=Deadline(0)).converge()
+            asyncio.run(Reconciler((A(log),), cancellation=Deadline(0)).converge())
         self.assertEqual(log, [])
 
     def test_deadline_rejects_negative_seconds(self):
@@ -80,7 +80,7 @@ class CancellationTests(unittest.TestCase):
         flag.cancel()
         log = []
         with self.assertRaises(Cancelled):
-            Reconciler((A(log),), cancellation=flag).converge()
+            asyncio.run(Reconciler((A(log),), cancellation=flag).converge())
         self.assertEqual(log, [])
 
     def test_cancelled_names_the_cancellation_that_fired(self):
@@ -89,7 +89,7 @@ class CancellationTests(unittest.TestCase):
         flag = Flag()
         flag.cancel()
         with self.assertRaises(Cancelled) as caught:
-            Reconciler((A([]),), cancellation=flag).converge()
+            asyncio.run(Reconciler((A([]),), cancellation=flag).converge())
         self.assertIn("Flag", str(caught.exception))
 
     def test_partial_run_is_idempotent_and_resumes(self):
@@ -97,8 +97,8 @@ class CancellationTests(unittest.TestCase):
         log = []
         steps = (A(log), B(log), C(log))
         with self.assertRaises(Cancelled):
-            Reconciler(steps, cancellation=self._CancelAfter(2)).converge()
-        Reconciler(steps).converge()   # resume, no cancellation
+            asyncio.run(Reconciler(steps, cancellation=self._CancelAfter(2)).converge())
+        asyncio.run(Reconciler(steps).converge())   # resume, no cancellation
         self.assertEqual(log.count("C"), 1)
 
 
@@ -148,7 +148,7 @@ class QuorumTests(unittest.TestCase):
     def test_quorum_is_a_cancellation_that_nests_and_threads_into_a_run(self):
         log = []
         with self.assertRaises(Cancelled):
-            Reconciler((A(log),), cancellation=Quorum(Deadline(30), self.__fired())).converge()
+            asyncio.run(Reconciler((A(log),), cancellation=Quorum(Deadline(30), self.__fired())).converge())
         self.assertEqual(log, [])
 
 
@@ -203,21 +203,21 @@ class StepRaisedAbortTests(unittest.TestCase):
 
     def test_serial_lets_a_step_raised_abort_through_best_effort(self):
         with self.assertRaises(Cancelled):
-            Reconciler((self.Aborting(),), dispatcher=Serial(OnError.BestEffort)).converge()
+            asyncio.run(Reconciler((self.Aborting(),), dispatcher=Serial(OnError.BestEffort)).converge())
 
     def test_parallel_lets_a_step_raised_abort_through_best_effort(self):
         with self.assertRaises(Cancelled):
-            with Parallel(OnError.BestEffort) as dispatcher:
-                Reconciler((self.Aborting(),), dispatcher=dispatcher).converge()
+            dispatcher = Parallel(OnError.BestEffort)
+            asyncio.run(Reconciler((self.Aborting(),), dispatcher=dispatcher).converge())
 
     def test_pipeline_lets_a_step_raised_abort_through_best_effort(self):
         with self.assertRaises(Cancelled):
-            with Pipeline(OnError.BestEffort) as dispatcher:
-                Reconciler((self.Aborting(),), Components(), dispatcher=dispatcher).converge()
+            dispatcher = Pipeline(OnError.BestEffort)
+            asyncio.run(Reconciler((self.Aborting(),), Components(), dispatcher=dispatcher).converge())
 
     def test_the_async_executor_lets_a_step_raised_abort_through_best_effort(self):
         with self.assertRaises(Cancelled):
-            Reconciler((self.AsyncAborting(),), dispatcher=Async(OnError.BestEffort)).converge()
+            asyncio.run(Reconciler((self.AsyncAborting(),), dispatcher=Parallel(OnError.BestEffort)).converge())
 
     def test_a_greedy_except_clause_can_no_longer_eat_an_abort(self):
         # The whole reason Cancelled is a BaseException. A domain hook guarding its own I/O writes
@@ -234,11 +234,11 @@ class StepRaisedAbortTests(unittest.TestCase):
                 return None
 
         with self.assertRaises(Cancelled):
-            Reconciler((Greedy(),), dispatcher=Serial(OnError.BestEffort)).converge()
+            asyncio.run(Reconciler((Greedy(),), dispatcher=Serial(OnError.BestEffort)).converge())
         self.assertEqual(Greedy.seen, [], "the abort was caught by an ordinary except clause")
 
     def test_a_real_failure_is_still_collected_under_best_effort(self):
         # The other half, so the cut-through is not just "everything raises now". An ordinary exception
         # still lands in the residual rather than aborting the run.
-        residual = Reconciler((Boom(),), dispatcher=Serial(OnError.BestEffort)).converge()
+        residual = asyncio.run(Reconciler((Boom(),), dispatcher=Serial(OnError.BestEffort)).converge())
         self.assertTrue(any("step failed" in item.message for item in residual))

@@ -1,4 +1,5 @@
 """Scope - which of the handed steps take part, Only with its dependency closure, Skip without cascade."""
+import asyncio
 import unittest
 
 from cabaxiom import Assessment, DriftItem, Only, Reconciler, Scope, Skip, Step
@@ -8,37 +9,37 @@ from support import A, B, C, X, Y, Z
 class ScopeTests(unittest.TestCase):
     def test_the_default_scope_keeps_everything(self):
         log = []
-        Reconciler((A(log), B(log), C(log)), scope=Scope()).converge()
+        asyncio.run(Reconciler((A(log), B(log), C(log)), scope=Scope()).converge())
         self.assertEqual(log, ["A", "B", "C"])
 
     def test_only_pulls_in_the_transitive_dependencies_of_its_target(self):
         # C alone is named, yet its whole prerequisite chain comes along, since a target converging
         # before its prerequisites would trust state nobody put there.
         log = []
-        Reconciler((C(log), A(log), B(log)), scope=Only(C)).converge()
+        asyncio.run(Reconciler((C(log), A(log), B(log)), scope=Only(C)).converge())
         self.assertEqual(log, ["A", "B", "C"])
 
     def test_only_leaves_unrelated_steps_out(self):
         log = []
-        Reconciler((X(log), Y(log), Z(log)), scope=Only(X)).converge()
+        asyncio.run(Reconciler((X(log), Y(log), Z(log)), scope=Only(X)).converge())
         self.assertEqual(log, ["X"])
 
     def test_only_with_overlapping_targets_selects_each_step_once(self):
         # B is both named and C's dependency, so the closure meets it twice and keeps it once.
         log = []
-        Reconciler((A(log), B(log), C(log)), scope=Only(B, C)).converge()
+        asyncio.run(Reconciler((A(log), B(log), C(log)), scope=Only(B, C)).converge())
         self.assertEqual(log, ["A", "B", "C"])
 
     def test_skip_drops_the_named_steps_and_does_not_cascade(self):
         # C is after B, yet skipping B leaves C in. `after` orders the steps present, it does not
         # demand their presence, so a skipped prerequisite is trusted, not propagated.
         log = []
-        Reconciler((A(log), B(log), C(log)), scope=Skip(B)).converge()
+        asyncio.run(Reconciler((A(log), B(log), C(log)), scope=Skip(B)).converge())
         self.assertEqual(log, ["A", "C"])
 
     def test_skipping_every_step_leaves_a_clean_no_op_run(self):
         log = []
-        residual = Reconciler((A(log),), scope=Skip(A)).converge()
+        residual = asyncio.run(Reconciler((A(log),), scope=Skip(A)).converge())
         self.assertEqual(residual, [])
         self.assertEqual(log, [])
 

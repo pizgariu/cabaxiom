@@ -1,4 +1,5 @@
 """Flat ordering strategies. Kahn, DFS and Priority."""
+import asyncio
 import random
 import unittest
 
@@ -10,28 +11,28 @@ class TopoSortTests(unittest.TestCase):
     def test_preserves_caller_order_when_no_deps(self):
         # The stable tie-break keeps the caller's intentional order where deps don't force otherwise.
         log = []
-        Reconciler((X(log), Y(log), Z(log))).converge()
+        asyncio.run(Reconciler((X(log), Y(log), Z(log))).converge())
         self.assertEqual(log, ["X", "Y", "Z"])
         log2 = []
-        Reconciler((Z(log2), Y(log2), X(log2))).converge()
+        asyncio.run(Reconciler((Z(log2), Y(log2), X(log2))).converge())
         self.assertEqual(log2, ["Z", "Y", "X"])
 
     def test_reorders_to_satisfy_after(self):
         # B.after = (A,) so listed B-first must still emit A before B.
         log = []
-        Reconciler((B(log), A(log))).converge()
+        asyncio.run(Reconciler((B(log), A(log))).converge())
         self.assertEqual(log, ["A", "B"])
 
     def test_transitive_chain(self):
         # C -> B -> A, handed in shuffled, resolves to A, B, C.
         log = []
-        Reconciler((C(log), A(log), B(log))).converge()
+        asyncio.run(Reconciler((C(log), A(log), B(log))).converge())
         self.assertEqual(log, ["A", "B", "C"])
 
     def test_dep_outside_supplied_set_is_ignored(self):
         # B declares after=(A,) but only B is supplied - the absent dep is ignored, no raise.
         log = []
-        Reconciler((B(log),)).converge()
+        asyncio.run(Reconciler((B(log),)).converge())
         self.assertEqual(log, ["B"])
 
     def test_cycle_raises_naming_the_stuck_steps(self):
@@ -58,7 +59,7 @@ class OrderingStrategyTests(unittest.TestCase):
         for ordering in self.STRATEGIES:
             with self.subTest(ordering=type(ordering).__name__):
                 log = []
-                Reconciler((X(log), Y(log), Z(log)), ordering).converge()
+                asyncio.run(Reconciler((X(log), Y(log), Z(log)), ordering).converge())
                 self.assertEqual(log, ["X", "Y", "Z"])
 
     def test_both_resolve_a_transitive_chain(self):
@@ -66,14 +67,14 @@ class OrderingStrategyTests(unittest.TestCase):
         for ordering in self.STRATEGIES:
             with self.subTest(ordering=type(ordering).__name__):
                 log = []
-                Reconciler((C(log), A(log), B(log)), ordering).converge()
+                asyncio.run(Reconciler((C(log), A(log), B(log)), ordering).converge())
                 self.assertEqual(log, ["A", "B", "C"])
 
     def test_both_ignore_a_dep_outside_the_supplied_set(self):
         for ordering in self.STRATEGIES:
             with self.subTest(ordering=type(ordering).__name__):
                 log = []
-                Reconciler((B(log),), ordering).converge()
+                asyncio.run(Reconciler((B(log),), ordering).converge())
                 self.assertEqual(log, ["B"])
 
     def test_both_keep_every_instance_of_a_class(self):
@@ -81,7 +82,7 @@ class OrderingStrategyTests(unittest.TestCase):
         for ordering in self.STRATEGIES:
             with self.subTest(ordering=type(ordering).__name__):
                 log = []
-                Reconciler((B(log), A(log), A(log)), ordering).converge()
+                asyncio.run(Reconciler((B(log), A(log), A(log)), ordering).converge())
                 self.assertEqual(log, ["A", "A", "B"])
 
     def test_both_raise_valueerror_naming_the_cycle(self):
@@ -102,7 +103,7 @@ class OrderingStrategyTests(unittest.TestCase):
     def test_default_ordering_is_kahn(self):
         # No explicit strategy -> Kahn. DFS is available but not the default.
         log = []
-        Reconciler((B(log), A(log))).converge()
+        asyncio.run(Reconciler((B(log), A(log))).converge())
         self.assertEqual(log, ["A", "B"])
 
     def test_base_chains_falls_back_to_one_chain_of_the_flat_order(self):
@@ -223,5 +224,5 @@ class PriorityOrderingTests(unittest.TestCase):
 
     def test_converges_through_serial_in_priority_order(self):
         log = []
-        Reconciler((Z(log), X(log), Y(log)), Priority(), dispatcher=Serial()).converge()
+        asyncio.run(Reconciler((Z(log), X(log), Y(log)), Priority(), dispatcher=Serial()).converge())
         self.assertEqual(log, ["X", "Y", "Z"])

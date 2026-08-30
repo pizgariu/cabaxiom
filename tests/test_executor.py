@@ -1,4 +1,5 @@
 """Serial and Parallel execution semantics - FailFast vs BestEffort, per-wave fan-out."""
+import asyncio
 import unittest
 
 from cabaxiom import (
@@ -23,7 +24,7 @@ class ExecutorTests(unittest.TestCase):
     def test_serial_is_the_default_and_fails_fast(self):
         # No dispatcher -> Serial(FailFast), so an apply() exception aborts the whole converge.
         with self.assertRaises(RuntimeError):
-            Reconciler((Boom(),)).converge()
+            asyncio.run(Reconciler((Boom(),)).converge())
 
     def test_best_effort_collects_failures_as_residual_drift(self):
         # BestEffort catches the exception, records it as Drift and keeps applying the rest.
@@ -33,7 +34,7 @@ class ExecutorTests(unittest.TestCase):
             def apply(self) -> None:
                 log.append("ok")
 
-        residual = Reconciler((Boom(), Ok()), dispatcher=Serial(OnError.BestEffort)).converge()
+        residual = asyncio.run(Reconciler((Boom(), Ok()), dispatcher=Serial(OnError.BestEffort)).converge())
         self.assertEqual(log, ["ok"])                 # sibling still ran after Boom blew up
         self.assertEqual(len(residual), 1)
         self.assertIn("step failed", residual[0].message)
@@ -41,21 +42,21 @@ class ExecutorTests(unittest.TestCase):
     def test_parallel_preserves_dependency_order_across_levels(self):
         # The level barrier keeps every Step.after edge even while fanning each level out.
         log = []
-        Reconciler((C(log), A(log), B(log)), Kahn(), dispatcher=Parallel()).converge()
+        asyncio.run(Reconciler((C(log), A(log), B(log)), Kahn(), dispatcher=Parallel()).converge())
         self.assertEqual(log, ["A", "B", "C"])
 
     def test_parallel_runs_every_independent_step(self):
         # One level of independents. Order within is unspecified, yet all must run.
         log = []
-        Reconciler((X(log), Y(log), Z(log)), Kahn(), dispatcher=Parallel()).converge()
+        asyncio.run(Reconciler((X(log), Y(log), Z(log)), Kahn(), dispatcher=Parallel()).converge())
         self.assertEqual(sorted(log), ["X", "Y", "Z"])
 
     def test_parallel_failfast_reraises_on_the_calling_thread(self):
         with self.assertRaises(RuntimeError):
-            Reconciler((Boom(),), Kahn(), dispatcher=Parallel()).converge()
+            asyncio.run(Reconciler((Boom(),), Kahn(), dispatcher=Parallel()).converge())
 
     def test_parallel_best_effort_collects_failures(self):
-        residual = Reconciler((Boom(),), Kahn(), dispatcher=Parallel(OnError.BestEffort)).converge()
+        residual = asyncio.run(Reconciler((Boom(),), Kahn(), dispatcher=Parallel(OnError.BestEffort)).converge())
         self.assertEqual(len(residual), 1)
         self.assertIn("step failed", residual[0].message)
 
@@ -100,33 +101,11 @@ class ExecutorTests(unittest.TestCase):
     def test_dfs_with_serial_is_allowed(self):
         # DFS is serial-only and serial is fine - it still resolves the chain.
         log = []
-        Reconciler((C(log), A(log), B(log)), DFS(), dispatcher=Serial()).converge()
+        asyncio.run(Reconciler((C(log), A(log), B(log)), DFS(), dispatcher=Serial()).converge())
         self.assertEqual(log, ["A", "B", "C"])
 
-    def test_parallel_reuses_one_pool_across_runs(self):
-        # The pool is created once and reused, not rebuilt per run() (which a Fixpoint converge would do
-        # every pass). Two converges on the same dispatcher must hit the same pool object.
-        dispatcher = Parallel()
-        rec = Reconciler((X([]), Y([]), Z([])), Kahn(), dispatcher=dispatcher)
-        rec.converge()
-        pool_after_first = dispatcher._Pooled__pool   # pool plumbing lives on the shared base now
-        rec.converge()
-        self.assertIsNotNone(pool_after_first)
-        self.assertIs(pool_after_first, dispatcher._Pooled__pool)
 
-    def test_parallel_as_context_manager_closes_the_pool_on_exit(self):
-        # __enter__ hands back the dispatcher, __exit__ calls close() which releases the worker threads
-        # deterministically. A long-lived owner uses this instead of leaning on garbage collection.
-        with Parallel() as dispatcher:
-            Reconciler((X([]), Y([]), Z([])), Kahn(), dispatcher=dispatcher).converge()
-            self.assertIsNotNone(dispatcher._Pooled__pool)   # the run spun the pool up
-        self.assertIsNone(dispatcher._Pooled__pool)          # __exit__ -> close() released it
 
-    def test_close_is_a_no_op_when_no_pool_was_ever_created(self):
-        # A short-lived dispatcher that never ran has no pool, so close() returns without touching one.
-        dispatcher = Parallel()
-        dispatcher.close()
-        self.assertIsNone(dispatcher._Pooled__pool)
 
     def test_parallel_routes_what_apply_returns_to_the_applied_channel(self):
         # A step whose apply() returns what it changed. The dispatcher hands those back as its returns list,
@@ -135,6 +114,6 @@ class ExecutorTests(unittest.TestCase):
             def apply(self):
                 return [DriftItem("svc", "created")]
 
-        residual = Reconciler((Applied(),), Kahn(), dispatcher=Parallel()).converge()
+        residual = asyncio.run(Reconciler((Applied(),), Kahn(), dispatcher=Parallel()).converge())
         self.assertEqual(residual, [])                                       # nothing still wrong
         self.assertEqual([item.message for item in residual.applied], ["created"])

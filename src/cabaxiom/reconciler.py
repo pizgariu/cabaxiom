@@ -1,6 +1,6 @@
 """Reconciler - resolves Steps once, then reports drift or converges and self-verifies. A Controller drives it in a loop."""
-from collections.abc import Callable, Iterable, Iterator
-from typing import final
+from collections.abc import AsyncIterator, Callable, Iterable
+from typing import cast, final
 
 from .cancellation import Cancellation
 from .convergence import Convergence, Once
@@ -122,7 +122,7 @@ class Reconciler:
         )
         return Explanation(groups, edges)
 
-    def converge(self) -> Residual:
+    async def converge(self) -> Residual:
         # Apply every step and re-probe for what is STILL out of desired state. The returned residual
         # is the proof it worked, `applied` the record of what changed.
         #
@@ -144,9 +144,9 @@ class Reconciler:
         # nothing here, so the re-probe still surfaces it in the residual.
         applied: list[Drift] = []
 
-        def cycle() -> list[Drift]:
+        async def cycle() -> list[Drift]:
             self.__observer.began()
-            applied_this_pass, failures = self.__execute(self.__partition, lambda step: step.apply())
+            applied_this_pass, failures = await self.__execute(self.__partition, lambda step: step.apply())
             applied.extend(applied_this_pass)
             self.__observer.acted(applied_this_pass)
 
@@ -154,9 +154,9 @@ class Reconciler:
             self.__observer.remained(residual)
             return residual
 
-        return Residual(self.__convergence(cycle), applied)
+        return Residual(await self.__convergence(cycle), applied)
 
-    def prune(self) -> list[Drift]:
+    async def prune(self) -> list[Drift]:
         # The deletion half, the mirror of converge. Run every step's prune() in REVERSE resolved order
         # (tear a dependent down before the thing it depends on) through the same dispatcher, so the
         # OnError policy and the serial/parallel choice apply identically.
@@ -170,7 +170,7 @@ class Reconciler:
         # report everything as "missing" (noise, not proof). Concatenate the survived residue with any
         # hard dispatcher failures under BestEffort. The residual is a (name, message) proof set, so the
         # order of the two groups within it does not matter.
-        residue, failures = self.__execute(self.__partition.inverse(), lambda step: step.prune())
+        residue, failures = await self.__execute(self.__partition.inverse(), lambda step: step.prune())
         return residue + failures
 
     # noinspection PyMethodMayBeStatic
@@ -187,7 +187,7 @@ class Reconciler:
                 for step in group
                 for item in getattr(step.assess(), channel)]
 
-    def __execute(self, groups: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome]) -> tuple[list[Drift], list[Drift]]:
+    async def __execute(self, groups: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome]) -> tuple[list[Drift], list[Drift]]:
         # The single WRITE engine. Sequence steps, funnelling both converge (forward partition,
         # do = apply) and prune (reversed partition, do = prune) through the injected Dispatcher. The
         # write callable goes in wrapped by the injected Retry, so a transient failure spends its
@@ -197,7 +197,7 @@ class Reconciler:
         # declares, so the wrapper needs no restating on the way in. The Dispatcher owns HOW (serial,
         # level-parallel or chain-pipelined) and the OnError policy. It returns two lists apart -
         # (do-returns, failures). The direction is the caller's.
-        return self.__dispatcher.execute(groups, self.__retry(do), self.__cancellation)
+        return await self.__dispatcher.execute(groups, cast(Callable[[Step], Outcome], self.__retry(do)), self.__cancellation)
 
 
 @final
@@ -219,26 +219,26 @@ class Controller:
         self.__reconciler = reconciler
         self.__on_residual = on_residual
 
-    def __tick(self) -> Residual:
-        residual = self.__reconciler.converge()
+    async def __tick(self) -> Residual:
+        residual = await self.__reconciler.converge()
         if self.__on_residual is not None:
             self.__on_residual(residual)
         return residual
 
-    def run(self, ticks: Iterable[object]) -> Iterator[Residual]:
+    async def run(self, ticks: Iterable[object]) -> AsyncIterator[Residual]:
         # Converge once per tick, yielding each pass's residual as it happens. Lazy on purpose - an
         # infinite `ticks` (itertools.count()) makes this a forever-loop the caller drives one tick at
         # a time. Wrap a finite run in list() for every residual or just drive it for the side effects.
         for _ in ticks:
-            yield self.__tick()
+            yield await self.__tick()
 
-    def settle(self, ticks: Iterable[object]) -> Residual:
+    async def settle(self, ticks: Iterable[object]) -> Residual:
         # The bounded twin of run(). Converge each tick until one comes back CLEAN (empty residual) or
         # the ticks run out, then return the final residual ([] == reached desired state). With zero
         # ticks it reports the current drift, wrapped so the return is a Residual on every path.
         residual = Residual(self.__reconciler.drift(), [])  # opening status, in case ticks is empty
         for _ in ticks:
-            residual = self.__tick()
+            residual = await self.__tick()
             if not residual:
                 break
         return residual

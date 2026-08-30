@@ -1,4 +1,5 @@
 """Observer hooks fired around each converge pass, plus Chorus composition."""
+import asyncio
 import unittest
 
 from cabaxiom import Assessment, Chorus, DriftItem, Observer, Reconciler, Step
@@ -36,26 +37,26 @@ class _Recorder(Observer):
 class ObserverTests(unittest.TestCase):
     def test_hooks_fire_in_order_around_a_pass(self):
         recorder = _Recorder()
-        Reconciler([_OneFix()], observer=recorder).converge()
+        asyncio.run(Reconciler([_OneFix()], observer=recorder).converge())
         self.assertEqual([event[0] for event in recorder.events], ["began", "acted", "remained"])
         self.assertEqual(recorder.events[1], ("acted", ["x"]))       # acted saw what apply changed
         self.assertEqual(recorder.events[2], ("remained", []))       # nothing remained after the fix
 
     def test_default_observer_is_a_silent_no_op(self):
         # No observer means the base Observer, which does nothing, so converge behaves as always.
-        self.assertEqual(Reconciler([_OneFix()]).converge(), [])
+        self.assertEqual(asyncio.run(Reconciler([_OneFix()]).converge()), [])
 
     def test_chorus_relays_to_every_observer(self):
         a, b = _Recorder(), _Recorder()
-        Reconciler([_OneFix()], observer=Chorus(a, b)).converge()
+        asyncio.run(Reconciler([_OneFix()], observer=Chorus(a, b)).converge())
         self.assertEqual([event[0] for event in a.events], ["began", "acted", "remained"])
         self.assertEqual([event[0] for event in b.events], ["began", "acted", "remained"])
 
     def test_chorus_is_itself_an_observer_and_nests(self):
         inner, outer = _Recorder(), _Recorder()
-        Reconciler([_OneFix()], observer=Chorus(Chorus(inner), outer)).converge()
+        asyncio.run(Reconciler([_OneFix()], observer=Chorus(Chorus(inner), outer)).converge())
         self.assertEqual([event[0] for event in inner.events], ["began", "acted", "remained"])
         self.assertEqual([event[0] for event in outer.events], ["began", "acted", "remained"])
 
     def test_an_empty_chorus_is_a_no_op(self):
-        self.assertEqual(Reconciler([_OneFix()], observer=Chorus()).converge(), [])
+        self.assertEqual(asyncio.run(Reconciler([_OneFix()], observer=Chorus()).converge()), [])

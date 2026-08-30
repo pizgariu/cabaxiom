@@ -37,7 +37,7 @@ Expected stdout - the resolved waves, evidence that Database and Cache ran on po
 threads (not the main thread), a converge that took several Fixpoint passes with an empty
 residual and a clean idempotent second converge.
 """
-
+import asyncio
 import sys
 import threading
 import time
@@ -165,29 +165,29 @@ def main() -> None:
         print(f"    wave {index}: {names}")
     print()
 
-    # Parallel fans each wave across a thread pool. The context manager releases the pool's
-    # worker threads when the block exits. Fixpoint loops apply -> re-probe until the residual
-    # settles or the ceiling is hit.
-    with Parallel() as dispatcher:
-        reconciler = Reconciler(
-            steps,
-            Kahn(),
-            dispatcher=dispatcher,
-            convergence=Fixpoint(max_passes=10),
-        )
+    # Parallel gathers each dependency wave on the event loop and bars between waves, so Step.after
+    # still holds under concurrency. Fixpoint loops apply -> re-probe until the residual settles or the
+    # ceiling is hit.
+    dispatcher = Parallel()
+    reconciler = Reconciler(
+        steps,
+        Kahn(),
+        dispatcher=dispatcher,
+        convergence=Fixpoint(max_passes=10),
+    )
 
-        print("Initial plan:")
-        for item in reconciler.plan():
-            print(f"    - {item}")
-        print()
+    print("Initial plan:")
+    for item in reconciler.plan():
+        print(f"    - {item}")
+    print()
 
-        print("Converge (Parallel dispatcher, Fixpoint convergence):")
-        report(reconciler.converge())
-        print()
+    print("Converge (Parallel dispatcher, Fixpoint convergence):")
+    report(asyncio.run(reconciler.converge()))
+    print()
 
-        print("Second converge (should be a clean no-op):")
-        report(reconciler.converge())
-        print()
+    print("Second converge (should be a clean no-op):")
+    report(asyncio.run(reconciler.converge()))
+    print()
 
     main_thread = threading.current_thread().name
     print("Fan-out evidence (which thread provisioned each wave-1 resource):")

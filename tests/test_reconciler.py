@@ -1,4 +1,5 @@
 """Reconciler core lifecycle and Controller tick/run/settle composition."""
+import asyncio
 import itertools
 import unittest
 
@@ -27,24 +28,24 @@ class ConvergeTests(unittest.TestCase):
     def test_empty_reconciler_is_clean(self):
         rec = Reconciler(())
         self.assertEqual(rec.drift(), [])
-        self.assertEqual(rec.converge(), [])
+        self.assertEqual(asyncio.run(rec.converge()), [])
 
     def test_converge_applies_then_reports_clean_residual(self):
         f = Fixable()
         rec = Reconciler((f,))
         self.assertEqual(len(rec.drift()), 1)   # opening status: drift present
-        self.assertEqual(rec.converge(), [])    # apply -> re-probe -> verified clean
+        self.assertEqual(asyncio.run(rec.converge()), [])    # apply -> re-probe -> verified clean
         self.assertTrue(f.applied)
 
     def test_report_only_step_surfaces_in_residual_not_crash(self):
-        residual = Reconciler((ReportOnly(),)).converge()
+        residual = asyncio.run(Reconciler((ReportOnly(),)).converge())
         self.assertEqual(len(residual), 1)
         self.assertEqual(residual[0].name, "svc")
         self.assertEqual(residual[0].message, "still wrong")
 
     def test_apply_exception_propagates_not_swallowed(self):
         with self.assertRaises(RuntimeError):
-            Reconciler((Boom(),)).converge()
+            asyncio.run(Reconciler((Boom(),)).converge())
 
     def test_drift_flattens_in_resolved_order(self):
         class D1(Step):
@@ -75,13 +76,13 @@ class ConvergeTests(unittest.TestCase):
                 self.__written[0] = True
                 return [DriftItem("thing.conf", "rewrote /etc/thing.conf")]
 
-        result = Reconciler((Writer(),)).converge()
+        result = asyncio.run(Reconciler((Writer(),)).converge())
         self.assertEqual(result, [])                                       # residual clean, still a plain list
         self.assertEqual([c.message for c in result.applied], ["rewrote /etc/thing.conf"])
 
     def test_applied_is_empty_when_apply_returns_none(self):
         # A step whose apply() returns None (the default, git-hooks style) contributes nothing to applied.
-        result = Reconciler((Fixable(),)).converge()
+        result = asyncio.run(Reconciler((Fixable(),)).converge())
         self.assertEqual(result, [])
         self.assertEqual(result.applied, [])
 
@@ -103,7 +104,7 @@ class ConvergeTests(unittest.TestCase):
                 return [DriftItem("f", "fixed it")]
 
         with self.assertRaises(RuntimeError):
-            Reconciler((Fragile(),)).converge()
+            asyncio.run(Reconciler((Fragile(),)).converge())
 
 
 class ResidualTests(unittest.TestCase):
@@ -138,8 +139,11 @@ class ControllerTests(unittest.TestCase):
     def test_run_converges_once_per_tick_and_collects_residuals(self):
         seen = []
         controller = Controller(Reconciler((self.SlowWorld(),)), on_residual=seen.append)
-        history = controller.run(range(3))
-        self.assertEqual([len(residual) for residual in history], [1, 1, 0])  # clean on the 3rd pass
+
+        async def drive():
+            return [len(residual) async for residual in controller.run(range(3))]
+
+        self.assertEqual(asyncio.run(drive()), [1, 1, 0])   # clean on the 3rd pass
         self.assertEqual(len(seen), 3)               # on_residual fired every pass
 
     def test_settle_stops_as_soon_as_a_pass_is_clean(self):
@@ -150,7 +154,7 @@ class ControllerTests(unittest.TestCase):
                 pulled.append(i)
                 yield i
 
-        residual = Controller(Reconciler((self.SlowWorld(),))).settle(ticks())
+        residual = asyncio.run(Controller(Reconciler((self.SlowWorld(),))).settle(ticks()))
         self.assertEqual(residual, [])
         self.assertEqual(len(pulled), 3)             # stopped at 3, did NOT drain all 10 ticks
 
@@ -159,19 +163,28 @@ class ControllerTests(unittest.TestCase):
             def assess(self) -> list:
                 return Assessment(deviation=[DriftItem("svc", "stuck")])
 
-        residual = Controller(Reconciler((Stuck(),))).settle(range(3))
+        residual = asyncio.run(Controller(Reconciler((Stuck(),))).settle(range(3)))
         self.assertEqual(len(residual), 1)
 
     def test_settle_with_no_ticks_reports_current_drift(self):
-        residual = Controller(Reconciler((self.SlowWorld(),))).settle(range(0))
+        residual = asyncio.run(Controller(Reconciler((self.SlowWorld(),))).settle(range(0)))
         self.assertEqual(len(residual), 1)           # opening drift, nothing converged
 
     def test_run_with_no_ticks_does_nothing(self):
-        self.assertEqual(list(Controller(Reconciler((self.SlowWorld(),))).run(range(0))), [])
+        async def drive():
+            return [residual async for residual in Controller(Reconciler((self.SlowWorld(),))).run(range(0))]
+
+        self.assertEqual(asyncio.run(drive()), [])
 
     def test_run_is_a_lazy_stream_not_an_eager_list(self):
         # run() yields, so an infinite tick source is a forever-loop the caller drives lazily, NOT an eager
         # list that would never return. Pulling two off itertools.count() must not hang or exhaust memory.
-        stream = Controller(Reconciler((self.SlowWorld(passes=99),))).run(itertools.count())
-        first_two = [len(residual) for residual in itertools.islice(stream, 2)]
-        self.assertEqual(len(first_two), 2)
+        async def two():
+            taken = []
+            async for residual in Controller(Reconciler((self.SlowWorld(passes=99),))).run(itertools.count()):
+                taken.append(len(residual))
+                if len(taken) == 2:
+                    return taken
+            return taken
+
+        self.assertEqual(len(asyncio.run(two())), 2)

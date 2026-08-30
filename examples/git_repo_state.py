@@ -29,7 +29,7 @@ a direct git inspection confirms the config, the commit and the branch are all i
 example builds a throwaway repository in a temp directory and deletes it on the way out, so
 it runs anywhere with git installed.
 """
-
+import asyncio
 import os
 import shutil
 import subprocess
@@ -181,11 +181,11 @@ def main() -> None:
         print()
 
         print("First converge:")
-        report(reconciler.converge())
+        report(asyncio.run(reconciler.converge()))
         print()
 
         print("Second converge (should be a clean no-op):")
-        report(reconciler.converge())
+        report(asyncio.run(reconciler.converge()))
         print()
 
         print("Direct git inspection:")

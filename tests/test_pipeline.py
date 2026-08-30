@@ -1,4 +1,5 @@
 """Chain axis - Components weakly-connected grouping and Pipeline per-chain fan-out."""
+import asyncio
 import unittest
 
 from cabaxiom import (
@@ -32,7 +33,7 @@ class PipelineOrderingTests(unittest.TestCase):
     def test_components_flat_call_is_a_valid_topo_order(self):
         # Its __call__ concatenates the components, each internally topo-sorted, so after= still holds.
         log = []
-        Reconciler((C(log), A(log), B(log)), Components(), dispatcher=Serial()).converge()
+        asyncio.run(Reconciler((C(log), A(log), B(log)), Components(), dispatcher=Serial()).converge())
         self.assertEqual(log, ["A", "B", "C"])
 
     def test_components_keeps_every_instance_of_a_class(self):
@@ -60,23 +61,23 @@ class PipelineOrderingTests(unittest.TestCase):
     def test_pipeline_serialises_the_steps_within_a_chain(self):
         # One connected chain -> one pipeline on one worker, so the within-chain order is deterministic.
         log = []
-        Reconciler((C(log), A(log), B(log)), Components(), dispatcher=Pipeline()).converge()
+        asyncio.run(Reconciler((C(log), A(log), B(log)), Components(), dispatcher=Pipeline()).converge())
         self.assertEqual(log, ["A", "B", "C"])
 
     def test_pipeline_runs_independent_chains_and_keeps_each_chains_order(self):
         # Chain A->B->C runs alongside singletons X and Y. All run, with A before B before C within its chain.
         log = []
-        Reconciler((C(log), A(log), B(log), X(log), Y(log)), Components(), dispatcher=Pipeline()).converge()
+        asyncio.run(Reconciler((C(log), A(log), B(log), X(log), Y(log)), Components(), dispatcher=Pipeline()).converge())
         self.assertEqual(sorted(log), ["A", "B", "C", "X", "Y"])
         self.assertLess(log.index("A"), log.index("B"))
         self.assertLess(log.index("B"), log.index("C"))
 
     def test_pipeline_failfast_reraises_on_the_calling_thread(self):
         with self.assertRaises(RuntimeError):
-            Reconciler((Boom(),), Components(), dispatcher=Pipeline()).converge()
+            asyncio.run(Reconciler((Boom(),), Components(), dispatcher=Pipeline()).converge())
 
     def test_pipeline_best_effort_collects_failures(self):
-        residual = Reconciler((Boom(),), Components(), dispatcher=Pipeline(OnError.BestEffort)).converge()
+        residual = asyncio.run(Reconciler((Boom(),), Components(), dispatcher=Pipeline(OnError.BestEffort)).converge())
         self.assertEqual(len(residual), 1)
         self.assertIn("step failed", residual[0].message)
 
@@ -87,15 +88,15 @@ class PipelineOrderingTests(unittest.TestCase):
             def apply(self):
                 return [DriftItem("svc", "created")]
 
-        residual = Reconciler((Applied(),), Components(), dispatcher=Pipeline()).converge()
+        residual = asyncio.run(Reconciler((Applied(),), Components(), dispatcher=Pipeline()).converge())
         self.assertEqual(residual, [])                                       # nothing still wrong
         self.assertEqual([item.message for item in residual.applied], ["created"])
 
     def test_pipeline_cancellation_aborts_regardless_of_on_error(self):
         # A fired cancellation always raises Cancelled, even under BestEffort - the between-steps check.
         with self.assertRaises(Cancelled):
-            Reconciler((A([]), B([]), C([])), Components(),
-                       dispatcher=Pipeline(OnError.BestEffort), cancellation=Deadline(0)).converge()
+            asyncio.run(Reconciler((A([]), B([]), C([])), Components(),
+                                   dispatcher=Pipeline(OnError.BestEffort), cancellation=Deadline(0)).converge())
 
     def test_reconciler_rejects_pipeline_with_a_non_chain_ordering(self):
         # Kahn does not override chains() (one-chain fallback), so Pipeline would run nothing concurrently.

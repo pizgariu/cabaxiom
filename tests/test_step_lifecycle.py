@@ -1,4 +1,5 @@
 """Read and teardown step methods. plan, audit, footprint and prune."""
+import asyncio
 import unittest
 
 from cabaxiom import Assessment, DriftItem, OnError, Reconciler, Serial, Step
@@ -113,7 +114,7 @@ class AuditTests(unittest.TestCase):
         # An advising step in desired state. converge proves clean (empty residual, empty applied)
         # while the advice stays fully readable on its own channel.
         rec = Reconciler((self.Advising(),))
-        result = rec.converge()
+        result = asyncio.run(rec.converge())
         self.assertEqual(result, [])
         self.assertEqual(result.applied, [])
         self.assertEqual([item.message for item in rec.audit()], ["a better mode is available"])
@@ -151,11 +152,11 @@ class FootprintTests(unittest.TestCase):
         rec = Reconciler((Owning(log),))
         self.assertEqual(len(rec.footprint()), 1)
         self.assertEqual(log, [])                # the preview ran nothing
-        self.assertEqual(rec.converge(), [])
+        self.assertEqual(asyncio.run(rec.converge()), [])
 
 
 class PruneTests(unittest.TestCase):
-    """prune() is the deletion half. Reconciler.prune() runs step.prune() in REVERSE resolved order."""
+    """prune() is the deletion half. asyncio.run(Reconciler.prune()) runs asyncio.run(step.prune()) in REVERSE resolved order."""
 
     def test_prune_runs_in_reverse_of_build_order(self):
         log = []
@@ -176,7 +177,7 @@ class PruneTests(unittest.TestCase):
             def prune(self) -> None:
                 log.append("C")
 
-        Reconciler((PC(), PA(), PB())).prune()
+        asyncio.run(Reconciler((PC(), PA(), PB())).prune())
         self.assertEqual(log, ["C", "B", "A"])       # teardown is the inverse of build order
 
     def test_build_forward_then_tear_down_backward(self):
@@ -199,8 +200,8 @@ class PruneTests(unittest.TestCase):
                 pruned.append("B2")
 
         rec = Reconciler((B2(), A2()))
-        rec.converge()
-        rec.prune()
+        asyncio.run(rec.converge())
+        asyncio.run(rec.prune())
         self.assertEqual(applied, ["A2", "B2"])
         self.assertEqual(pruned, ["B2", "A2"])
 
@@ -215,7 +216,7 @@ class PruneTests(unittest.TestCase):
             def prune(self) -> None:
                 log.append("ok")
 
-        failures = Reconciler((BoomPrune(), OkPrune()), dispatcher=Serial(OnError.BestEffort)).prune()
+        failures = asyncio.run(Reconciler((BoomPrune(), OkPrune()), dispatcher=Serial(OnError.BestEffort)).prune())
         self.assertEqual(log, ["ok"])
         self.assertEqual(len(failures), 1)
 
@@ -224,7 +225,7 @@ class PruneTests(unittest.TestCase):
             def apply(self) -> None:
                 pass
 
-        self.assertEqual(Reconciler((CreateOnly(),)).prune(), [])
+        self.assertEqual(asyncio.run(Reconciler((CreateOnly(),)).prune()), [])
 
     def test_prune_returns_the_residue_a_step_reports(self):
         # Self-verification. prune() returns whatever a step says SURVIVED its teardown.
@@ -232,7 +233,7 @@ class PruneTests(unittest.TestCase):
             def prune(self) -> list:
                 return [DriftItem("artifact", "survived teardown")]
 
-        residual = Reconciler((Stubborn(),)).prune()
+        residual = asyncio.run(Reconciler((Stubborn(),)).prune())
         self.assertEqual([(d.name, d.message) for d in residual], [("artifact", "survived teardown")])
 
     def test_prune_is_clean_when_every_step_reports_no_residue(self):
@@ -241,7 +242,7 @@ class PruneTests(unittest.TestCase):
             def prune(self) -> list:
                 return []
 
-        self.assertEqual(Reconciler((CleanRemove(),)).prune(), [])
+        self.assertEqual(asyncio.run(Reconciler((CleanRemove(),)).prune()), [])
 
     def test_prune_surfaces_both_residue_and_best_effort_failures(self):
         # Residue (a soft "survived" return) and a hard prune() exception both land in the residual.
@@ -253,7 +254,7 @@ class PruneTests(unittest.TestCase):
             def prune(self) -> list:
                 raise RuntimeError("rm failed")
 
-        residual = Reconciler((Survivor(), BoomPrune()), dispatcher=Serial(OnError.BestEffort)).prune()
+        residual = asyncio.run(Reconciler((Survivor(), BoomPrune()), dispatcher=Serial(OnError.BestEffort)).prune())
         names = {d.name for d in residual}
         self.assertIn("a", names)            # the soft residue
         self.assertIn("BoomPrune", names)

@@ -29,7 +29,7 @@ from .cancellation import (
     Some,
 )
 from .convergence import Backoff, Convergence, Exponential, Fixed, Fixpoint, Jitter, Once
-from .dispatcher import Async, Dispatcher, OnError, Parallel, Pipeline, Serial
+from .dispatcher import Dispatcher, OnError, Parallel, Pipeline, Serial
 from .drift import Assessment, Changes, Drift, DriftItem, Outcome
 from .observer import Chorus, Observer
 from .ordering import DFS, Components, Kahn, Ordering, Priority
@@ -44,8 +44,7 @@ __all__ = [
     "Scope", "Only", "Skip",
     "Ordering", "Kahn", "DFS", "Priority", "Components",
     "Placement", "Partition", "Levels", "Chains",
-    "OnError", "Dispatcher", "Serial", "Parallel", "Pipeline", "Async",
-    "Cancelled", "Cancellation", "Deadline", "Flag", "Rule", "Some", "Every", "Most", "Quorum", "AnyOf", "AllOf", "Majority",
+    "OnError", "Dispatcher", "Serial", "Parallel", "Pipeline", "Cancelled", "Cancellation", "Deadline", "Flag", "Rule", "Some", "Every", "Most", "Quorum", "AnyOf", "AllOf", "Majority",
     "Convergence", "Once", "Fixpoint", "Backoff", "Fixed", "Exponential", "Jitter",
     "Retry",
     "Residual", "Reconciler", "Controller", "Explanation",

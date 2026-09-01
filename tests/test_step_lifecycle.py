@@ -22,8 +22,8 @@ class PlanTests(unittest.TestCase):
                 found = [DriftItem("f", "needs fix")]
                 return Assessment(deviation=found, plan=found)
 
-        self.assertEqual(Reconciler((Silent(),)).plan(), [])          # never claimed a plan, so it has none
-        self.assertEqual(len(Reconciler((Stated(),)).plan()), 1)      # claimed one, its own deviation
+        self.assertEqual(asyncio.run(Reconciler((Silent(),)).plan()), [])          # never claimed a plan, so it has none
+        self.assertEqual(len(asyncio.run(Reconciler((Stated(),)).plan())), 1)      # claimed one, its own deviation
 
     def test_plan_does_not_mutate(self):
         class Fixable(Step):
@@ -38,8 +38,8 @@ class PlanTests(unittest.TestCase):
 
         f = Fixable()
         rec = Reconciler((f,))
-        rec.plan()
-        rec.plan()
+        asyncio.run(rec.plan())
+        asyncio.run(rec.plan())
         self.assertFalse(f.applied[0])                  # plan() is read-only, never applies
 
     def test_custom_plan_is_distinct_from_drift(self):
@@ -51,8 +51,8 @@ class PlanTests(unittest.TestCase):
                                   plan=[DriftItem("cfg", "would rewrite 3 lines")])
 
         rec = Reconciler((Rewrite(),))
-        self.assertEqual(rec.drift()[0].message, "content differs")
-        self.assertEqual(rec.plan()[0].message, "would rewrite 3 lines")
+        self.assertEqual(asyncio.run(rec.drift())[0].message, "content differs")
+        self.assertEqual(asyncio.run(rec.plan())[0].message, "would rewrite 3 lines")
 
     def test_plan_flattens_in_resolved_order(self):
         class PA(Step):
@@ -66,7 +66,7 @@ class PlanTests(unittest.TestCase):
                 return Assessment(plan=[DriftItem("B", "b")])
 
         rec = Reconciler((PB(), PA()))               # shuffled, PA must come first
-        self.assertEqual([d.name for d in rec.plan()], ["A", "B"])
+        self.assertEqual([d.name for d in asyncio.run(rec.plan())], ["A", "B"])
 
     def test_report_only_step_can_plan_nothing(self):
         class ReportOnly(Step):
@@ -77,8 +77,8 @@ class PlanTests(unittest.TestCase):
                 return Assessment(deviation=[DriftItem("svc", "still wrong")])
 
         rec = Reconciler((ReportOnly(),))
-        self.assertEqual(len(rec.drift()), 1)
-        self.assertEqual(rec.plan(), [])
+        self.assertEqual(len(asyncio.run(rec.drift())), 1)
+        self.assertEqual(asyncio.run(rec.plan()), [])
 
 
 class AuditTests(unittest.TestCase):
@@ -93,8 +93,8 @@ class AuditTests(unittest.TestCase):
     def test_audit_defaults_to_no_advice_and_never_echoes_drift(self):
         # A drifting step with no audit() override advises nothing - advice is opt-in, not a drift echo.
         rec = Reconciler((Fixable(),))
-        self.assertEqual(len(rec.drift()), 1)
-        self.assertEqual(rec.audit(), [])
+        self.assertEqual(len(asyncio.run(rec.drift())), 1)
+        self.assertEqual(asyncio.run(rec.audit()), [])
 
     def test_audit_flattens_in_resolved_order(self):
         class AdviseFirst(Step):
@@ -108,7 +108,7 @@ class AuditTests(unittest.TestCase):
                 return Assessment(advisory=[DriftItem("second", "y")])
 
         rec = Reconciler((AdviseSecond(), AdviseFirst()))   # shuffled, after= must order the advice
-        self.assertEqual([item.name for item in rec.audit()], ["first", "second"])
+        self.assertEqual([item.name for item in asyncio.run(rec.audit())], ["first", "second"])
 
     def test_converge_never_touches_audit_findings(self):
         # An advising step in desired state. converge proves clean (empty residual, empty applied)
@@ -117,7 +117,7 @@ class AuditTests(unittest.TestCase):
         result = asyncio.run(rec.converge())
         self.assertEqual(result, [])
         self.assertEqual(result.applied, [])
-        self.assertEqual([item.message for item in rec.audit()], ["a better mode is available"])
+        self.assertEqual([item.message for item in asyncio.run(rec.audit())], ["a better mode is available"])
 
 
 class FootprintTests(unittest.TestCase):
@@ -126,7 +126,7 @@ class FootprintTests(unittest.TestCase):
     consults it."""
 
     def test_footprint_defaults_to_nothing(self):
-        self.assertEqual(Reconciler((A([]),)).footprint(), [])
+        self.assertEqual(asyncio.run(Reconciler((A([]),)).footprint()), [])
 
     def test_footprint_lists_in_teardown_order(self):
         class Base(Step):
@@ -140,7 +140,7 @@ class FootprintTests(unittest.TestCase):
                 return Assessment(footprint=[DriftItem("dependent", "removed")])
 
         rec = Reconciler((Base(), Dependent()))
-        self.assertEqual([item.name for item in rec.footprint()], ["dependent", "base"])   # prune's order
+        self.assertEqual([item.name for item in asyncio.run(rec.footprint())], ["dependent", "base"])   # prune's order
 
     def test_footprint_is_read_only_and_invisible_to_converge(self):
         log = []
@@ -150,7 +150,7 @@ class FootprintTests(unittest.TestCase):
                 return Assessment(footprint=[DriftItem("thing", "removed")])
 
         rec = Reconciler((Owning(log),))
-        self.assertEqual(len(rec.footprint()), 1)
+        self.assertEqual(len(asyncio.run(rec.footprint())), 1)
         self.assertEqual(log, [])                # the preview ran nothing
         self.assertEqual(asyncio.run(rec.converge()), [])
 

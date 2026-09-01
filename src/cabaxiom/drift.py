@@ -63,3 +63,8 @@ Changes = Sequence[Drift] | None
 # The same, admitting a coroutine, so `async def apply()` is a legal typed override rather than a special
 # case the dispatcher has to be told about.
 Outcome = Changes | Awaitable[Changes]
+
+
+# A READ's outcome, admitting a coroutine for the same reason a write's does - `async def assess()` is a
+# legal typed override rather than a shape the dispatcher has to be told about.
+Assessed = Assessment | Awaitable[Assessment]

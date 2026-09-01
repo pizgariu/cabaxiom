@@ -77,7 +77,10 @@ class ExecutorTests(unittest.TestCase):
                 waves.verify()
                 return waves
 
-            def execute(self, groups, do, cancellation):
+            async def probe(self, groups, read):
+                return [read(step) for group in groups for step in group]
+
+            async def execute(self, groups, do, cancellation):
                 return [], []
 
         with self.assertRaises(ValueError):

@@ -74,7 +74,7 @@ class TextFile(Step):
         return []
 
     def apply(self) -> list[DriftItem] | None:
-        if not self.drift():
+        if not self.assess().deviation:
             return None
         # No parents=True on purpose. The Directory step must have run first.
         self.path.write_text(self.content, encoding="utf-8")
@@ -113,7 +113,7 @@ def main() -> None:
         print(f"Layout root: {root}")
         print()
         print("Plan (missing pieces, in resolved order - directories before files):")
-        for item in reconciler.plan():
+        for item in asyncio.run(reconciler.plan()):
             print(f"    - {item}")
         print()
 
@@ -127,7 +127,7 @@ def main() -> None:
 
         print("Tampering: overwrite config/app.toml with the wrong content")
         app_toml.write_text("name = \"tampered\"\nport = 1\n", encoding="utf-8")
-        drift = reconciler.drift()
+        drift = asyncio.run(reconciler.drift())
         print(f"  drift now sees {len(drift)} problem(s):")
         for item in drift:
             print(f"    ! {item}")

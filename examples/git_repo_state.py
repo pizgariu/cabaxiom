@@ -103,7 +103,7 @@ class InitialCommit(Step):
         return []
 
     def apply(self) -> list[DriftItem] | None:
-        if not self.drift():
+        if not self.assess().deviation:
             return None
         readme = Path(self.repo) / "README.md"
         readme.write_text("# Managed by cabaxiom\n", encoding="utf-8")
@@ -128,7 +128,7 @@ class LocalBranch(Step):
         return []
 
     def apply(self) -> list[DriftItem] | None:
-        if not self.drift():
+        if not self.assess().deviation:
             return None
         run_git(self.repo, ["branch", self.name], check=True)
         return [DriftItem(f"branch:{self.name}", "created local branch")]
@@ -172,7 +172,7 @@ def main() -> None:
         print(f"Throwaway repository: {repo}")
         print()
         print("Plan (what converge would do, in resolved order):")
-        plan = reconciler.plan()
+        plan = asyncio.run(reconciler.plan())
         if plan:
             for item in plan:
                 print(f"    - {item}")

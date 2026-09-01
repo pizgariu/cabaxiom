@@ -8,7 +8,7 @@ from typing import final
 
 from ._compat import override
 from .cancellation import Cancellation, Cancelled
-from .drift import Changes, Drift, DriftItem, Outcome
+from .drift import Assessed, Assessment, Changes, Drift, DriftItem, Outcome
 from .ordering import Ordering
 from .partition import Chains, Levels, Partition
 from .step import Step
@@ -115,6 +115,33 @@ class Dispatcher(BaseDispatcher, ABC):
     async def execute(self, groups: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
         ...
 
+    @abstractmethod
+    async def probe(self, groups: tuple[tuple[Step, ...], ...], read: Callable[[Step], Assessed]) -> list[Assessment]:
+        # The READ phase, fanned by the same dispatcher that fans the writes. It used to be a list
+        # comprehension inside the reconciler, so a concurrent run applied its steps concurrently and then
+        # read them back one at a time - the proof of the run was the slowest part of it.
+        #
+        # No cancellation argument, deliberately. A read touches nothing, so there is nothing to abort
+        # part-way through and nothing an abort would save.
+        ...
+
+    @staticmethod
+    def _reading(settled: list[Assessment | BaseException]) -> list[Assessment]:
+        # THE RULE A BROKEN READ OBEYS. Every entry has already settled by the time this runs, so no
+        # sibling read is left running detached on the loop to warn at teardown - and if any entry is an
+        # exception, the FIRST in resolved order is raised. Reads stay single-try and fail loud, they just
+        # no longer leave the loop dirty behind them.
+        for outcome in settled:
+            if isinstance(outcome, BaseException):
+                raise outcome
+        return [outcome for outcome in settled if isinstance(outcome, Assessment)]
+
+    @staticmethod
+    async def _settle_read(reading: Assessed) -> Assessment:
+        # A read's outcome, awaited when the step handed back a coroutine and taken as-is otherwise, so a
+        # plain `def assess()` stays a legal override beside an `async def assess()`.
+        return await reading if inspect.isawaitable(reading) else reading
+
     @staticmethod
     async def _settle(outcome: Outcome) -> Changes:
         # One write's outcome, awaited when the step handed back a coroutine and taken as-is otherwise.
@@ -162,6 +189,11 @@ class Serial(Dispatcher):
                 self._record(step, produced, broke, returns, failures)
         return returns, failures
 
+    @override
+    async def probe(self, groups: tuple[tuple[Step, ...], ...], read: Callable[[Step], Assessed]) -> list[Assessment]:
+        # One at a time, where a break propagates as itself - nothing else is in flight to settle first.
+        return [await self._settle_read(read(step)) for group in groups for step in group]
+
 
 @final
 class Parallel(Dispatcher):
@@ -196,6 +228,15 @@ class Parallel(Dispatcher):
             for step, produced, broke in await asyncio.gather(*(attempt(step) for step in level)):
                 self._record(step, produced, broke, returns, failures)
         return returns, failures
+
+    @override
+    async def probe(self, groups: tuple[tuple[Step, ...], ...], read: Callable[[Step], Assessed]) -> list[Assessment]:
+        readings: list[Assessment] = []
+        for group in groups:
+            settled = await asyncio.gather(*(self._settle_read(read(step)) for step in group),
+                                           return_exceptions=True)
+            readings.extend(self._reading(list(settled)))
+        return readings
 
 
 @final
@@ -238,3 +279,16 @@ class Pipeline(Dispatcher):
             for step, produced, broke in chain:
                 self._record(step, produced, broke, returns, failures)
         return returns, failures
+
+    @override
+    async def probe(self, groups: tuple[tuple[Step, ...], ...], read: Callable[[Step], Assessed]) -> list[Assessment]:
+        async def read_chain(chain: tuple[Step, ...]) -> list[Assessment]:
+            return [await self._settle_read(read(step)) for step in chain]
+
+        settled = await asyncio.gather(*(read_chain(chain) for chain in groups), return_exceptions=True)
+        readings: list[Assessment] = []
+        for chain in settled:
+            if isinstance(chain, BaseException):
+                raise chain
+            readings.extend(chain)
+        return readings

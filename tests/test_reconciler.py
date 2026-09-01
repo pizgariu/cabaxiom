@@ -27,13 +27,13 @@ class ExplainTests(unittest.TestCase):
 class ConvergeTests(unittest.TestCase):
     def test_empty_reconciler_is_clean(self):
         rec = Reconciler(())
-        self.assertEqual(rec.drift(), [])
+        self.assertEqual(asyncio.run(rec.drift()), [])
         self.assertEqual(asyncio.run(rec.converge()), [])
 
     def test_converge_applies_then_reports_clean_residual(self):
         f = Fixable()
         rec = Reconciler((f,))
-        self.assertEqual(len(rec.drift()), 1)   # opening status: drift present
+        self.assertEqual(len(asyncio.run(rec.drift())), 1)   # opening status: drift present
         self.assertEqual(asyncio.run(rec.converge()), [])    # apply -> re-probe -> verified clean
         self.assertTrue(f.applied)
 
@@ -59,7 +59,7 @@ class ConvergeTests(unittest.TestCase):
                 return Assessment(deviation=[DriftItem("2", "y")])
 
         rec = Reconciler((D2(), D1()))   # shuffled, D1 must come first
-        self.assertEqual([d.name for d in rec.drift()], ["1", "2"])
+        self.assertEqual([d.name for d in asyncio.run(rec.drift())], ["1", "2"])
 
     def test_converge_reports_what_apply_changed_on_the_applied_channel(self):
         # A write-oriented step reports its change from apply(). It lands on applied, NOT the residual.

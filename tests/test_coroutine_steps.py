@@ -6,7 +6,7 @@ driving. They are kept because the SHAPE they exercise is still real, not becaus
 import asyncio
 import unittest
 
-from cabaxiom import DFS, Assessment, Cancelled, DriftItem, Flag, Kahn, OnError, Parallel, Reconciler, Step
+from cabaxiom import DFS, Assessment, Cancelled, DriftItem, Flag, Kahn, OnError, Parallel, Reconciler, Retry, Step
 
 
 class _AsyncFix(Step):
@@ -120,3 +120,54 @@ class AsyncTests(unittest.TestCase):
         with self.assertRaises(Cancelled) as ctx:
             asyncio.run(Reconciler((_AsyncFix(),), Kahn(), dispatcher=Parallel(), cancellation=flag).converge())
         self.assertIn("Flag", str(ctx.exception))
+
+
+class BrokenReadTests(unittest.TestCase):
+    """A read that raises must not leave its wave-mates running detached on the loop.
+
+    The fan used a bare gather, so the first failure propagated at once while the sibling reads kept
+    going with nobody awaiting them - they warned at teardown and their exceptions went nowhere. The
+    wave settles whole now, then the first broken read raises in resolved order."""
+
+    class Reads(Step):
+        def __init__(self, log, breaks=False):
+            self.log = log
+            self.breaks = breaks
+
+        async def assess(self):
+            await asyncio.sleep(0)
+            self.log.append(type(self).__name__)
+            if self.breaks:
+                raise RuntimeError("the probe broke")
+            return self.verified()
+
+    def test_every_read_in_the_wave_settles_before_the_break_is_raised(self):
+        seen = []
+
+        class First(self.Reads):
+            pass
+
+        class Second(self.Reads):
+            pass
+
+        class Third(self.Reads):
+            pass
+
+        run = Reconciler((First(seen, breaks=True), Second(seen), Third(seen)), dispatcher=Parallel())
+        with self.assertRaises(RuntimeError):
+            asyncio.run(run.drift())
+        self.assertEqual(sorted(seen), ["First", "Second", "Third"], "a sibling read was abandoned")
+
+    def test_a_read_is_never_retried_however_generous_the_retry(self):
+        # The re-probe is the PROOF of the run, so a probe that needs retrying is reporting something
+        # worth seeing. Retry guards the writes and nothing else.
+        tries = []
+
+        class Counting(Step):
+            def assess(self):
+                tries.append(1)
+                raise RuntimeError("the probe broke")
+
+        with self.assertRaises(RuntimeError):
+            asyncio.run(Reconciler((Counting(),), retry=Retry(5)).drift())
+        self.assertEqual(len(tries), 1)

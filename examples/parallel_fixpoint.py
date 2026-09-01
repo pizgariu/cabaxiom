@@ -177,7 +177,7 @@ def main() -> None:
     )
 
     print("Initial plan:")
-    for item in reconciler.plan():
+    for item in asyncio.run(reconciler.plan()):
         print(f"    - {item}")
     print()
 

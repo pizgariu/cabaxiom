@@ -87,29 +87,29 @@ class Reconciler:
         self.__observer = observer
         self.__retry = retry
 
-    def drift(self) -> list[Drift]:
+    async def drift(self) -> list[Drift]:
         # Flatten every step's drift, in resolved order. [] == fully in desired state.
-        return self.__probe(self.__partition, "deviation")
+        return await self.__probe(self.__partition, "deviation")
 
-    def plan(self) -> list[Drift]:
+    async def plan(self) -> list[Drift]:
         # The dry run. What converge WOULD do, without doing it. Flatten every step's plan() preview
         # in resolved order, reusing the Drift channel. [] == nothing to do. Read-only, so it is safe
         # to call before converge() to show the work.
-        return self.__probe(self.__partition, "plan")
+        return await self.__probe(self.__partition, "plan")
 
-    def audit(self) -> list[Drift]:
+    async def audit(self) -> list[Drift]:
         # The advisory read. Flatten every step's audit() (findings about a system that meets desired
         # state yet still deserves attention) in resolved order, through the same read engine as drift
         # and plan. [] == nothing to advise. converge() never calls this and its findings never enter
         # the residual, so the empty residual stays the proof desired state was reached. A consumer
         # opts in by calling audit() itself, typically alongside drift().
-        return self.__probe(self.__partition, "advisory")
+        return await self.__probe(self.__partition, "advisory")
 
-    def footprint(self) -> list[Drift]:
+    async def footprint(self) -> list[Drift]:
         # The teardown preview. Everything the steps own that exists now, flattened in the order
         # prune() would tear it down. Read-only through the same engine as the other reads, and
         # prune() never consults it.
-        return self.__probe(self.__partition.inverse(), "footprint")
+        return await self.__probe(self.__partition.inverse(), "footprint")
 
     def explain(self) -> Explanation:
         # The structural read (returns an Explanation, not Drift). What the injected Ordering resolved and the
@@ -150,7 +150,7 @@ class Reconciler:
             applied.extend(applied_this_pass)
             self.__observer.acted(applied_this_pass)
 
-            residual = failures + self.drift()
+            residual = failures + await self.drift()
             self.__observer.remained(residual)
             return residual
 
@@ -174,7 +174,7 @@ class Reconciler:
         return residue + failures
 
     # noinspection PyMethodMayBeStatic
-    def __probe(self, groups: tuple[tuple[Step, ...], ...], channel: str) -> list[Drift]:
+    async def __probe(self, groups: tuple[tuple[Step, ...], ...], channel: str) -> list[Drift]:
         # The single READ engine. One assess() per step, flattened over the whole run, with the caller
         # naming which channel of the reading it came for. drift, plan and audit walk the resolved
         # partition, footprint walks the teardown order, so the direction is still the caller's to hand
@@ -182,10 +182,8 @@ class Reconciler:
         #
         # A step with an expensive read used to pay for it four times over, since nothing forced the four
         # answers to describe the same moment of the world. Now they cannot describe different ones.
-        return [item
-                for group in groups
-                for step in group
-                for item in getattr(step.assess(), channel)]
+        readings = await self.__dispatcher.probe(groups, lambda step: step.assess())
+        return [item for reading in readings for item in getattr(reading, channel)]
 
     async def __execute(self, groups: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome]) -> tuple[list[Drift], list[Drift]]:
         # The single WRITE engine. Sequence steps, funnelling both converge (forward partition,
@@ -236,7 +234,7 @@ class Controller:
         # The bounded twin of run(). Converge each tick until one comes back CLEAN (empty residual) or
         # the ticks run out, then return the final residual ([] == reached desired state). With zero
         # ticks it reports the current drift, wrapped so the return is a Residual on every path.
-        residual = Residual(self.__reconciler.drift(), [])  # opening status, in case ticks is empty
+        residual = Residual(await self.__reconciler.drift(), [])  # opening status, in case ticks is empty
         for _ in ticks:
             residual = await self.__tick()
             if not residual:

@@ -53,7 +53,7 @@ class ScopeTests(unittest.TestCase):
             def assess(self) -> list:
                 return Assessment(deviation=[DriftItem("out", "drifting")])
 
-        drift = Reconciler((InScope(), OutOfScope()), scope=Only(InScope)).drift()
+        drift = asyncio.run(Reconciler((InScope(), OutOfScope()), scope=Only(InScope)).drift())
         self.assertEqual([item.name for item in drift], ["in"])
 
     def test_an_empty_selection_is_rejected(self):

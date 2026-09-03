@@ -11,6 +11,7 @@ from .cancellation import Cancellation, Cancelled
 from .drift import Assessed, Assessment, Changes, Drift, DriftItem, Outcome
 from .ordering import Ordering
 from .partition import Chains, Levels, Partition
+from .retry import Retry
 from .step import Step
 
 
@@ -292,3 +293,66 @@ class Pipeline(Dispatcher):
                 raise chain
             readings.extend(chain)
         return readings
+
+
+@final
+class Write:
+    """The write phase's callable, plus the raw hook underneath it.
+
+    A dispatcher that MOVES a write somewhere else needs the run's layers rebuilt AROUND the moved hook,
+    not laid over the move. Relocating the already-retried callable would put the whole attempt loop on
+    the far side of the hop - and that loop awaits its pauses on the event loop, so a thread is exactly
+    where it cannot run. The retry has to end up OUTSIDE the relocation, which is what this lets it do.
+
+    relay() takes the relocation rather than handing the raw hook out, so a caller cannot rebuild the
+    stack in the wrong order even by accident."""
+
+    __slots__ = ("__retry", "__hook", "__wrapped")
+
+    def __init__(self, retry: "Retry", raw: Callable[[Step], Outcome]) -> None:
+        self.__retry = retry
+        self.__hook = raw
+        self.__wrapped = retry(raw)
+
+    def __call__(self, step: Step) -> Outcome:
+        # The wrapped form, so a dispatcher that does not relocate anything keeps calling exactly what it
+        # always called and never learns this class exists.
+        return self.__wrapped(step)
+
+    def relay(self, relocate: Callable[[Callable[[Step], Outcome]], Callable[[Step], Outcome]]) -> Callable[[Step], Outcome]:
+        # The retry, laid back OVER the relocated hook. Attempts are then spent on the far side of the
+        # hop, which is what a caller asking for three tries of a blocking write actually meant.
+        return self.__retry(relocate(self.__hook))
+
+
+@final
+class ThreadDispatcher(Dispatcher):
+    """The sanctioned route for a blocking domain, a DECORATOR rather than a family of its own.
+
+    A domain whose apply() shells out or talks to a driver with no async form would otherwise block the
+    loop every other step is sharing. This relocates the raw hook onto asyncio.to_thread and hands the
+    result to an underlying dispatcher, so the choice of SHAPE stays orthogonal to the choice of where the
+    work runs. It ships in the same release that deletes the synchronous engine, because otherwise that
+    release strands every caller who had one.
+    """
+
+    def __init__(self, underlying: Dispatcher | None = None) -> None:
+        self.__underlying = underlying if underlying is not None else Parallel()
+        super().__init__(self.__underlying._on_error)
+        self._shape = self.__underlying._shape   # the shape is the underlying one's - this decorates the WORK
+
+    @override
+    def arrange(self, ordering: Ordering, steps: tuple[Step, ...]) -> Partition:
+        return self.__underlying.arrange(ordering, steps)
+
+    @override
+    async def execute(self, groups: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
+        relocated = do.relay(lambda hook: lambda step: asyncio.to_thread(hook, step)) if isinstance(do, Write) else \
+            (lambda step: asyncio.to_thread(do, step))
+        return await self.__underlying.execute(groups, relocated, cancellation)
+
+    @override
+    async def probe(self, groups: tuple[tuple[Step, ...], ...], read: Callable[[Step], Assessed]) -> list[Assessment]:
+        # The reads move too. A blocking assess() blocks the loop exactly as a blocking apply() does, and
+        # a domain that needed the bridge for one of them almost always needs it for both.
+        return await self.__underlying.probe(groups, lambda step: asyncio.to_thread(read, step))

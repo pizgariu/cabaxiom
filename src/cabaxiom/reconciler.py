@@ -1,10 +1,10 @@
 """Reconciler - resolves Steps once, then reports drift or converges and self-verifies. A Controller drives it in a loop."""
 from collections.abc import AsyncIterator, Callable, Iterable
-from typing import cast, final
+from typing import final
 
 from .cancellation import Cancellation
 from .convergence import Convergence, Once
-from .dispatcher import Dispatcher, Serial
+from .dispatcher import Dispatcher, Serial, Write
 from .drift import Drift, Outcome
 from .observer import Observer
 from .ordering import Kahn, Ordering
@@ -195,7 +195,7 @@ class Reconciler:
         # declares, so the wrapper needs no restating on the way in. The Dispatcher owns HOW (serial,
         # level-parallel or chain-pipelined) and the OnError policy. It returns two lists apart -
         # (do-returns, failures). The direction is the caller's.
-        return await self.__dispatcher.execute(groups, cast(Callable[[Step], Outcome], self.__retry(do)), self.__cancellation)
+        return await self.__dispatcher.execute(groups, Write(self.__retry, do), self.__cancellation)
 
 
 @final

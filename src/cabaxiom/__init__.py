@@ -37,6 +37,7 @@ from .partition import Chains, Levels, Partition, Placement
 from .reconciler import Controller, Explanation, Reconciler, Residual
 from .retry import Retry
 from .scope import Only, Scope, Skip
+from .settle import Clean, Settle, Stable
 from .step import Step
 
 __all__ = [
@@ -44,6 +45,7 @@ __all__ = [
     "Scope", "Only", "Skip",
     "Ordering", "Kahn", "DFS", "Priority", "Components",
     "Placement", "Partition", "Levels", "Chains",
+    "Settle", "Clean", "Stable",
     "OnError", "Dispatcher", "BaseDispatcher", "Serial", "Parallel", "Pipeline", "ThreadDispatcher", "Write", "Cancelled", "Cancellation", "Deadline", "Flag", "Rule", "Some", "Every", "Most", "Quorum", "AnyOf", "AllOf", "Majority",
     "Convergence", "Once", "Fixpoint", "Backoff", "Fixed", "Exponential", "Jitter",
     "Retry",

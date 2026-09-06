@@ -1,5 +1,6 @@
 """Step - one reconciliation concern that owns its desired state, with read/apply/prune hooks."""
 from abc import ABC, ABCMeta
+from collections.abc import AsyncIterator
 from typing import Any, final
 
 from ._compat import override
@@ -69,6 +70,24 @@ class Step(ABC, metaclass=_Sealed):
         # drawing of the run. A step that wants a name of its own is a later problem that will be
         # solved here rather than at eight call sites.
         return type(step).__name__
+
+    async def watch(self) -> AsyncIterator[None]:
+        # THE EVENT SOURCE, empty by default on purpose. A step that overrides nothing never
+        # announces its world, so a standing loop over it converges once and then sleeps rather than
+        # spinning. A step that CAN watch - an inotify handle, a queue, a poll - yields once per thing it
+        # noticed and the loop converges again.
+        #
+        # The wake carries NO PAYLOAD. That is the level-triggered discipline this whole kernel rests
+        # on. A wake means "look again", never "here is what changed". A spurious one costs exactly one
+        # clean pass. An edge-triggered one that carried a delta would cost correctness the first time a
+        # wake was missed, coalesced or delivered twice.
+        #
+        # The yield below exists only to make this function an async GENERATOR - the loop body running
+        # would break the contract, so the line is excluded from the coverage gate rather than pretended
+        # reachable.
+        _nothing: tuple[None, ...] = ()
+        for _never in _nothing:
+            yield _never   # pragma: no cover - the empty source's whole point
 
     def assess(self) -> Assessment:
         # ONE read of the world, answering four questions from a single probe. It used to be four hooks -

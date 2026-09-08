@@ -1,9 +1,8 @@
 """Reconciler core lifecycle and Controller tick/run/settle composition."""
 import asyncio
-import itertools
 import unittest
 
-from cabaxiom import Assessment, Controller, DriftItem, Explanation, Reconciler, Residual, Step
+from cabaxiom import Assessment, DriftItem, Explanation, Reconciler, Residual, Step
 from support import A, B, Boom, C, Fixable, ReportOnly
 
 
@@ -116,75 +115,3 @@ class ResidualTests(unittest.TestCase):
         self.assertIn("DriftItem('svc', 'still wrong')", repr(residual))
 
 
-class ControllerTests(unittest.TestCase):
-    """Controller drives a Reconciler in a continuous loop, by composition (not inheritance)."""
-
-    class SlowWorld(Step):
-        """Reaches desired state only after `passes` converge() calls - external drift settling in time."""
-
-        def __init__(self, passes: int = 3):
-            self.n = [0]
-            self.passes = passes
-
-        def apply(self) -> None:
-            self.n[0] += 1
-
-        def assess(self) -> list:
-            return Assessment(deviation=[] if self.n[0] >= self.passes else [DriftItem("w", f"{self.n[0]}/{self.passes}")])
-
-    def test_controller_is_composition_not_inheritance(self):
-        self.assertFalse(issubclass(Controller, Reconciler))
-        self.assertNotIsInstance(Controller(Reconciler(())), Reconciler)
-
-    def test_run_converges_once_per_tick_and_collects_residuals(self):
-        seen = []
-        controller = Controller(Reconciler((self.SlowWorld(),)), on_residual=seen.append)
-
-        async def drive():
-            return [len(residual) async for residual in controller.run(range(3))]
-
-        self.assertEqual(asyncio.run(drive()), [1, 1, 0])   # clean on the 3rd pass
-        self.assertEqual(len(seen), 3)               # on_residual fired every pass
-
-    def test_settle_stops_as_soon_as_a_pass_is_clean(self):
-        pulled = []
-
-        def ticks():
-            for i in range(10):
-                pulled.append(i)
-                yield i
-
-        residual = asyncio.run(Controller(Reconciler((self.SlowWorld(),))).settle(ticks()))
-        self.assertEqual(residual, [])
-        self.assertEqual(len(pulled), 3)             # stopped at 3, did NOT drain all 10 ticks
-
-    def test_settle_drains_ticks_when_never_clean(self):
-        class Stuck(Step):
-            def assess(self) -> list:
-                return Assessment(deviation=[DriftItem("svc", "stuck")])
-
-        residual = asyncio.run(Controller(Reconciler((Stuck(),))).settle(range(3)))
-        self.assertEqual(len(residual), 1)
-
-    def test_settle_with_no_ticks_reports_current_drift(self):
-        residual = asyncio.run(Controller(Reconciler((self.SlowWorld(),))).settle(range(0)))
-        self.assertEqual(len(residual), 1)           # opening drift, nothing converged
-
-    def test_run_with_no_ticks_does_nothing(self):
-        async def drive():
-            return [residual async for residual in Controller(Reconciler((self.SlowWorld(),))).run(range(0))]
-
-        self.assertEqual(asyncio.run(drive()), [])
-
-    def test_run_is_a_lazy_stream_not_an_eager_list(self):
-        # run() yields, so an infinite tick source is a forever-loop the caller drives lazily, NOT an eager
-        # list that would never return. Pulling two off itertools.count() must not hang or exhaust memory.
-        async def two():
-            taken = []
-            async for residual in Controller(Reconciler((self.SlowWorld(passes=99),))).run(itertools.count()):
-                taken.append(len(residual))
-                if len(taken) == 2:
-                    return taken
-            return taken
-
-        self.assertEqual(len(asyncio.run(two())), 2)

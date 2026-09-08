@@ -1,4 +1,5 @@
 """Reconciler - resolves Steps once, then reports drift or converges and self-verifies. A Controller drives it in a loop."""
+import asyncio
 from collections.abc import AsyncIterator, Callable, Iterable
 from typing import final
 
@@ -10,6 +11,7 @@ from .observer import Observer
 from .ordering import Kahn, Ordering
 from .retry import Retry
 from .scope import Scope
+from .settle import Clean, Settle
 from .step import Step
 
 
@@ -156,6 +158,52 @@ class Reconciler:
 
         return Residual(await self.__convergence(cycle), applied)
 
+    async def watch(self, *, settle: Settle | None = None) -> AsyncIterator[Residual]:
+        """The standing run - converge, hand back the residual, then wait for a step to say look again.
+
+        It replaces a tick-driven Controller. The difference is who decides when to look. A tick source
+        made the CALLER guess an interval, so a fast world was answered late and a quiet one was polled for
+        nothing. Here the steps say when their own world moved, through Step.watch(), while the loop sleeps
+        between wakes rather than counting.
+
+        Level-triggered throughout. A wake carries no payload and means only look again, so this re-reads
+        the WHOLE declaration every time rather than processing a delta. That is what makes a missed wake,
+        a coalesced wake and a doubled wake all harmless.
+
+        It ends when the injected Settle says so or when every step's source is exhausted - a declaration
+        of steps that announce nothing converges once and then finishes, rather than hanging on a wake that
+        can never come.
+        """
+        deciding = settle if settle is not None else Clean()
+        sources = [step.watch().__aiter__() for group in self.__partition for step in group]
+        pending: dict[asyncio.Task[None], object] = {
+            asyncio.create_task(anext(source)): source for source in sources   # type: ignore[arg-type]
+        }
+        try:
+            while True:
+                residual = await self.converge()
+                yield residual
+                if deciding.settled(residual):
+                    return
+                while pending:
+                    done, _ = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+                    woke = False
+                    for task in done:
+                        source = pending.pop(task)
+                        try:
+                            task.result()
+                        except StopAsyncIteration:
+                            continue          # that step has nothing more to say, the others may
+                        pending[asyncio.create_task(anext(source))] = source   # type: ignore[arg-type]
+                        woke = True
+                    if woke:
+                        break
+                if not pending:
+                    return                    # every source is exhausted, so no wake can ever arrive
+        finally:
+            for task in pending:
+                task.cancel()
+
     async def prune(self) -> list[Drift]:
         # The deletion half, the mirror of converge. Run every step's prune() in REVERSE resolved order
         # (tear a dependent down before the thing it depends on) through the same dispatcher, so the
@@ -196,47 +244,3 @@ class Reconciler:
         # level-parallel or chain-pipelined) and the OnError policy. It returns two lists apart -
         # (do-returns, failures). The direction is the caller's.
         return await self.__dispatcher.execute(groups, Write(self.__retry, do), self.__cancellation)
-
-
-@final
-class Controller:
-    """A continuous control loop composed over a Reconciler (has-a, not is-a).
-
-    A Reconciler converges once against one observation. A Controller drives it repeatedly, re-running
-    the whole converge() across ticks and RE-OBSERVING the world each time, so it catches external drift
-    that reappears after a fix. (Contrast Fixpoint, which repeats apply -> re-probe within a single
-    converge() against the same observation.)
-
-    Driven, not self-timing. run()/settle() walk an injected `ticks` iterable, converging once per tick,
-    so the kernel stays clock-free.
-    """
-
-    def __init__(self, reconciler: Reconciler, *, on_residual: Callable[[Residual], None] | None = None):
-        # on_residual, if given, is called with each pass's residual as it happens - the hook a
-        # long-running controller uses to log, alert or export metrics.
-        self.__reconciler = reconciler
-        self.__on_residual = on_residual
-
-    async def __tick(self) -> Residual:
-        residual = await self.__reconciler.converge()
-        if self.__on_residual is not None:
-            self.__on_residual(residual)
-        return residual
-
-    async def run(self, ticks: Iterable[object]) -> AsyncIterator[Residual]:
-        # Converge once per tick, yielding each pass's residual as it happens. Lazy on purpose - an
-        # infinite `ticks` (itertools.count()) makes this a forever-loop the caller drives one tick at
-        # a time. Wrap a finite run in list() for every residual or just drive it for the side effects.
-        for _ in ticks:
-            yield await self.__tick()
-
-    async def settle(self, ticks: Iterable[object]) -> Residual:
-        # The bounded twin of run(). Converge each tick until one comes back CLEAN (empty residual) or
-        # the ticks run out, then return the final residual ([] == reached desired state). With zero
-        # ticks it reports the current drift, wrapped so the return is a Residual on every path.
-        residual = Residual(await self.__reconciler.drift(), [])  # opening status, in case ticks is empty
-        for _ in ticks:
-            residual = await self.__tick()
-            if not residual:
-                break
-        return residual

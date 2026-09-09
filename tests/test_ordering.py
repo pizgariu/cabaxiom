@@ -3,7 +3,7 @@ import asyncio
 import random
 import unittest
 
-from cabaxiom import DFS, Kahn, Levels, Parallel, Priority, Reconciler, Serial, Step
+from cabaxiom import DFS, Kahn, Levels, Parallel, Partition, Priority, Reconciler, Serial, Step
 from support import A, B, C, X, Y, Z, _RecStep
 
 
@@ -226,3 +226,18 @@ class PriorityOrderingTests(unittest.TestCase):
         log = []
         asyncio.run(Reconciler((Z(log), X(log), Y(log)), Priority(), dispatcher=Serial()).converge())
         self.assertEqual(log, ["X", "Y", "Z"])
+
+
+class TheShapeDeclaresItsRuleTests(unittest.TestCase):
+    """A Partition shape without a placement rule has nothing for verify() to check against. It was an
+    abstractmethod, which a tuple subclass never enforces, so the shape constructed and only failed at its
+    first verify() - a whole run away from the class statement that got it wrong."""
+
+    def test_a_shape_that_declares_no_placement_is_refused_at_class_definition(self):
+        with self.assertRaises(ValueError) as ctx:
+            class Ruleless(Partition):
+                __slots__ = ()
+
+        told = str(ctx.exception)
+        self.assertIn("Ruleless", told)
+        self.assertIn("declares no _placement", told)

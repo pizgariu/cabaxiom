@@ -35,13 +35,22 @@ class Partition(tuple[tuple["Step", ...], ...], ABC):
     verify() is the concurrency guard, one walk for both shapes. The shapes differ only in where a dependency
     may sit relative to its dependent, so each shape declares just that rule via _placement.
 
-    That rule is a DECLARED ATTRIBUTE, not an abstract property. An abstractmethod is the wrong tool twice
-    over here. A tuple subclass's C-level __new__ skips the instantiate-check, so it never blocked anything
-    at runtime - a shape with no rule constructed happily and only failed at its first verify(), which is
-    long after the mistake was made. And a plain attribute answering an abstract property is not a valid
-    override, so the one line every shape actually writes was the one shape the contract could not express."""
+    That rule is a DECLARED ATTRIBUTE checked at class definition, not an abstract property. An abstractmethod
+    is the wrong tool twice over here. A tuple subclass's C-level __new__ skips the instantiate-check, so it
+    never blocked anything at runtime - a shape with no rule constructed happily and only failed at its first
+    verify(), which is long after the mistake was made. And a plain attribute answering an abstract property
+    is not a valid override, so the one line every shape actually writes was the one shape the contract could
+    not express. __init_subclass__ runs when the class body finishes, which is that moment."""
     __slots__ = ()
     _placement: ClassVar[Placement]
+
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        super().__init_subclass__(**kwargs)
+        if not isinstance(cls.__dict__.get("_placement"), Placement):
+            raise ValueError(
+                f"{cls.__name__} is a Partition shape and declares no _placement, so nothing says where a "
+                f"dependency may sit relative to the step that needs it. Assign one of the placements."
+            )
 
     def inverse(self) -> tuple[tuple["Step", ...], ...]:
         return tuple(tuple(reversed(group)) for group in reversed(self))

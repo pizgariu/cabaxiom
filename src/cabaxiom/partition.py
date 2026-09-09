@@ -1,9 +1,9 @@
 """Partition - the resolved run structure the dispatcher walks, as Levels (waves) or Chains (pipelines)."""
 import operator
-from abc import ABC, abstractmethod
+from abc import ABC
 from collections import namedtuple
 from enum import Enum
-from typing import final
+from typing import ClassVar, final
 
 from .step import Step
 
@@ -33,10 +33,15 @@ class Partition(tuple[tuple["Step", ...], ...], ABC):
     a plain tuple, not a Partition, since dependents-first is the opposite orientation and just runs, never re-verified.
 
     verify() is the concurrency guard, one walk for both shapes. The shapes differ only in where a dependency
-    may sit relative to its dependent, so each shape declares just that rule via _placement. ABC here is
-    declarative. A tuple subclass's C-level __new__ skips the abstractmethod instantiate-check, so the hook
-    type-checks the contract rather than block a bare Partition at runtime."""
+    may sit relative to its dependent, so each shape declares just that rule via _placement.
+
+    That rule is a DECLARED ATTRIBUTE, not an abstract property. An abstractmethod is the wrong tool twice
+    over here. A tuple subclass's C-level __new__ skips the instantiate-check, so it never blocked anything
+    at runtime - a shape with no rule constructed happily and only failed at its first verify(), which is
+    long after the mistake was made. And a plain attribute answering an abstract property is not a valid
+    override, so the one line every shape actually writes was the one shape the contract could not express."""
     __slots__ = ()
+    _placement: ClassVar[Placement]
 
     def inverse(self) -> tuple[tuple["Step", ...], ...]:
         return tuple(tuple(reversed(group)) for group in reversed(self))
@@ -56,12 +61,6 @@ class Partition(tuple[tuple["Step", ...], ...], ABC):
                             f"{Step.named(step)} in group {index} - a concurrent dispatcher needs a "
                             f"dependency {self._placement.described}, so it would ignore Step.after."
                         )
-
-    @property
-    @abstractmethod
-    def _placement(self) -> Placement:
-        # The one per-shape rule (a Placement - predicate plus its wording). The walk and message are shared.
-        ...
 
 
 @final

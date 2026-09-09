@@ -172,10 +172,10 @@ class Serial(Dispatcher):
     """
 
     @override
-    async def execute(self, levels: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
+    async def execute(self, groups: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
         returns: list[Drift] = []
         failures: list[Drift] = []
-        for level in levels:
+        for level in groups:
             for step in level:
                 if cancellation.cancelled():
                     raise Cancelled.by(cancellation)
@@ -208,7 +208,7 @@ class Parallel(Dispatcher):
     _shape = _Fan.waves()
 
     @override
-    async def execute(self, levels: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
+    async def execute(self, groups: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
         # attempt() ALWAYS catches, including the abort, then hands the step back beside its outcome, because
         # a gathered wave settles out of order and the caller has to know which result belongs to which step.
         async def attempt(step: Step) -> tuple[Step, Changes, BaseException | None]:
@@ -221,7 +221,7 @@ class Parallel(Dispatcher):
 
         returns: list[Drift] = []
         failures: list[Drift] = []
-        for level in levels:
+        for level in groups:
             if cancellation.cancelled():
                 raise Cancelled.by(cancellation)
             # gather preserves input order, so `returns` builds in resolved step order, while every coroutine
@@ -251,7 +251,7 @@ class Pipeline(Dispatcher):
     _shape = _Fan.chains()
 
     @override
-    async def execute(self, chains: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
+    async def execute(self, groups: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
         # A chain is walked in series and checks the cancellation between its own steps, since a chain can
         # be long where a wave is one fan. It hands back settled outcomes rather than recording them, so the
         # raise-or-collect rule still runs once, on the caller, in chain order.
@@ -276,7 +276,7 @@ class Pipeline(Dispatcher):
         failures: list[Drift] = []
         if cancellation.cancelled():
             raise Cancelled.by(cancellation)
-        for chain in await asyncio.gather(*(run_chain(chain) for chain in chains)):
+        for chain in await asyncio.gather(*(run_chain(chain) for chain in groups)):
             for step, produced, broke in chain:
                 self._record(step, produced, broke, returns, failures)
         return returns, failures

@@ -175,9 +175,16 @@ class Reconciler:
         can never come.
         """
         deciding = settle if settle is not None else Clean()
-        sources = [step.watch().__aiter__() for group in self.__partition for step in group]
-        pending: dict[asyncio.Task[None], object] = {
-            asyncio.create_task(anext(source)): source for source in sources   # type: ignore[arg-type]
+        sources: list[AsyncIterator[None]] = [step.watch().__aiter__()
+                                              for group in self.__partition for step in group]
+        async def woken_by(source: AsyncIterator[None]) -> None:
+            # One wake from one source. A source that has run dry raises StopAsyncIteration through this
+            # and the loop below reads that as "this step has nothing more to say", which is a different
+            # fact from "nothing has happened yet" and has to stay tellable from it.
+            await source.__anext__()
+
+        pending: dict[asyncio.Task[None], AsyncIterator[None]] = {
+            asyncio.create_task(woken_by(source)): source for source in sources
         }
         try:
             while True:
@@ -194,7 +201,7 @@ class Reconciler:
                             task.result()
                         except StopAsyncIteration:
                             continue          # that step has nothing more to say, the others may
-                        pending[asyncio.create_task(anext(source))] = source   # type: ignore[arg-type]
+                        pending[asyncio.create_task(woken_by(source))] = source
                         woke = True
                     if woke:
                         break

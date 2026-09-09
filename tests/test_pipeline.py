@@ -3,6 +3,7 @@ import asyncio
 import unittest
 
 from cabaxiom import (
+    Cancellation,
     Cancelled,
     Chains,
     Components,
@@ -150,3 +151,65 @@ class PipelineOrderingTests(unittest.TestCase):
 
     def test_chains_verify_passes_when_every_edge_stays_inside_one_chain(self):
         Chains((Components().chains((C([]), A([]), B([]))))).verify()
+
+
+class ChainInteriorTests(unittest.TestCase):
+    """The two paths inside a chain, which only a chain can reach.
+
+    A wave is one fan and a chain can be long, so a chain checks the cancellation BETWEEN its own steps
+    and a read that breaks inside one has a whole chain of siblings still settling beside it."""
+
+    def test_a_cancellation_between_two_steps_of_a_chain_stops_that_chain(self):
+        log = []
+
+        class First(Step):
+            def apply(self):
+                log.append("First")
+                return self.unchanged()
+
+        class Second(Step):
+            after = (First,)
+
+            def apply(self):
+                log.append("Second")
+                return self.unchanged()
+
+        class AfterOne(Cancellation):
+            def __init__(self):
+                self.seen = [0]
+
+            def cancelled(self):
+                self.seen[0] += 1
+                return self.seen[0] > 2   # let the run start and the first step through, then fire
+
+        with self.assertRaises(Cancelled):
+            asyncio.run(Reconciler((Second(), First()), Components(),
+                                   dispatcher=Pipeline(OnError.BestEffort),
+                                   cancellation=AfterOne()).converge())
+        self.assertEqual(log, ["First"], "the chain kept going past the abort")
+
+    def test_a_broken_read_in_one_chain_raises_after_every_chain_settles(self):
+        seen = []
+
+        class Reads(Step):
+            def __init__(self, log, breaks=False):
+                self.log = log
+                self.breaks = breaks
+
+            async def assess(self):
+                await asyncio.sleep(0)
+                self.log.append(type(self).__name__)
+                if self.breaks:
+                    raise RuntimeError("the probe broke")
+                return self.verified()
+
+        class Alpha(Reads):
+            pass
+
+        class Beta(Reads):
+            pass
+
+        run = Reconciler((Alpha(seen, breaks=True), Beta(seen)), Components(), dispatcher=Pipeline())
+        with self.assertRaises(RuntimeError):
+            asyncio.run(run.drift())
+        self.assertEqual(sorted(seen), ["Alpha", "Beta"], "a chain was abandoned mid-read")

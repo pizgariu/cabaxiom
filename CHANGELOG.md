@@ -8,6 +8,33 @@ Every release is a pre-release on the road to the 1.0.0 freeze.
 
 Nothing yet.
 
+## [0.4.0] - 2026-09-09
+
+**One engine and one read hook, so there is a single thing to learn and a single place a bug can live.**
+
+### Added
+- **The kernel is async native and there is exactly one of it.** `cabaxiom.Reconciler.converge()`, `.assess()` and `.prune()` are coroutines awaited on the caller's own loop. 0.3.0 shipped a synchronous `Reconciler` beside an `Async` executor that spun a private event loop per pass, so a caller who already had a loop ended up with two and an `apply()` that wanted to share the caller's connection pool could not. The sync twin is not deprecated, it is deleted, because a mirror is two implementations of one idea and the second one is always slightly wrong.
+- **`cabaxiom.Assessment`, the record one read hook returns.** Four channels, deviation and plan and advisory and footprint, replacing `drift()`, `plan()`, `audit()` and `footprint()`. A step with an expensive probe used to pay for it four times, yet nothing forced the four answers to describe the same moment of the world. The advisory channel is the one that had no home before. It is what lets a step report a finding without dirtying its own proof.
+- **`cabaxiom.Step.verified()`, `.drifted()`, `.unchanged()` and `.changed()`, with `Step.named(step)` for the subject.** These are the line every declaration writes on every hook. Before them a first declaration had to meet `Assessment` and `DriftItem` in order to say a file is missing. A domain's own richer `Drift` still passes through untouched, which is the point of the `Drift` protocol staying two fields wide.
+- **`Reconciler.watch()` and `Step.watch()`, the reactive graph.** `Reconciler.watch()` is an async iterator of `Residual`. `Step.watch()` yields nothing by default and exits. The wake carries no payload, deliberately, because a level-triggered wake costs one clean pass when it is spurious and an edge-triggered one costs correctness. `cabaxiom.Clean` and `cabaxiom.Stable` are the stop conditions for the loop, on `cabaxiom.Settle`.
+- **`cabaxiom.ThreadDispatcher`, the sanctioned route for a blocking domain.** It relocates the raw callable to `asyncio.to_thread` and lays the retry back over it. This ships in the same tag that removes the sync engine rather than a later one, because otherwise the release strands every caller whose `apply()` shells out or talks to a driver that has no async form.
+- **`Step` is frozen after construction.** Assigning any attribute to a constructed step raises `TypeError` naming the class. Two passes over one step now read the same declaration, which is the precondition for everything the later tags do with steps as values.
+
+### Fixed
+- **An abort could be swallowed by ordinary error handling** (`9b13197`). `Cancelled` derived from `Exception`, so a domain hook's `except Exception` ate a cooperative abort and the run kept converging a world somebody had stopped. It is a `BaseException` now, on the `KeyboardInterrupt` precedent, while the worker boundaries ferry it as a value because a `BaseException` loose in a pool worker hangs the map.
+- **A broken read abandoned its wave-mates.** The read fan used a bare `gather`, so the first failure propagated at once while the sibling reads kept running detached on the loop and warned at teardown. The fan settles the whole wave, then raises the first broken read in resolved order. Reads stay single-try and fail loud, they just no longer leave the loop dirty.
+
+### BC break
+- `Reconciler.converge()`, `.assess()` and `.prune()` are coroutines. A synchronous caller writes `asyncio.run(Reconciler(steps).converge())`.
+- The `Async` executor is gone. A coroutine `apply()` needs no special executor now. A **blocking** `apply()` writes `Reconciler(steps, dispatcher=ThreadDispatcher())`.
+- `Step.drift()`, `.plan()`, `.audit()` and `.footprint()` are gone. Write one `async def assess(self)` returning `Step.verified()`, `Step.drifted(...)` or a full `Assessment`.
+- `Controller` is gone. Write `async for residual in reconciler.watch()` and pass `Clean()` or `Stable(passes)` where you drove `Controller.settle()`.
+- `Reconciler(executor=...)` is `Reconciler(dispatcher=...)`, because the parameter no longer holds one member of a two-colour family. `Executor` and `BaseExecutor` are `cabaxiom.Dispatcher` and `BaseDispatcher`.
+- Assigning to a constructed `Step` raises. Move the assignment into `__init__`.
+- `except Exception` no longer catches `Cancelled`. Catch it by name if you were relying on that, then reconsider why.
+
+**The rung.** The executor moves **working -> ok**. It ran, in two colours, with two implementations of every shape. Now it runs in one colour with one implementation, which is tolerable rather than good, because the arranging still lives on the worker.
+
 ## [0.3.1] - 2026-08-17
 
 **0.3.0 did not import on Python 3.10 and its coverage gate could not pass on 3.10 or 3.11. Both are fixed here and nothing else changed.**
@@ -18,6 +45,7 @@ Nothing yet.
 
 ### BC break
 Nothing. 0.3.1 is 0.3.0 with two defects removed.
+
 
 ## [0.3.0] - 2026-08-13
 

@@ -4,7 +4,7 @@ import inspect
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from enum import Enum
-from typing import final
+from typing import cast, final
 
 from ._compat import override
 from .cancellation import Cancellation, Cancelled
@@ -347,12 +347,19 @@ class ThreadDispatcher(Dispatcher):
 
     @override
     async def execute(self, groups: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:
-        relocated = do.relay(lambda hook: lambda step: asyncio.to_thread(hook, step)) if isinstance(do, Write) else \
-            (lambda step: asyncio.to_thread(do, step))
+        # The cast is the one honest place for it. relay() hands the RAW hook to the relocation, where a raw
+        # hook is a plain callable by construction - the awaitable half of Outcome only ever arrives from a
+        # step that returned a coroutine, which has no business being pushed onto a worker thread.
+        def onto_a_thread(hook: Callable[[Step], Outcome]) -> Callable[[Step], Outcome]:
+            blocking = cast(Callable[[Step], Changes], hook)
+            return lambda step: asyncio.to_thread(blocking, step)
+
+        relocated = do.relay(onto_a_thread) if isinstance(do, Write) else onto_a_thread(do)
         return await self.__underlying.execute(groups, relocated, cancellation)
 
     @override
     async def probe(self, groups: tuple[tuple[Step, ...], ...], read: Callable[[Step], Assessed]) -> list[Assessment]:
         # The reads move too. A blocking assess() blocks the loop exactly as a blocking apply() does, and
         # a domain that needed the bridge for one of them almost always needs it for both.
-        return await self.__underlying.probe(groups, lambda step: asyncio.to_thread(read, step))
+        blocking = cast(Callable[[Step], Assessment], read)
+        return await self.__underlying.probe(groups, lambda step: asyncio.to_thread(blocking, step))

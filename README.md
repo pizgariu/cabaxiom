@@ -152,22 +152,21 @@ if not residual:
 
 `converge()` returns a `Residual`, a `list[Drift]` of whatever gap outlived the run. Empty means the kernel acted, probed again and confirmed reality now matches intent. The changes made along the way live on a separate channel, `residual.applied`, which is what the examples print under "applied this run". Keeping the two apart means "what I fixed" never blurs into "what is still wrong".
 
-### `Controller` - the loop that never ends
+### `watch()` - the loop that never ends
 
-`converge()` is one turn of the crank. A `Controller` turns it once per tick, which is what a long-lived reconciler does.
+`converge()` is one turn of the crank. `watch()` keeps turning it, once per wake, for as long as the world keeps moving.
 
 ```python
-from cabaxiom import Controller
+from cabaxiom import Clean
 
-controller = Controller(reconciler, on_residual=log_gap)
+async for residual in reconciler.watch():                # one converge per wake
+    log_gap(residual)
 
-for residual in controller.run(ticks):     # one converge per tick, lazily
-    ...
-
-controller.settle(ticks)                    # keep going until the first clean pass
+async for residual in reconciler.watch(settle=Clean()):  # stop at the first clean pass
+    log_gap(residual)
 ```
 
-Feed it any iterable of ticks - a timer, a queue of events, a fixed range. Level-triggered means the source does not matter. Each tick re-asks the whole question. The controller advances one tick per item you supply, so the clock stays yours.
+The steps say when to look, through `Step.watch()`. The loop sleeps between wakes. A wake carries no payload and means only look again, so each pass re-asks the whole question and a missed, doubled or coalesced wake is harmless. A declaration whose steps announce nothing converges once and finishes.
 
 ---
 

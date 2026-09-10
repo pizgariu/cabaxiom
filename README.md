@@ -177,24 +177,25 @@ Every axis of behavior is a small object you swap. The defaults resolve to `Kahn
 | Axis | The question it answers | Default | Alternatives |
 | --- | --- | --- | --- |
 | **Ordering** | Given the `after` graph, in what order do steps run? | `Kahn` (dependency waves) | `DFS` (flat post-order), `Priority(key=...)` (best-first frontier over a key), `Components` (split into independent chains) |
-| **Executor** | How does an ordered group actually run? | `Serial` (one step at a time) | `Parallel` (fan each wave across a thread pool), `Pipeline` (run independent chains concurrently) |
+| **Dispatcher** | How does an ordered group actually run? | `Serial` (one step at a time) | `Parallel` (gather each wave on the event loop), `Pipeline` (run independent chains concurrently), `ThreadDispatcher` (relocate a blocking apply to a thread) |
 | **Error policy** | When a step fails, stop or push on? | `OnError.FailFast` | `OnError.BestEffort` (finish the group, collect failures) |
 | **Convergence** | How many apply-then-probe passes per converge? | `Once` (single pass) | `Fixpoint(max_passes=...)` (repeat until the residual stops changing by value or a ceiling is hit) |
 | **Cancellation** | When should a run abort cooperatively between steps? | `Cancellation` (never aborts) | `Deadline(seconds)` (wall-clock budget), `Flag` (manual switch), the composites `AnyOf` / `AllOf` / `Majority` that nest into a tree or `Quorum(..., rule=...)` with `Some` / `Every` / `Most` for a custom rule |
 
-`Parallel` and `Pipeline` are context managers, so use them in a `with` block to release the thread pool on exit.
+`Parallel` and `Pipeline` hold no pool and need no ceremony. Hand one to the `dispatcher=` parameter and it is ready.
 
 ```python
+import asyncio
+
 from cabaxiom import Reconciler, Parallel, Fixpoint, Deadline
 
-with Parallel(width=8) as executor:
-    reconciler = Reconciler(
-        steps,
-        executor=executor,
-        convergence=Fixpoint(max_passes=10),
-        cancellation=Deadline(seconds=30),
-    )
-    residual = reconciler.converge()
+reconciler = Reconciler(
+    steps,
+    dispatcher=Parallel(),
+    convergence=Fixpoint(max_passes=10),
+    cancellation=Deadline(seconds=30),
+)
+residual = asyncio.run(reconciler.converge())
 ```
 
 ### More than converge
@@ -234,7 +235,7 @@ Converge again to self-heal:
 
 ### `parallel_fixpoint.py`
 
-Provisions a service dependency graph with the `Parallel` executor, so each dependency wave fans across a thread pool and settles a multi-pass replica scale-up with `Fixpoint` convergence.
+Provisions a service dependency graph with the `Parallel` dispatcher, so each dependency wave is gathered on the event loop and settles a multi-pass replica scale-up with `Fixpoint` convergence.
 
 ```
 Resolved waves (Kahn):
@@ -242,7 +243,7 @@ Resolved waves (Kahn):
     wave 1: Cache, Database
     wave 2: AppServers
 
-Converge (Parallel executor, Fixpoint convergence):
+Converge (Parallel dispatcher, Fixpoint convergence):
   applied this run: 6 change(s)
     + Network: provisioned
     + Cache: provisioned

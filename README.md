@@ -137,12 +137,14 @@ Hand the reconciler these in any order and it sorts them into dependency waves. 
 ### `Reconciler` - the engine
 
 ```python
+import asyncio
+
 from cabaxiom import Reconciler
 
 reconciler = Reconciler([LocalBranch(...), GitConfig(...), InitialCommit(...)])
 
-reconciler.plan()                  # the ordered gap, no changes made
-residual = reconciler.converge()   # WATCH -> COMPARE -> ACT -> re-probe
+asyncio.run(reconciler.plan())                 # the ordered gap, no changes made
+residual = asyncio.run(reconciler.converge())  # WATCH -> COMPARE -> ACT -> re-probe
 
 if not residual:
     print("verified clean")

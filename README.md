@@ -98,25 +98,25 @@ Cabaxiom is that principle and nothing else, boiled down to a small kernel with 
 You subclass `Step` and answer one question. What is the gap between the world and what I want? You report that gap as drift and you know how to close it.
 
 ```python
-from cabaxiom import Step, Drift, DriftItem
+from cabaxiom import Assessment, Step
 
 class Config(Step):
     def __init__(self, key: str, want: str) -> None:
         self.key = key
         self.want = want
 
-    def drift(self) -> list[Drift]:
+    def assess(self) -> Assessment:
         have = read_config(self.key)                  # WATCH
         if have == self.want:                         # COMPARE
-            return []                                 # no gap, no drift
-        return [DriftItem(self.key, f"want {self.want!r}, have {have!r}")]
+            return self.verified()
+        return self.drifted(f"want {self.want!r}, have {have!r}")
 
-    def apply(self) -> list[Drift] | None:
+    def apply(self):
         write_config(self.key, self.want)             # ACT
-        return self.drift()                           # honest re-read
+        return self.changed(self.key)
 ```
 
-`drift()` is WATCH plus COMPARE in one method and it never mutates. Return an empty list when the world already matches. `apply()` is ACT and it must be idempotent. The kernel calls both. You never write the loop. The git example at the top is three steps of exactly this shape.
+`assess()` is WATCH plus COMPARE in one probe and it never mutates. Answer `self.verified()` when the world already matches and `self.drifted(...)` with what is wrong when it does not. `apply()` is ACT, answers what it changed and must be idempotent. The kernel calls both and re-probes after the write. You never write the loop. The git example at the top is three steps of exactly this shape.
 
 The kernel reads only two fields out of your drift, through the `Drift` protocol - a `name` and a `message`. That is the entire contract. `DriftItem(name, message)` is the ready-made implementation and covers almost every step. Because the kernel reads nothing else, your domain stays entirely yours.
 

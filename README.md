@@ -273,9 +273,9 @@ The re-probe is the entire guarantee and it is only as honest as your `drift()`.
 A few more boundaries, stated plainly:
 
 - Reconciliation earns its keep when a system will drift and you want it to keep correcting itself. If all you need is a one-shot transformation that runs once and is never checked again, a plain function is simpler and you should write that instead. The value here is the loop.
-- It does not watch, poll or schedule on its own. A `Controller` advances one tick per item you feed it and the clock is yours.
+- It does not poll or schedule on its own. `watch()` sleeps until a step announces its world moved through `Step.watch()`, so the clock belongs to the world rather than to a timer.
 - It's not a state store. It keeps no history and no desired-state document. Each step owns its own notion of desired and observed.
-- Parallel execution uses threads, not processes, so CPU-bound apply work will not scale across cores. It is built for I/O-bound reconciliation.
+- The engine is asyncio to the bone. A blocking or CPU-bound `apply()` belongs on `ThreadDispatcher`, which relocates the call to a thread, while everything else stays on the caller's loop.
 
 ---
 

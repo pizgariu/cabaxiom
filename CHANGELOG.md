@@ -8,6 +8,19 @@ Every release is a pre-release on the road to the 1.0.0 freeze.
 
 Nothing yet.
 
+## [0.4.1] - 2026-09-11
+
+**Two contracts the type checker could not hold, found by running it properly on what 0.4.0 shipped.**
+
+### Fixed
+- **A `Partition` shape declares its placement rule where a checker can see it.** The base declared that slot as an abstract property and every shape answers it with a plain class attribute, which is not a valid override - so the one line each shape actually writes was the one shape the contract could not express. The `abstractmethod` was not buying anything either, because a tuple subclass's C-level `__new__` skips the instantiate-check, so a shape with no rule constructed happily and only failed at its first `verify()`. It is a declared `ClassVar` checked in `__init_subclass__` now, which fires at the class statement that got it wrong.
+- **Every `Dispatcher.execute` uses the parameter name its own base declares.** `cabaxiom.Dispatcher.execute` calls the first argument `groups`, while `Parallel`, `Async` and `Pipeline` each renamed it to whatever their own shape happens to be. A caller writing `execute(groups=...)` was correct against the type it programs to and wrong against every class that runs, so that argument could not be passed by keyword at all. Positional callers are unaffected, which is every caller that goes through the `Reconciler`.
+- **The changelog's own comparison links.** The 0.4.0 section had no link line and `[unreleased]` still compared against `v0.3.1`, so the newest release was the one with no diff to click through to.
+- **The front page still taught 0.3.0.** The quickstart now awaits the coroutines it calls, the step example writes `assess()` and answers with the verdict factories, the `Controller` section became the `watch()` section, the axis table names the `Dispatcher` family and the `Parallel` example drops the `with` block the dispatcher never needed. The parallel example's own docstring now promises the event loop its output shows rather than a pool of worker threads.
+
+### BC break
+Nothing. This release only makes contracts that were already written hold.
+
 ## [0.4.0] - 2026-09-09
 
 **One engine and one read hook, so there is a single thing to learn and a single place a bug can live.**
@@ -121,7 +134,8 @@ Planned milestones, in rough order. Nothing here is a promise of scope.
 - **1.1.0** - Public testing utilities. Ship the reusable doubles the test suite grew - a `Staged` step, a `Fixable` step, a `RecordingBackoff`, a recording `Observer` - as a supported `cabaxiom.testing` module, so a domain tests its own Steps and strategies against ready-made fakes. A backwards-compatible new surface, a minor after the freeze.
 - **2.0.0** - Capability-based dependencies, a fourth edge kind. A step would declare what it PROVIDES (a capability, not a concrete class) and depend on capabilities rather than named types, the order resolved by matching what each step supports against what the others require - the way systemd `Provides=` or a Debian virtual package does. Threaded through the one shared edge derivation so `verify()`, the `Ledger`'s blocking and `Only`'s closure all honour it, which is why it belongs in a major version after the freeze.
 
-[unreleased]: https://github.com/pizgariu/state-reconciler/compare/v0.4.0...HEAD
+[unreleased]: https://github.com/pizgariu/state-reconciler/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/pizgariu/state-reconciler/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/pizgariu/state-reconciler/compare/v0.3.0...v0.4.0
 [0.3.1]: https://github.com/pizgariu/state-reconciler/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/pizgariu/state-reconciler/compare/v0.2.0...v0.3.0

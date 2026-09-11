@@ -130,10 +130,11 @@ Nothing. 0.3.1 is 0.3.0 with two defects removed.
 
 Planned milestones, in rough order. Nothing here is a promise of scope.
 
-- **1.0.0** - API stability. Freeze the public surface and commit to Semantic Versioning guarantees for it. The first non-prerelease, cut from 0.11.0.
-- **1.1.0** - Public testing utilities. Ship the reusable doubles the test suite grew - a `Staged` step, a `Fixable` step, a `RecordingBackoff`, a recording `Observer` - as a supported `cabaxiom.testing` module, so a domain tests its own Steps and strategies against ready-made fakes. A backwards-compatible new surface, a minor after the freeze.
-- **2.0.0** - Capability-based dependencies, a fourth edge kind. A step would declare what it PROVIDES (a capability, not a concrete class) and depend on capabilities rather than named types, the order resolved by matching what each step supports against what the others require - the way systemd `Provides=` or a Debian virtual package does. Threaded through the one shared edge derivation so `verify()`, the `Ledger`'s blocking and `Only`'s closure all honour it, which is why it belongs in a major version after the freeze.
-
+- **0.5.0** - One derivation for every question about what depends on what. A `Graph` built once per run and handed to everything downstream, eight declaration slots in four soft-and-hard pairs, `provides` answering a named capability the way a systemd unit does, `contends` for the resources two steps may not hold at once, a drawing axis with Mermaid and Graphviz on it and `foresee()` to cost one step's failure before anything runs.
+- **0.6.0** - The other half of the kernel. A `Ledger` that keeps what a run said about itself rather than two lists, artifacts flowing between steps through `produces` and `consumes`, a run mode that pairs a shape with the worker walking it, capacity held across processes, a warrant that can refuse a run before its first write, chaos injected on purpose, a whole reconciler nested inside one step and three proofs that read a run back - idempotence, reversibility and the smallest failing subset. The reusable doubles the suite grew ship with it as `cabaxiom.testing`, so a domain tests its own Steps against ready-made fakes. The Python floor rises to 3.12.
+- **0.7.0** - Layers a test can enforce. The flat package becomes `cabaxiom.core` in four layers whose arrows a linter checks, the laboratory moves out to `cabaxiom.laboratory` and the front door narrows to what you declare, run and catch. Every name that moves answers with the line to type instead of a bare ImportError.
+- **0.8.0** - The easter egg, kept for last because the kernel came first.
+- **1.0.0** - API stability. Freeze the public surface and commit to Semantic Versioning guarantees for it. The first non-prerelease, cut from the last of the 0.x line.
 [unreleased]: https://github.com/pizgariu/state-reconciler/compare/v0.4.1...HEAD
 [0.4.1]: https://github.com/pizgariu/state-reconciler/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/pizgariu/state-reconciler/compare/v0.3.0...v0.4.0

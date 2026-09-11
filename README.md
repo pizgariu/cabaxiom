@@ -75,7 +75,7 @@ Most code that touches the world is a script - a fixed run of imperative steps t
                     is called DRIFT
 ```
 
-WATCH reads what is true right now, not what you last left behind. COMPARE holds that against what you declared and computes the difference. That difference is the **drift**: the itemized gap between reality and intent. ACT applies just enough to close it. Then the loop runs again from the top.
+WATCH reads what is true right now, not what you last left behind. COMPARE holds that against what you declared and computes the difference. That difference is the **drift** - the itemized gap between reality and intent. ACT applies just enough to close it. Then the loop runs again from the top.
 
 A few properties fall straight out of this shape and they are what separate a reconciler from a setup script.
 
@@ -83,7 +83,7 @@ A few properties fall straight out of this shape and they are what separate a re
 
 **It is level-triggered, not edge-triggered.** A trigger does not mean "handle this one event". It means "re-check the whole state against desired, now". You never process a single delta. You ask the same question from scratch, every time. That is why you can miss a signal, double-fire a trigger or run on a plain timer and the answer stays correct.
 
-**That forces idempotency, which is the reward.** Because the same unit of work may run any number of times, doing it twice has to land exactly where doing it once did. A pass that finds nothing to change and does nothing is a first-class outcome, the no-op from the second converge above. A system built this way **self-heals**: it converges toward desired over repeated cycles no matter how it was knocked off course.
+**That forces idempotency, which is the reward.** Because the same unit of work may run any number of times, doing it twice has to land exactly where doing it once did. A pass that finds nothing to change and does nothing is a first-class outcome, the no-op from the second converge above. A system built this way **self-heals**. It converges toward desired over repeated cycles no matter how it was knocked off course.
 
 If you have used a Kubernetes controller, you have already met this loop. It runs the same idea on your own Steps. For intuition, it is a thermostat that keeps re-reading the room instead of firing the furnace once. Or an immune system that patrols instead of firing once and going quiet. Reconciliation is what resilience gets built on, precisely because everything drifts eventually.
 
@@ -200,7 +200,7 @@ residual = asyncio.run(reconciler.converge())
 
 ### More than converge
 
-A `Reconciler` reads and writes state through a handful of verbs, each of which a `Step` can implement. Each fans across every step in resolved order, reversed for the teardown verbs.
+A `Reconciler` reads and writes state through a handful of verbs. Each fans across every step in resolved order, reversed for the teardown verbs. A `Step` answers `assess()`, `apply()` and `prune()`. The rest are the engine's own reads of what your steps reported.
 
 - `drift()` reports the gap without touching anything.
 - `plan()` is a dry-run read of the pending diff, in resolved order.

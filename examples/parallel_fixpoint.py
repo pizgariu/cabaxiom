@@ -15,10 +15,10 @@ Kahn resolves that into three waves:
 
 Two behaviours are on show at once:
 
-  Parallel dispatcher  runs the steps inside a wave on a thread pool, with a barrier between
-                     waves so Network is fully up before Database and Cache start, with both of
-                     those are up before AppServers. The example records which worker thread
-                     handled each resource to make the fan-out visible.
+  Parallel dispatcher  gathers the steps inside a wave on the event loop, with a barrier between
+                     waves so Network is fully up before Database and Cache start and both of
+                     those are up before AppServers. The example records which thread ran each
+                     provision to show the whole fan-out stays on the caller's thread.
 
   Fixpoint convergence  repeats the apply -> re-probe cycle until the residual stops changing.
                      AppServers brings up one replica per pass (a stand-in for a controller that
@@ -33,9 +33,9 @@ Run it:
 
     python examples/parallel_fixpoint.py
 
-Expected stdout - the resolved waves, evidence that Database and Cache ran on pool worker
-threads (not the main thread), a converge that took several Fixpoint passes with an empty
-residual and a clean idempotent second converge.
+Expected stdout - the resolved waves, evidence that every provision stayed on the caller's
+thread while the wave fanned on the event loop, a converge that took several Fixpoint passes
+with an empty residual and a clean idempotent second converge.
 """
 import asyncio
 import sys

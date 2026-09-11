@@ -135,16 +135,16 @@ Planned milestones, in rough order. Nothing here is a promise of scope.
 - **0.7.0** - Layers a test can enforce. The flat package becomes `cabaxiom.core` in four layers whose arrows a linter checks, the laboratory moves out to `cabaxiom.laboratory` and the front door narrows to what you declare, run and catch. Every name that moves answers with the line to type instead of a bare ImportError.
 - **0.8.0** - The easter egg, kept for last because the kernel came first.
 - **1.0.0** - API stability. Freeze the public surface and commit to Semantic Versioning guarantees for it. The first non-prerelease, cut from the last of the 0.x line.
-[unreleased]: https://github.com/pizgariu/state-reconciler/compare/v0.4.1...HEAD
-[0.4.1]: https://github.com/pizgariu/state-reconciler/compare/v0.4.0...v0.4.1
-[0.4.0]: https://github.com/pizgariu/state-reconciler/compare/v0.3.0...v0.4.0
-[0.3.1]: https://github.com/pizgariu/state-reconciler/compare/v0.3.0...v0.3.1
-[0.3.0]: https://github.com/pizgariu/state-reconciler/compare/v0.2.0...v0.3.0
-[0.2.0]: https://github.com/pizgariu/state-reconciler/compare/v0.1.6...v0.2.0
-[0.1.6]: https://github.com/pizgariu/state-reconciler/compare/v0.1.5...v0.1.6
-[0.1.5]: https://github.com/pizgariu/state-reconciler/compare/v0.1.4...v0.1.5
-[0.1.4]: https://github.com/pizgariu/state-reconciler/compare/v0.1.3...v0.1.4
-[0.1.3]: https://github.com/pizgariu/state-reconciler/compare/v0.1.2...v0.1.3
-[0.1.2]: https://github.com/pizgariu/state-reconciler/compare/v0.1.1...v0.1.2
-[0.1.1]: https://github.com/pizgariu/state-reconciler/compare/v0.1.0...v0.1.1
-[0.1.0]: https://github.com/pizgariu/state-reconciler/releases/tag/v0.1.0
+[unreleased]: https://github.com/pizgariu/cabaxiom/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/pizgariu/cabaxiom/compare/v0.4.0...v0.4.1
+[0.4.0]: https://github.com/pizgariu/cabaxiom/compare/v0.3.0...v0.4.0
+[0.3.1]: https://github.com/pizgariu/cabaxiom/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/pizgariu/cabaxiom/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/pizgariu/cabaxiom/compare/v0.1.6...v0.2.0
+[0.1.6]: https://github.com/pizgariu/cabaxiom/compare/v0.1.5...v0.1.6
+[0.1.5]: https://github.com/pizgariu/cabaxiom/compare/v0.1.4...v0.1.5
+[0.1.4]: https://github.com/pizgariu/cabaxiom/compare/v0.1.3...v0.1.4
+[0.1.3]: https://github.com/pizgariu/cabaxiom/compare/v0.1.2...v0.1.3
+[0.1.2]: https://github.com/pizgariu/cabaxiom/compare/v0.1.1...v0.1.2
+[0.1.1]: https://github.com/pizgariu/cabaxiom/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/pizgariu/cabaxiom/releases/tag/v0.1.0

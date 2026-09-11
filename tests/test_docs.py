@@ -13,6 +13,7 @@ import cabaxiom
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 README = ROOT / "README.md"
 CHANGELOG = ROOT / "CHANGELOG.md"
+PYPROJECT = ROOT / "pyproject.toml"
 # A colon used as punctuation, never one that is syntax. A dict literal, a URL and a host-and-port pair all
 # carry one legitimately, so the lookbehinds exclude what sits to the left of those.
 PUNCTUATION_COLON = re.compile(r"(?<![:/\w\"\'`\]\)}])(?<!\d):(?= [A-Za-z`*(])")
@@ -55,6 +56,14 @@ class TheProseTellsTheTruthAboutTheTreeTests(unittest.TestCase):
         for unplanned in ("0.9.0", "0.10.0", "0.11.0"):
             self.assertNotIn(unplanned, self.roadmap(),
                              f"the roadmap names {unplanned}, which this line does not cut")
+
+    def test_every_changelog_link_names_the_repository_this_package_declares(self):
+        # Two documents in one release disagreeing about where the project lives. The old name answers
+        # with a redirect, which lasts exactly as long as nobody else claims it.
+        declared = re.search(r'Repository = "https://github\.com/([\w.-]+/[\w.-]+)"', PYPROJECT.read_text(encoding="utf-8"))
+        self.assertTrue(declared, "pyproject no longer declares a Repository url")
+        for named in sorted(set(re.findall(r"https://github\.com/([\w.-]+/[\w.-]+)/compare/", CHANGELOG.read_text(encoding="utf-8")))):
+            self.assertEqual(named, declared.group(1), f"a changelog link names {named}")
 
     def roadmap(self):
         return CHANGELOG.read_text(encoding="utf-8").split("## Roadmap", 1)[1].split("\n[", 1)[0]

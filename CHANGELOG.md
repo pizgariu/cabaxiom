@@ -8,6 +8,19 @@ Every release is a pre-release on the road to the 1.0.0 freeze.
 
 Nothing yet.
 
+## [0.4.2] - 2026-09-12
+
+**The documentation said four things about this package that were not true. Nothing in the suite could have noticed.**
+
+### Fixed
+- **The front page handed an engine read to a `Step`.** Its verb list opened on "a handful of verbs, each of which a `Step` can implement" and then named `drift()`, `plan()`, `audit()` and `footprint()`. Those four are the `Reconciler`'s own reads of what the steps reported. A `Step` answers `assess()`, `apply()` and `prune()`, which is what the quickstart two screens above already showed. Every name in the sentence was real, so a check for a retired name would have passed it. The owner was wrong rather than the word.
+- **The roadmap promised what this line already ships or will never cut.** It offered capability-based dependencies as a 2.0.0 idea while `provides` lands in the next release, offered a `cabaxiom.testing` module for 1.1.0 while it lands in the one after that. It also said the 1.0.0 freeze would be cut from a 0.11.0 that this line does not plan. The milestones now name what is genuinely ahead, one bullet per release up to the freeze.
+- **Two colons used as punctuation**, in a project whose own style bans them.
+- **Every compare link named a repository this package is not.** The fourteen links at the foot of this file still pointed at `pizgariu/state-reconciler` while `pyproject.toml` declares `pizgariu/cabaxiom`. GitHub answers the old name with a redirect, which holds only for as long as nobody else claims it.
+- **Nothing read the prose until now.** `tests/test_docs.py` is new. It refuses an engine verb taught as a step hook, refuses a verb the `Reconciler` does not answer, refuses a colon used as punctuation and refuses a roadmap milestone that promises a module the package already imports and refuses a compare link that names a repository other than the declared one. The sentence that shipped in 0.4.1 fails all of the first three.
+
+### BC break
+Nothing. Not one line of `src/` changed.
 ## [0.4.1] - 2026-09-11
 
 **Two contracts the type checker could not hold, found by running it properly on what 0.4.0 shipped.**
@@ -135,7 +148,8 @@ Planned milestones, in rough order. Nothing here is a promise of scope.
 - **0.7.0** - Layers a test can enforce. The flat package becomes `cabaxiom.core` in four layers whose arrows a linter checks, the laboratory moves out to `cabaxiom.laboratory` and the front door narrows to what you declare, run and catch. Every name that moves answers with the line to type instead of a bare ImportError.
 - **0.8.0** - The easter egg, kept for last because the kernel came first.
 - **1.0.0** - API stability. Freeze the public surface and commit to Semantic Versioning guarantees for it. The first non-prerelease, cut from the last of the 0.x line.
-[unreleased]: https://github.com/pizgariu/cabaxiom/compare/v0.4.1...HEAD
+[unreleased]: https://github.com/pizgariu/cabaxiom/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/pizgariu/cabaxiom/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/pizgariu/cabaxiom/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/pizgariu/cabaxiom/compare/v0.3.0...v0.4.0
 [0.3.1]: https://github.com/pizgariu/cabaxiom/compare/v0.3.0...v0.3.1

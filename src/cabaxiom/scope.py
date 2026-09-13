@@ -2,6 +2,7 @@
 from typing import final
 
 from ._compat import override
+from .errors import Misconfigured
 from .step import Step
 
 
@@ -23,7 +24,7 @@ class _Named(Scope):
     # instead of silently converging a smaller world than asked for.
     def __init__(self, *step_types: type[Step]):
         if not step_types:
-            raise ValueError(f"{type(self).__name__} needs at least one step type - an empty scope is ill-defined")
+            raise Misconfigured(f"{type(self).__name__} needs at least one step type - an empty scope is ill-defined")
         self._types = step_types
 
     def _verify_present(self, steps: tuple[Step, ...]) -> None:

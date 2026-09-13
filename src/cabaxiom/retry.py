@@ -10,6 +10,7 @@ from typing import final
 
 from .convergence import Backoff
 from .drift import Changes, Outcome
+from .errors import Misconfigured
 from .step import Step
 
 # A write's outcome. The changes it reports (or None), returned directly by a sync step or as an
@@ -34,7 +35,7 @@ class Retry:
 
     def __init__(self, attempts: int, *, backoff: Backoff | None = None):
         if attempts < 1:
-            raise ValueError(f"Retry attempts must be >= 1, got {attempts}")
+            raise Misconfigured(f"Retry attempts must be >= 1, got {attempts}")
         self.__attempts = attempts
         self.__backoff = backoff
 

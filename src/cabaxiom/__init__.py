@@ -31,6 +31,15 @@ from .cancellation import (
 from .convergence import Backoff, Convergence, Exponential, Fixed, Fixpoint, Jitter, Once
 from .dispatcher import BaseDispatcher, Dispatcher, OnError, Parallel, Pipeline, Serial, ThreadDispatcher, Write
 from .drift import Assessment, Changes, Drift, DriftItem, Outcome
+from .errors import (
+    Coverage,
+    Cycle,
+    Identity,
+    Malformed,
+    Misconfigured,
+    Presence,
+    Unresolvable,
+)
 from .observer import Chorus, Observer
 from .ordering import DFS, Components, Kahn, Ordering, Priority
 from .partition import Chains, Levels, Partition, Placement
@@ -41,6 +50,7 @@ from .settle import Clean, Settle, Stable
 from .step import Step
 
 __all__ = [
+    "Malformed", "Unresolvable", "Cycle", "Coverage", "Presence", "Identity", "Misconfigured",
     "Drift", "DriftItem", "Assessment", "Changes", "Outcome", "Step",
     "Scope", "Only", "Skip",
     "Ordering", "Kahn", "DFS", "Priority", "Components",

@@ -5,6 +5,7 @@ from collections.abc import Iterable
 from typing import final
 
 from ._compat import override
+from .errors import Misconfigured
 
 
 class Cancelled(BaseException):
@@ -48,7 +49,7 @@ class Deadline(Cancellation):
     # and a per-pass budget is a fresh Deadline per pass.
     def __init__(self, seconds: float):
         if seconds < 0:
-            raise ValueError(f"Deadline seconds must be >= 0, got {seconds}")
+            raise Misconfigured(f"Deadline seconds must be >= 0, got {seconds}")
         self.__seconds = seconds
         self.__started: float | None = None
 
@@ -115,7 +116,7 @@ class Quorum(Cancellation):
     # on the Rule's vacuous case (Every would fire on all([]) is True).
     def __init__(self, *cancellations: Cancellation, rule: Rule | None = None):
         if not cancellations:
-            raise ValueError("Quorum needs at least one cancellation - an empty quorum is ill-defined "
+            raise Misconfigured("Quorum needs at least one cancellation - an empty quorum is ill-defined "
                              "(Every would fire on the vacuous all([]) is True)")
         self.__cancellations = cancellations
         self.__rule = rule or Some()   # None sentinel, never a mutable default instance

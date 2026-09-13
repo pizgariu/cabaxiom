@@ -7,6 +7,7 @@ from graphlib import CycleError, TopologicalSorter
 from typing import final
 
 from ._compat import override
+from .errors import Cycle
 from .step import Step
 
 
@@ -67,7 +68,7 @@ class Kahn(Ordering):
         except CycleError as cycle:
             cycle_path = cycle.args[1]  # nodes on the cycle, first node repeated at the end
             stuck = ", ".join(kind.__name__ for kind in dict.fromkeys(cycle_path))
-            raise ValueError(f"Step dependency cycle or unsatisfiable order among: {stuck}") from cycle
+            raise Cycle(f"Step dependency cycle or unsatisfiable order among: {stuck}") from cycle
 
     @override
     def levels(self, steps: tuple[Step, ...]) -> tuple[tuple[Step, ...], ...]:
@@ -78,7 +79,7 @@ class Kahn(Ordering):
             sorter.prepare()
         except CycleError as cycle:
             stuck = ", ".join(kind.__name__ for kind in dict.fromkeys(cycle.args[1]))
-            raise ValueError(f"Step dependency cycle or unsatisfiable order among: {stuck}") from cycle
+            raise Cycle(f"Step dependency cycle or unsatisfiable order among: {stuck}") from cycle
         waves = []
         while sorter.is_active():
             ready = sorter.get_ready()
@@ -108,7 +109,7 @@ class DFS(Ordering):
             if kind in path:  # already on the recursion stack - a dependency cycle
                 cycle = path[path.index(kind):] + (kind,)
                 stuck = ", ".join(k.__name__ for k in dict.fromkeys(cycle))
-                raise ValueError(f"Step dependency cycle or unsatisfiable order among: {stuck}")
+                raise Cycle(f"Step dependency cycle or unsatisfiable order among: {stuck}")
             for dep in kind.after:
                 if dep in instances_of:  # scope to the supplied set, membership never materialises a key
                     visit(dep, path + (kind,))
@@ -154,7 +155,7 @@ class Priority(Ordering):
             sorter.prepare()
         except CycleError as cycle:
             stuck = ", ".join(kind.__name__ for kind in dict.fromkeys(cycle.args[1]))
-            raise ValueError(f"Step dependency cycle or unsatisfiable order among: {stuck}") from cycle
+            raise Cycle(f"Step dependency cycle or unsatisfiable order among: {stuck}") from cycle
         frontier: list[tuple[object, int, type[Step]]] = []   # min-heap of (key, tiebreak, class): the ready set as a priority queue
         tiebreak = 0          # stable order for equal keys, keeps a non-comparable key from comparing classes
         ordered_kinds = []
@@ -223,6 +224,6 @@ class Components(Ordering):
                 ordered_kinds = tuple(sorter.static_order())
             except CycleError as cycle:
                 stuck = ", ".join(kind.__name__ for kind in dict.fromkeys(cycle.args[1]))
-                raise ValueError(f"Step dependency cycle or unsatisfiable order among: {stuck}") from cycle
+                raise Cycle(f"Step dependency cycle or unsatisfiable order among: {stuck}") from cycle
             chains.append(tuple(inst for kind in ordered_kinds for inst in instances_of[kind]))
         return tuple(chains)

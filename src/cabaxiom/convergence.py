@@ -7,6 +7,7 @@ from typing import final
 
 from ._compat import override
 from .drift import Drift
+from .errors import Misconfigured
 
 
 class Convergence(ABC):
@@ -57,7 +58,7 @@ class Fixed(Backoff):
     """Pause the same number of seconds before every retry, however long the stall has run."""
     def __init__(self, seconds: float):
         if seconds < 0:
-            raise ValueError(f"Fixed backoff seconds must be >= 0, got {seconds}")
+            raise Misconfigured(f"Fixed backoff seconds must be >= 0, got {seconds}")
         self.__seconds = seconds
 
     @override
@@ -76,9 +77,9 @@ class Exponential(Backoff):
     """
     def __init__(self, base: float, cap: float):
         if base < 0:
-            raise ValueError(f"Exponential backoff base must be >= 0, got {base}")
+            raise Misconfigured(f"Exponential backoff base must be >= 0, got {base}")
         if cap < base:
-            raise ValueError(f"Exponential backoff cap must be >= base, got cap={cap}, base={base}")
+            raise Misconfigured(f"Exponential backoff cap must be >= base, got cap={cap}, base={base}")
         self.__base = base
         self.__cap = cap
 
@@ -123,7 +124,7 @@ class Fixpoint(Convergence):
 
     def __init__(self, max_passes: int = 10, *, backoff: Backoff | None = None):
         if max_passes < 1:
-            raise ValueError(f"Fixpoint max_passes must be >= 1, got {max_passes}")
+            raise Misconfigured(f"Fixpoint max_passes must be >= 1, got {max_passes}")
         self.__max_passes = max_passes
         self.__backoff = backoff
 

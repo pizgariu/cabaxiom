@@ -4,6 +4,7 @@ from collections.abc import Sequence
 
 from ._compat import override
 from .drift import Drift
+from .errors import Misconfigured
 
 
 class Settle(ABC):
@@ -43,7 +44,7 @@ class Stable(Settle):
 
     def __init__(self, passes: int = 2):
         if passes < 2:
-            raise ValueError(f"Stable passes must be >= 2, got {passes} - one clean pass is Clean()")
+            raise Misconfigured(f"Stable passes must be >= 2, got {passes} - one clean pass is Clean()")
         self.__passes = passes
         self.__clean = 0
 

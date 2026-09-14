@@ -81,17 +81,28 @@ class EdgeKindTests(unittest.TestCase):
 class VocabularyTests(unittest.TestCase):
 
     def test_the_shipped_table_says_what_this_release_can_express(self):
-        self.assertEqual([kind.slot for kind in Vocabulary.shipped()], ["expects"])
+        self.assertEqual([kind.slot for kind in Vocabulary.shipped()],
+                         ["expects", "requires", "wants", "demands"])
+
+    def test_the_shipped_table_is_two_pairs_and_not_four_loose_rows(self):
+        # Each kind is one dependency in two flavours, where the pairing is what lets a consumer ask whether
+        # absence is fatal here without knowing which slot it is looking at.
+        by_slot = {kind.slot: kind for kind in Vocabulary.shipped()}
+        self.assertEqual(by_slot["expects"].counterpart, "requires")
+        self.assertEqual(by_slot["wants"].counterpart, "demands")
+        self.assertEqual([by_slot[name].hard for name in ("expects", "requires", "wants", "demands")],
+                         [False, True, False, True])
 
     def test_growing_the_language_is_adding_a_row(self):
-        grown = Vocabulary.shipped().grown(*EdgeKind.paired("wants", "demands", BY_LABEL))
-        self.assertEqual([kind.slot for kind in grown], ["expects", "wants", "demands"])
+        grown = Vocabulary.shipped().grown(*EdgeKind.paired("uses", "needs", BY_INSTANCE))
+        self.assertEqual([kind.slot for kind in grown][-2:], ["uses", "needs"])
 
     def test_growing_leaves_the_table_it_grew_from_alone(self):
         # A new Vocabulary and not a mutation, so a run already holding the old one keeps reading it.
         shipped = Vocabulary.shipped()
+        held = len(shipped)
         shipped.grown(EdgeKind("before", BY_CLASS, hard=False, counterpart=None, precedes=True))
-        self.assertEqual(len(shipped), 1)
+        self.assertEqual(len(shipped), held)
 
     def test_an_empty_language_is_refused(self):
         with self.assertRaises(Misconfigured):

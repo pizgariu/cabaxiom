@@ -38,7 +38,7 @@ class Step(ABC, metaclass=_Sealed):
     # The declaration slots a caller may still set on a constructed step. `after` is configuration the
     # run reads once before anything executes, so setting it late changes the plan and never the state
     # a pass carries into the next one.
-    _SLOTS = frozenset({"expects"})
+    _SLOTS = frozenset({"expects", "requires", "provides", "wants", "demands"})
 
     # Step CLASSES this step expects to be ready before it runs. The word changed from `after` because
     # this slot is about to stop being the only one - `after` reads as an ordering primitive, while what a
@@ -46,6 +46,22 @@ class Step(ABC, metaclass=_Sealed):
     # a reversed one, a capability, an instance) all read as verbs beside it and would have read as
     # nothing beside `after`.
     expects: tuple[type["Step"], ...] = ()
+
+    # The HARD companion of `expects`. Soft trusts the world when the target is absent, hard says so, and
+    # both are sentences a domain genuinely wants to write - "run after the database step if there is one"
+    # and "there had better be a database step" are different declarations.
+    requires: tuple[type["Step"], ...] = ()
+
+    # Capabilities this step PROVIDES - opaque labels that decouple a dependency from a concrete class, the
+    # way a systemd Provides= or a Debian virtual package does.
+    provides: frozenset[str] = frozenset()
+
+    # Capabilities this step comes after, SOFTLY. It orders after EVERY present provider rather than one,
+    # because duplicate providers are a fan-in and not a conflict - the kernel matches and never picks.
+    wants: tuple[str, ...] = ()
+
+    # The HARD companion of `wants`, refused at resolution if nothing in the run provides the capability.
+    demands: tuple[str, ...] = ()
 
     def __setattr__(self, key: str, value: Any) -> None:
         # The freeze's teeth. Construction assigns freely, the metaclass seals the instance the moment it

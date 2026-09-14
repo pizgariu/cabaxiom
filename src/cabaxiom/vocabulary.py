@@ -201,9 +201,15 @@ class Vocabulary:
 
     @classmethod
     def shipped(cls) -> "Vocabulary":
-        # The language this kernel ships with. One row for now, which is exactly what the previous release
-        # could express - the table's value is that the next row costs nothing but a row.
-        return cls(EdgeKind("expects", BY_CLASS, hard=False, counterpart=None))
+        # The language this kernel ships with. `expects` and `requires` are one dependency in its two
+        # flavours, `wants` and `demands` the same pair addressed by capability rather than by class.
+        #
+        # Nothing derives the capability rows yet - the seven hand-rolled walks still only know `expects`.
+        # They are declared here first on purpose, because a row that exists before anything reads it is
+        # how you find out whether the table can really express the kind, rather than discovering halfway
+        # through a derivation that it cannot.
+        return cls(*EdgeKind.paired("expects", "requires", BY_CLASS),
+                   *EdgeKind.paired("wants", "demands", BY_LABEL))
 
     def grown(self, *kinds: EdgeKind) -> "Vocabulary":
         # This language plus more. A new Vocabulary rather than a mutation, so the run already holding the

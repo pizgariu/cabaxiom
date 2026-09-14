@@ -52,25 +52,25 @@ class TheRunRefusesByNameTests(unittest.TestCase):
             pass
 
         class Right(Step):
-            after = (Left,)
+            expects = (Left,)
 
-        Left.after = (Right,)
+        Left.expects = (Right,)
         try:
             with self.assertRaises(Cycle):
                 Reconciler((Left(), Right()))
         finally:
-            Left.after = ()
+            Left.expects = ()
 
     def test_a_cycle_is_still_a_ValueError_to_anyone_who_only_knows_that(self):
         class Left(Step):
             pass
 
         class Right(Step):
-            after = (Left,)
+            expects = (Left,)
 
-        Left.after = (Right,)
+        Left.expects = (Right,)
         try:
             with self.assertRaises(ValueError):
                 Reconciler((Left(), Right()))
         finally:
-            Left.after = ()
+            Left.expects = ()

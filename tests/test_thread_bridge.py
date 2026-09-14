@@ -74,7 +74,7 @@ class BridgeTests(unittest.TestCase):
                 return self.unchanged()
 
         class Two(Step):
-            after = (One,)
+            expects = (One,)
 
             def apply(self):
                 log.append("Two")

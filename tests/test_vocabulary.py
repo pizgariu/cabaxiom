@@ -75,17 +75,17 @@ class EdgeKindTests(unittest.TestCase):
 
     def test_a_kind_cannot_be_its_own_counterpart(self):
         with self.assertRaises(Misconfigured):
-            EdgeKind("after", BY_CLASS, hard=False, counterpart="after")
+            EdgeKind("expects", BY_CLASS, hard=False, counterpart="expects")
 
 
 class VocabularyTests(unittest.TestCase):
 
     def test_the_shipped_table_says_what_this_release_can_express(self):
-        self.assertEqual([kind.slot for kind in Vocabulary.shipped()], ["after"])
+        self.assertEqual([kind.slot for kind in Vocabulary.shipped()], ["expects"])
 
     def test_growing_the_language_is_adding_a_row(self):
         grown = Vocabulary.shipped().grown(*EdgeKind.paired("wants", "demands", BY_LABEL))
-        self.assertEqual([kind.slot for kind in grown], ["after", "wants", "demands"])
+        self.assertEqual([kind.slot for kind in grown], ["expects", "wants", "demands"])
 
     def test_growing_leaves_the_table_it_grew_from_alone(self):
         # A new Vocabulary and not a mutation, so a run already holding the old one keeps reading it.
@@ -99,8 +99,8 @@ class VocabularyTests(unittest.TestCase):
 
     def test_a_duplicate_slot_is_refused(self):
         with self.assertRaises(Misconfigured):
-            Vocabulary(EdgeKind("after", BY_CLASS, hard=False, counterpart=None),
-                       EdgeKind("after", BY_LABEL, hard=True, counterpart=None))
+            Vocabulary(EdgeKind("expects", BY_CLASS, hard=False, counterpart=None),
+                       EdgeKind("expects", BY_LABEL, hard=True, counterpart=None))
 
     def test_half_a_pair_is_refused(self):
         with self.assertRaises(Misconfigured) as refused:

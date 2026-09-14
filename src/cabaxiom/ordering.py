@@ -1,4 +1,4 @@
-"""Ordering strategies - sequence Steps by Step.after. Kahn (readiness waves), DFS (depth-first flat), Priority (best-first flat), Components (independent chains)."""
+"""Ordering strategies - sequence Steps by Step.expects. Kahn (readiness waves), DFS (depth-first flat), Priority (best-first flat), Components (independent chains)."""
 import heapq
 from abc import ABC, abstractmethod
 from collections import defaultdict
@@ -13,7 +13,7 @@ from .step import Step
 
 class Ordering(ABC):
     # Strategy interface for sequencing steps. A Reconciler is handed ONE Ordering and uses it to turn the
-    # supplied steps into a run order that honours Step.after, so the algorithm can be swapped without
+    # supplied steps into a run order that honours Step.expects, so the algorithm can be swapped without
     # touching converge logic. Contract for every implementation - scope after= to the supplied set, key the
     # graph by class (every instance of a class comes out, in supplied order) and raise ValueError on a
     # cycle or unsatisfiable order.
@@ -36,7 +36,7 @@ class Ordering(ABC):
 
 @final
 class Kahn(Ordering):
-    """Default Ordering - topological sort over Step.after via stdlib graphlib.TopologicalSorter (Kahn)."""
+    """Default Ordering - topological sort over Step.expects via stdlib graphlib.TopologicalSorter (Kahn)."""
 
     @staticmethod
     def __graph(steps: tuple[Step, ...]) -> "tuple[defaultdict[type[Step], list[Step]], TopologicalSorter[type[Step]]]":
@@ -55,7 +55,7 @@ class Kahn(Ordering):
             instances_of[type(step)].append(step)
         sorter: TopologicalSorter[type[Step]] = TopologicalSorter()
         for step in steps:
-            declared_deps = tuple(dep for dep in step.after if dep in present)  # scope to supplied set
+            declared_deps = tuple(dep for dep in step.expects if dep in present)  # scope to supplied set
             sorter.add(type(step), *declared_deps)
         return instances_of, sorter
 
@@ -110,7 +110,7 @@ class DFS(Ordering):
                 cycle = path[path.index(kind):] + (kind,)
                 stuck = ", ".join(k.__name__ for k in dict.fromkeys(cycle))
                 raise Cycle(f"Step dependency cycle or unsatisfiable order among: {stuck}")
-            for dep in kind.after:
+            for dep in kind.expects:
                 if dep in instances_of:  # scope to the supplied set, membership never materialises a key
                     visit(dep, path + (kind,))
             done.add(kind)
@@ -150,7 +150,7 @@ class Priority(Ordering):
         present = set(instances_of)
         sorter: TopologicalSorter[type[Step]] = TopologicalSorter()
         for step in steps:
-            sorter.add(type(step), *(dep for dep in type(step).after if dep in present))  # scope to supplied set
+            sorter.add(type(step), *(dep for dep in type(step).expects if dep in present))  # scope to supplied set
         try:
             sorter.prepare()
         except CycleError as cycle:
@@ -174,7 +174,7 @@ class Priority(Ordering):
 @final
 class Components(Ordering):
     """Chain-capable Ordering for a pipelining dispatcher. It partitions the steps into weakly-connected
-    components (maximal groups with no Step.after edge crossing between them), each component internally in
+    components (maximal groups with no Step.expects edge crossing between them), each component internally in
     Kahn topological order. The components share no edge so they are mutually independent, letting a Pipeline
     run each as its own serial chain with all chains concurrent. The flat __call__ concatenates the
     components into a valid topological order.
@@ -205,7 +205,7 @@ class Components(Ordering):
             return kind
 
         for step in steps:
-            for dep in type(step).after:
+            for dep in type(step).expects:
                 if dep in present:  # scope to supplied set, never materialise an absent dep
                     parent[root(type(step))] = root(dep)
 
@@ -219,7 +219,7 @@ class Components(Ordering):
             member_set = set(member_classes)
             sorter: TopologicalSorter[type[Step]] = TopologicalSorter()
             for kind in member_classes:
-                sorter.add(kind, *(dep for dep in kind.after if dep in member_set))
+                sorter.add(kind, *(dep for dep in kind.expects if dep in member_set))
             try:
                 ordered_kinds = tuple(sorter.static_order())
             except CycleError as cycle:

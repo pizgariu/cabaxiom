@@ -20,13 +20,13 @@ def dependency_graphs(draw, max_nodes=6):
 
 
 def _build(edges, log):
-    # One fresh Step subclass per node, its `after` wired to the classes of its dependencies (built first,
+    # One fresh Step subclass per node, its `expects` wired to the classes of its dependencies (built first,
     # since a dependency has a lower index). apply() records the step name so a test can read the run order.
     classes = []
     for index, deps in enumerate(edges):
-        after = tuple(classes[d] for d in deps)
+        expects = tuple(classes[d] for d in deps)
         classes.append(type(f"S{index}", (Step,), {
-            "after": after,
+            "expects": expects,
             "apply": lambda self, _log=log: _log.append(type(self).__name__),
         }))
     return [cls() for cls in classes]
@@ -36,7 +36,7 @@ class OrderingProperties(unittest.TestCase):
     @settings(deadline=None, suppress_health_check=[HealthCheck.differing_executors])
     @given(dependency_graphs())
     def test_kahn_applies_every_dependency_before_its_dependent(self, edges):
-        # The core ordering invariant. Whatever the DAG, no step runs before something it declares in `after`.
+        # The core ordering invariant. Whatever the DAG, no step runs before something it declares in `expects`.
         log: list[str] = []
         asyncio.run(Reconciler(_build(edges, log)).converge())   # Serial dispatcher, Kahn ordering, both defaults
         position = {name: i for i, name in enumerate(log)}

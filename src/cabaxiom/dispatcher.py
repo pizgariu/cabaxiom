@@ -21,7 +21,7 @@ class _Fan:
     verified Partition and why a flat Ordering is rejected. Two exist, dual to each other, built by the
     `waves()` factory for the level-fanners (Parallel, Async) and `chains()` for the chain-fanner (Pipeline).
     Serial fans nothing, composes no shape and keeps the serial-safe default. The per-shape wording lives here
-    because only the shape knows why its own fallback is wrong. A fanned flat wave ignores Step.after, a
+    because only the shape knows why its own fallback is wrong. A fanned flat wave ignores Step.expects, a
     pipelined single chain runs nothing concurrently."""
 
     def __init__(self, into: type[Partition], via: str, needs: str, otherwise: str, use: str):
@@ -37,7 +37,7 @@ class _Fan:
         return cls(
             into=Levels, via="levels",
             needs="level-aware Ordering that splits steps into independent waves",
-            otherwise="only yields a flat order from levels(), which fanned out would ignore Step.after",
+            otherwise="only yields a flat order from levels(), which fanned out would ignore Step.expects",
             use="Kahn",
         )
 
@@ -86,7 +86,7 @@ class BaseDispatcher(ABC):
     def arrange(self, ordering: Ordering, steps: tuple[Step, ...]) -> Partition:
         # The dispatcher turns the injected Ordering into the Partition SHAPE it runs. A non-fanning one
         # (Serial, no _shape) walks a serial-safe level partition (real waves from Kahn, the one-wave
-        # fallback from DFS/Components) in order on one thread, honouring Step.after with no verification.
+        # fallback from DFS/Components) in order on one thread, honouring Step.expects with no verification.
         # A fanning one delegates to its composed shape, which demands the Ordering it needs, builds the
         # partition and verifies it upfront.
         if self._shape is None:
@@ -201,7 +201,7 @@ class Parallel(Dispatcher):
     """Each dependency wave gathered on the event loop, with a barrier between waves.
 
     The wave IS the barrier - every step in it settles before the next wave starts, which is what makes
-    Step.after hold under concurrency. It absorbs what used to be a separate Async executor, because once
+    Step.expects hold under concurrency. It absorbs what used to be a separate Async executor, because once
     the engine has one colour there is nothing left for a second fanning dispatcher to be.
     """
 

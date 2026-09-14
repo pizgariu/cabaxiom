@@ -42,7 +42,7 @@ class Only(_Named):
     """Keep the named step types plus the transitive dependencies of each, in the handed order.
 
     A targeted run must stay a correct run. A target converging before its prerequisites would
-    trust state nobody put there. So Only grows its selection along Step.after until it closes,
+    trust state nobody put there. So Only grows its selection along Step.expects until it closes,
     the way a targeted apply pulls in what its target depends on."""
 
     @override
@@ -54,7 +54,7 @@ class Only(_Named):
             grown = False
             for step in steps:
                 if type(step) in wanted:
-                    for dependency in step.after:
+                    for dependency in step.expects:
                         if dependency not in wanted:
                             wanted.add(dependency)
                             grown = True

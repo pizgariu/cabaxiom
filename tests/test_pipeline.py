@@ -32,7 +32,7 @@ class PipelineOrderingTests(unittest.TestCase):
         self.assertEqual(names, {("A", "B", "C"), ("X",), ("Y",)})
 
     def test_components_flat_call_is_a_valid_topo_order(self):
-        # Its __call__ concatenates the components, each internally topo-sorted, so after= still holds.
+        # Its __call__ concatenates the components, each internally topo-sorted, so expects= still holds.
         log = []
         asyncio.run(Reconciler((C(log), A(log), B(log)), Components(), dispatcher=Serial()).converge())
         self.assertEqual(log, ["A", "B", "C"])
@@ -43,7 +43,7 @@ class PipelineOrderingTests(unittest.TestCase):
         self.assertEqual([type(step).__name__ for step in chain], ["A", "A", "B"])
 
     def test_components_ignores_a_dep_outside_the_supplied_set(self):
-        chains = Components().chains((B([]),))   # B.after = (A,), yet A is not supplied
+        chains = Components().chains((B([]),))   # B.expects = (A,), yet A is not supplied
         self.assertEqual([[type(s).__name__ for s in chain] for chain in chains], [["B"]])
 
     def test_components_raises_valueerror_naming_a_cycle(self):
@@ -51,9 +51,9 @@ class PipelineOrderingTests(unittest.TestCase):
             pass
 
         class Q(_RecStep):
-            after = (P,)
+            expects = (P,)
 
-        P.after = (Q,)  # close the cycle within one component
+        P.expects = (Q,)  # close the cycle within one component
         with self.assertRaises(ValueError) as ctx:
             Components().chains((P([]), Q([])))
         self.assertIn("P", str(ctx.exception))
@@ -168,7 +168,7 @@ class ChainInteriorTests(unittest.TestCase):
                 return self.unchanged()
 
         class Second(Step):
-            after = (First,)
+            expects = (First,)
 
             def apply(self):
                 log.append("Second")

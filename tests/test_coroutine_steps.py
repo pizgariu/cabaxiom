@@ -61,7 +61,7 @@ class AsyncTests(unittest.TestCase):
         self.assertLess(max(starts), min(ends))   # both started before either finished -> concurrent
 
     def test_the_wave_barrier_preserves_dependency_order(self):
-        # Across waves the barrier holds every Step.after edge, exactly as Parallel's does.
+        # Across waves the barrier holds every Step.expects edge, exactly as Parallel's does.
         log = []
 
         class First(Step):
@@ -70,7 +70,7 @@ class AsyncTests(unittest.TestCase):
                 log.append("first")
 
         class Second(Step):
-            after = (First,)
+            expects = (First,)
 
             async def apply(self):
                 await asyncio.sleep(0)
@@ -109,7 +109,7 @@ class AsyncTests(unittest.TestCase):
         self.assertEqual([item.message for item in residual.applied], ["created"])
 
     def test_a_flat_only_ordering_is_rejected_at_build(self):
-        # DFS yields only the one-wave fallback, which fanned out would ignore after=, so Parallel refuses it.
+        # DFS yields only the one-wave fallback, which fanned out would ignore expects=, so Parallel refuses it.
         with self.assertRaises(ValueError) as ctx:
             Reconciler((_AsyncFix(),), DFS(), dispatcher=Parallel())
         self.assertIn("Parallel", str(ctx.exception))

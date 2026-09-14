@@ -18,7 +18,7 @@ class TopoSortTests(unittest.TestCase):
         self.assertEqual(log2, ["Z", "Y", "X"])
 
     def test_reorders_to_satisfy_after(self):
-        # B.after = (A,) so listed B-first must still emit A before B.
+        # B.expects = (A,) so listed B-first must still emit A before B.
         log = []
         asyncio.run(Reconciler((B(log), A(log))).converge())
         self.assertEqual(log, ["A", "B"])
@@ -30,7 +30,7 @@ class TopoSortTests(unittest.TestCase):
         self.assertEqual(log, ["A", "B", "C"])
 
     def test_dep_outside_supplied_set_is_ignored(self):
-        # B declares after=(A,) but only B is supplied - the absent dep is ignored, no raise.
+        # B declares expects=(A,) but only B is supplied - the absent dep is ignored, no raise.
         log = []
         asyncio.run(Reconciler((B(log),)).converge())
         self.assertEqual(log, ["B"])
@@ -40,9 +40,9 @@ class TopoSortTests(unittest.TestCase):
             pass
 
         class Q(_RecStep):
-            after = (P,)
+            expects = (P,)
 
-        P.after = (Q,)  # close the cycle
+        P.expects = (Q,)  # close the cycle
         with self.assertRaises(ValueError) as ctx:
             Reconciler((P([]), Q([])))
         self.assertIn("P", str(ctx.exception))
@@ -90,9 +90,9 @@ class OrderingStrategyTests(unittest.TestCase):
             pass
 
         class Q(_RecStep):
-            after = (P,)
+            expects = (P,)
 
-        P.after = (Q,)  # close the cycle
+        P.expects = (Q,)  # close the cycle
         for ordering in self.STRATEGIES:
             with self.subTest(ordering=type(ordering).__name__):
                 with self.assertRaises(ValueError) as ctx:
@@ -128,7 +128,7 @@ class OrderingContractTests(unittest.TestCase):
         classes = []
         for index in range(size):
             dependencies = tuple(randomness.sample(classes, randomness.randint(0, min(3, len(classes)))))
-            classes.append(type(f"Random{index}", (Step,), {"after": dependencies}))
+            classes.append(type(f"Random{index}", (Step,), {"expects": dependencies}))
         supplied = classes[:]
         randomness.shuffle(supplied)
         return supplied
@@ -144,7 +144,7 @@ class OrderingContractTests(unittest.TestCase):
                     self.assertEqual(len(resolved), len(steps))   # no step dropped, no step invented
                     position = {type(step): index for index, step in enumerate(resolved)}
                     for step in resolved:
-                        for dependency in type(step).after:
+                        for dependency in type(step).expects:
                             self.assertLess(position[dependency], position[type(step)])
 
     def test_levels_inverse_reverses_waves_and_their_contents(self):
@@ -169,8 +169,8 @@ class OrderingContractTests(unittest.TestCase):
         for _ in range(10):
             supplied = self.__random_dag(randomness, randomness.randint(2, 8))
             first, second = randomness.sample(supplied, 2)
-            first.after = first.after + (second,)    # close a two-class cycle on top of whatever edges
-            second.after = second.after + (first,)   # the DAG already had - now unsatisfiable
+            first.expects = first.expects + (second,)    # close a two-class cycle on top of whatever edges
+            second.expects = second.expects + (first,)   # the DAG already had - now unsatisfiable
             steps = tuple(cls() for cls in supplied)
             for ordering in (Kahn(), DFS()):
                 with self.subTest(ordering=type(ordering).__name__):
@@ -214,9 +214,9 @@ class PriorityOrderingTests(unittest.TestCase):
             pass
 
         class Q(_RecStep):
-            after = (P,)
+            expects = (P,)
 
-        P.after = (Q,)  # close the cycle
+        P.expects = (Q,)  # close the cycle
         with self.assertRaises(ValueError) as ctx:
             Priority()((P([]), Q([])))
         self.assertIn("P", str(ctx.exception))

@@ -38,10 +38,14 @@ class Step(ABC, metaclass=_Sealed):
     # The declaration slots a caller may still set on a constructed step. `after` is configuration the
     # run reads once before anything executes, so setting it late changes the plan and never the state
     # a pass carries into the next one.
-    _SLOTS = frozenset({"after"})
+    _SLOTS = frozenset({"expects"})
 
-    # Step classes (not instances) that must converge before this one. Reconciler orders on it.
-    after: tuple[type["Step"], ...] = ()
+    # Step CLASSES this step expects to be ready before it runs. The word changed from `after` because
+    # this slot is about to stop being the only one - `after` reads as an ordering primitive, while what a
+    # declaration is really saying is what it EXPECTS of the world. The kinds that follow (a hard flavour,
+    # a reversed one, a capability, an instance) all read as verbs beside it and would have read as
+    # nothing beside `after`.
+    expects: tuple[type["Step"], ...] = ()
 
     def __setattr__(self, key: str, value: Any) -> None:
         # The freeze's teeth. Construction assigns freely, the metaclass seals the instance the moment it

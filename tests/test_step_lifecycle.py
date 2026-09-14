@@ -60,7 +60,7 @@ class PlanTests(unittest.TestCase):
                 return Assessment(plan=[DriftItem("A", "a")])
 
         class PB(Step):
-            after = (PA,)
+            expects = (PA,)
 
             def assess(self) -> list:
                 return Assessment(plan=[DriftItem("B", "b")])
@@ -102,7 +102,7 @@ class AuditTests(unittest.TestCase):
                 return Assessment(advisory=[DriftItem("first", "x")])
 
         class AdviseSecond(Step):
-            after = (AdviseFirst,)
+            expects = (AdviseFirst,)
 
             def assess(self) -> list:
                 return Assessment(advisory=[DriftItem("second", "y")])
@@ -134,7 +134,7 @@ class FootprintTests(unittest.TestCase):
                 return Assessment(footprint=[DriftItem("base", "removed")])
 
         class Dependent(Step):
-            after = (Base,)
+            expects = (Base,)
 
             def assess(self):
                 return Assessment(footprint=[DriftItem("dependent", "removed")])
@@ -166,13 +166,13 @@ class PruneTests(unittest.TestCase):
                 log.append("A")
 
         class PB(Step):
-            after = (PA,)
+            expects = (PA,)
 
             def prune(self) -> None:
                 log.append("B")
 
         class PC(Step):
-            after = (PB,)
+            expects = (PB,)
 
             def prune(self) -> None:
                 log.append("C")
@@ -191,7 +191,7 @@ class PruneTests(unittest.TestCase):
                 pruned.append("A2")
 
         class B2(Step):
-            after = (A2,)
+            expects = (A2,)
 
             def apply(self) -> None:
                 applied.append("B2")

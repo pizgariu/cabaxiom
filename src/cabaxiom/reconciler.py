@@ -36,7 +36,7 @@ class Residual(list[Drift]):
 @final
 class Explanation:
     """What the Reconciler resolved, surfaced read-only: the groups the dispatcher walks in run order plus the
-    `Step.after` edges behind that order.
+    `Step.expects` edges behind that order.
 
     `groups` is the resolved run structure, each inner tuple one group of step type names - a wave (independent
     within, sequential between) under a level dispatcher or a chain (sequential within, concurrent between)
@@ -115,11 +115,11 @@ class Reconciler:
 
     def explain(self) -> Explanation:
         # The structural read (returns an Explanation, not Drift). What the injected Ordering resolved and the
-        # dispatcher will walk, as step type names in run order plus the Step.after edges behind them. Reads the
+        # dispatcher will walk, as step type names in run order plus the Step.expects edges behind them. Reads the
         # same resolved partition every other verb uses, so it explains the actual run and re-resolves nothing.
         groups = tuple(tuple(Step.named(step) for step in group) for group in self.__partition)
         edges = tuple(
-            (Step.named(step), tuple(dependency.__name__ for dependency in type(step).after))
+            (Step.named(step), tuple(dependency.__name__ for dependency in type(step).expects))
             for group in self.__partition for step in group
         )
         return Explanation(groups, edges)

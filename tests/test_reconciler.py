@@ -52,7 +52,7 @@ class ConvergeTests(unittest.TestCase):
                 return Assessment(deviation=[DriftItem("1", "x")])
 
         class D2(Step):
-            after = (D1,)
+            expects = (D1,)
 
             def assess(self) -> list:
                 return Assessment(deviation=[DriftItem("2", "y")])

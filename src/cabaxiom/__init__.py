@@ -3,7 +3,7 @@ order and converges actual -> desired, self-verifying by re-probing for residual
 
 No domain vocabulary lives here. A drift item is read ONLY through the Drift protocol's two
 fields (name + message). Everything richer is the domain's own payload. Two reusable behaviours
-live here once and are inherited by every caller - sequencing steps by Step.after (dependencies
+live here once and are inherited by every caller - sequencing steps by Step.expects (dependencies
 declared explicitly, resolved by a pluggable Ordering strategy, graphlib Kahn by default), and
 the self-verifying converge (apply -> re-probe -> residual).
 

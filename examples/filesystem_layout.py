@@ -60,7 +60,7 @@ class Directory(Step):
 class TextFile(Step):
     """Ensure a text file exists and holds exactly the desired content."""
 
-    after = (Directory,)
+    expects = (Directory,)
 
     def __init__(self, path: Path, content: str):
         self.path = Path(path)

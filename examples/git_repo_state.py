@@ -91,7 +91,7 @@ class GitConfig(Step):
 class InitialCommit(Step):
     """Ensure the repository has a first commit, so a branch has something to point at."""
 
-    after = (GitConfig,)
+    expects = (GitConfig,)
 
     def __init__(self, repo: str):
         self.repo = repo
@@ -115,7 +115,7 @@ class InitialCommit(Step):
 class LocalBranch(Step):
     """Ensure a named local branch exists."""
 
-    after = (InitialCommit,)
+    expects = (InitialCommit,)
 
     def __init__(self, repo: str, name: str):
         self.repo = repo

@@ -3,7 +3,7 @@ from cabaxiom import Assessment, DriftItem, Step
 
 class _RecStep(Step):
     """A step that records its apply() call into a shared log, for ordering assertions. Distinct
-    subclasses (A, B, …) are needed because `after` refers to step CLASSES, while the topo-sort keys on
+    subclasses (A, B, …) are needed because `expects` refers to step CLASSES, while the topo-sort keys on
     type(step) - two instances of one class would collapse to a single node."""
 
     def __init__(self, log: list):
@@ -18,11 +18,11 @@ class A(_RecStep):
 
 
 class B(_RecStep):
-    after = (A,)
+    expects = (A,)
 
 
 class C(_RecStep):
-    after = (B,)
+    expects = (B,)
 
 
 class X(_RecStep):

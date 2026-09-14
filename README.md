@@ -126,10 +126,10 @@ A step names what must run before it with one class attribute:
 
 ```python
 class InitialCommit(Step):
-    after = (GitConfig,)
+    expects = (GitConfig,)
 
 class LocalBranch(Step):
-    after = (InitialCommit,)
+    expects = (InitialCommit,)
 ```
 
 Hand the reconciler these in any order and it sorts them into dependency waves. That is what produced the correct plan in the opening output. A dependency cycle raises `ValueError` at construction and names the steps it could not place. A dependency on a step outside the set you passed is ignored, so a subset still reconciles cleanly.

@@ -203,7 +203,7 @@ class Vocabulary:
     def shipped(cls) -> "Vocabulary":
         # The language this kernel ships with. One row for now, which is exactly what the previous release
         # could express - the table's value is that the next row costs nothing but a row.
-        return cls(EdgeKind("after", BY_CLASS, hard=False, counterpart=None))
+        return cls(EdgeKind("expects", BY_CLASS, hard=False, counterpart=None))
 
     def grown(self, *kinds: EdgeKind) -> "Vocabulary":
         # This language plus more. A new Vocabulary rather than a mutation, so the run already holding the

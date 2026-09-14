@@ -57,18 +57,18 @@ class Partition(tuple[tuple["Step", ...], ...], ABC):
 
     def verify(self) -> None:
         # A fanning dispatcher runs a whole group at once, so a step's dependency must be placed where that
-        # fan-out still honours Step.after. The Ordering promises the shape but does not prove it, so a
+        # fan-out still honours Step.expects. The Ordering promises the shape but does not prove it, so a
         # mis-split is caught here.
         group_of = {type(step): index for index, group in enumerate(self) for step in group}
         for index, group in enumerate(self):
             for step in group:
-                for dependency in step.after:
+                for dependency in step.expects:
                     if dependency in group_of and not self._placement.holds(group_of[dependency], index):
                         raise ValueError(
                             f"{Step.named(step)} depends on {dependency.__name__}, yet the Ordering "
                             f"placed {dependency.__name__} in group {group_of[dependency]} and "
                             f"{Step.named(step)} in group {index} - a concurrent dispatcher needs a "
-                            f"dependency {self._placement.described}, so it would ignore Step.after."
+                            f"dependency {self._placement.described}, so it would ignore Step.expects."
                         )
 
 
@@ -85,7 +85,7 @@ class Levels(Partition):
 class Chains(Partition):
     """A partition as independent CHAINS. Each inner tuple is one chain of steps run in series, the chains
     mutually independent so a chain-fanning dispatcher runs them concurrently. The dual of Levels. Its placement
-    (a dependency must sit in the SAME chain, run in series before it) is the guard against a Step.after edge
+    (a dependency must sit in the SAME chain, run in series before it) is the guard against a Step.expects edge
     crossing between chains, run by the shared verify()."""
     __slots__ = ()
     _placement = _Placements.SAME.value

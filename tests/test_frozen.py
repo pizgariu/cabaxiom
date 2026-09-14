@@ -36,8 +36,8 @@ class FreezeTests(unittest.TestCase):
             pass
 
         step = Second()
-        step.after = (First,)
-        self.assertEqual(step.after, (First,))
+        step.expects = (First,)
+        self.assertEqual(step.expects, (First,))
 
     def test_a_container_made_in_init_is_still_mutable(self):
         # The freeze refuses REBINDING, not the state a declaration legitimately holds. A step that must

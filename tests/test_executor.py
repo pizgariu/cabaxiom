@@ -40,7 +40,7 @@ class ExecutorTests(unittest.TestCase):
         self.assertIn("step failed", residual[0].message)
 
     def test_parallel_preserves_dependency_order_across_levels(self):
-        # The level barrier keeps every Step.after edge even while fanning each level out.
+        # The level barrier keeps every Step.expects edge even while fanning each level out.
         log = []
         asyncio.run(Reconciler((C(log), A(log), B(log)), Kahn(), dispatcher=Parallel()).converge())
         self.assertEqual(log, ["A", "B", "C"])
@@ -61,7 +61,7 @@ class ExecutorTests(unittest.TestCase):
         self.assertIn("step failed", residual[0].message)
 
     def test_reconciler_rejects_parallel_with_a_flat_only_ordering(self):
-        # DFS yields no real levels (one-wave fallback), so Parallel would ignore after= -> refuse at build.
+        # DFS yields no real levels (one-wave fallback), so Parallel would ignore expects= -> refuse at build.
         with self.assertRaises(ValueError) as ctx:
             Reconciler((A([]),), DFS(), dispatcher=Parallel())
         self.assertIn("Parallel", str(ctx.exception))

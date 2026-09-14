@@ -103,12 +103,12 @@ class Network(_Resource):
 
 class Database(_Resource):
     name = "Database"
-    after = (Network,)
+    expects = (Network,)
 
 
 class Cache(_Resource):
     name = "Cache"
-    after = (Network,)
+    expects = (Network,)
 
 
 class AppServers(Step):
@@ -116,7 +116,7 @@ class AppServers(Step):
     Fixpoint loop. A single apply() makes partial progress, so the re-probe stays dirty until
     enough passes have run."""
 
-    after = (Database, Cache)
+    expects = (Database, Cache)
 
     def __init__(self, cluster: Cluster, desired_replicas: int):
         self.cluster = cluster
@@ -165,7 +165,7 @@ def main() -> None:
         print(f"    wave {index}: {names}")
     print()
 
-    # Parallel gathers each dependency wave on the event loop and bars between waves, so Step.after
+    # Parallel gathers each dependency wave on the event loop and bars between waves, so Step.expects
     # still holds under concurrency. Fixpoint loops apply -> re-probe until the residual settles or the
     # ceiling is hit.
     dispatcher = Parallel()

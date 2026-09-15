@@ -38,7 +38,7 @@ class Step(ABC, metaclass=_Sealed):
     # The declaration slots a caller may still set on a constructed step. `after` is configuration the
     # run reads once before anything executes, so setting it late changes the plan and never the state
     # a pass carries into the next one.
-    _SLOTS = frozenset({"expects", "requires", "provides", "wants", "demands"})
+    _SLOTS = frozenset({"expects", "requires", "provides", "wants", "demands", "contends"})
 
     # Step CLASSES this step expects to be ready before it runs. The word changed from `after` because
     # this slot is about to stop being the only one - `after` reads as an ordering primitive, while what a
@@ -62,6 +62,15 @@ class Step(ABC, metaclass=_Sealed):
 
     # The HARD companion of `wants`, refused at resolution if nothing in the run provides the capability.
     demands: tuple[str, ...] = ()
+
+    # Resources this step CONTENDS for - opaque labels grouping steps that may never run at the same time.
+    #
+    # DELIBERATELY NOT AN EDGE. This is the one declaration in the family that could not be a row in
+    # the vocabulary however the table grew. An edge says which of two steps comes first. Contention says
+    # neither may run beside the other and does not care which goes first, so expressing it as an edge
+    # would force an order the domain never asked for and would make the derivation assert something
+    # untrue. It is a SEATING rule, read where the run is grouped rather than where it is ordered.
+    contends: frozenset[str] = frozenset()
 
     def __setattr__(self, key: str, value: Any) -> None:
         # The freeze's teeth. Construction assigns freely, the metaclass seals the instance the moment it

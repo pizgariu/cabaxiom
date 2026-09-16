@@ -2,13 +2,28 @@
 import heapq
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from graphlib import CycleError, TopologicalSorter
 from typing import final
 
 from ._compat import override
 from .errors import Cycle
 from .step import Step
+
+
+def _declared(kind: type[Step], instances_of: Mapping[type[Step], Sequence[Step]]) -> tuple[type[Step], ...]:
+    # WHAT THE INSTANCES OF THIS CLASS EXPECT, not what the class does. A declaration slot is read off the
+    # object that carries it, while a class-keyed algorithm that reads the type instead silently drops
+    # anything a caller set on one instance. Three of the four strategies did exactly that, so one
+    # declaration produced a different order depending on which strategy was injected.
+    #
+    # The union, because a class-keyed node stands for every instance of the class and the node must
+    # therefore come after everything ANY of them named.
+    seen: dict[type[Step], None] = {}
+    for step in instances_of.get(kind, ()):
+        for dependency in step.expects:
+            seen[dependency] = None
+    return tuple(seen)
 
 
 class Ordering(ABC):
@@ -110,7 +125,7 @@ class DFS(Ordering):
                 cycle = path[path.index(kind):] + (kind,)
                 stuck = ", ".join(k.__name__ for k in dict.fromkeys(cycle))
                 raise Cycle(f"Step dependency cycle or unsatisfiable order among: {stuck}")
-            for dep in kind.expects:
+            for dep in _declared(kind, instances_of):
                 if dep in instances_of:  # scope to the supplied set, membership never materialises a key
                     visit(dep, path + (kind,))
             done.add(kind)
@@ -150,7 +165,7 @@ class Priority(Ordering):
         present = set(instances_of)
         sorter: TopologicalSorter[type[Step]] = TopologicalSorter()
         for step in steps:
-            sorter.add(type(step), *(dep for dep in type(step).expects if dep in present))  # scope to supplied set
+            sorter.add(type(step), *(dep for dep in _declared(type(step), instances_of) if dep in present))  # scope to supplied set
         try:
             sorter.prepare()
         except CycleError as cycle:
@@ -205,7 +220,7 @@ class Components(Ordering):
             return kind
 
         for step in steps:
-            for dep in type(step).expects:
+            for dep in _declared(type(step), instances_of):
                 if dep in present:  # scope to supplied set, never materialise an absent dep
                     parent[root(type(step))] = root(dep)
 
@@ -219,7 +234,7 @@ class Components(Ordering):
             member_set = set(member_classes)
             sorter: TopologicalSorter[type[Step]] = TopologicalSorter()
             for kind in member_classes:
-                sorter.add(kind, *(dep for dep in kind.expects if dep in member_set))
+                sorter.add(kind, *(dep for dep in _declared(kind, instances_of) if dep in member_set))
             try:
                 ordered_kinds = tuple(sorter.static_order())
             except CycleError as cycle:

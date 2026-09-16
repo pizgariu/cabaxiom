@@ -3,7 +3,7 @@ import asyncio
 import random
 import unittest
 
-from cabaxiom import DFS, Kahn, Levels, Parallel, Partition, Priority, Reconciler, Serial, Step
+from cabaxiom import DFS, Components, Kahn, Levels, Parallel, Partition, Priority, Reconciler, Serial, Step
 from support import A, B, C, X, Y, Z, _RecStep
 
 
@@ -241,3 +241,42 @@ class TheShapeDeclaresItsRuleTests(unittest.TestCase):
         told = str(ctx.exception)
         self.assertIn("Ruleless", told)
         self.assertIn("declares no _placement", told)
+
+class SlotsAreReadOffTheInstanceTests(unittest.TestCase):
+    """A declaration slot belongs to the object that carries it, whichever strategy is walking.
+
+    Three of the four strategies read the TYPE, so a caller who set expects on one instance got a
+    different order depending on which Ordering was injected - Kahn honoured it, DFS and Components
+    dropped it silently and nothing anywhere said so."""
+
+    @staticmethod
+    def _order(ordering):
+        class First(Step):
+            pass
+
+        class Second(Step):
+            pass
+
+        second, first = Second(), First()
+        second.expects = (First,)                        # on the INSTANCE, never on the class
+        explanation = Reconciler((second, first), ordering).explain()
+        return [name for group in explanation.groups for name in group]
+
+    def test_every_strategy_honours_an_instance_level_declaration(self):
+        for ordering in (Kahn(), DFS(), Priority(), Components()):
+            with self.subTest(ordering=type(ordering).__name__):
+                order = self._order(ordering)
+                self.assertLess(order.index("First"), order.index("Second"))
+
+    def test_the_explanation_reads_the_instance_too(self):
+        # It was reading type(step).expects, so a run could be correctly ordered and drawn wrongly.
+        class First(Step):
+            pass
+
+        class Second(Step):
+            pass
+
+        second, first = Second(), First()
+        second.expects = (First,)
+        edges = dict(Reconciler((second, first)).explain().edges)
+        self.assertEqual(edges["Second"], ("First",))

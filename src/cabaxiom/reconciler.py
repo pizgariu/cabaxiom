@@ -119,7 +119,7 @@ class Reconciler:
         # same resolved partition every other verb uses, so it explains the actual run and re-resolves nothing.
         groups = tuple(tuple(Step.named(step) for step in group) for group in self.__partition)
         edges = tuple(
-            (Step.named(step), tuple(dependency.__name__ for dependency in type(step).expects))
+            (Step.named(step), tuple(dependency.__name__ for dependency in step.expects))
             for group in self.__partition for step in group
         )
         return Explanation(groups, edges)

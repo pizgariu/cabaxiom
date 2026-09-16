@@ -5,6 +5,7 @@ from typing import Any, final
 
 from ._compat import override
 from .drift import Assessment, Changes, Drift, DriftItem, Outcome
+from .errors import Malformed
 
 
 class _Sealed(ABCMeta):
@@ -21,6 +22,15 @@ class _Sealed(ABCMeta):
 
     @override
     def __call__(cls, *args: Any, **kwargs: Any) -> Any:
+        # The second half of the identity guard. It has to be here rather than in __init_subclass__.
+        # A decorator runs AFTER the class body, so @dataclass installs its generated __eq__ once the
+        # subclass hook has already been and gone. This is the first moment the finished class exists.
+        #
+        # Reached through getattr because the name is mangled into Step's namespace and the metaclass is
+        # not Step - spelling the mangled form directly is a lie a type checker rightly refuses.
+        addressable = getattr(cls, "_Step__addressable", None)
+        if addressable is not None:
+            addressable()
         instance = super().__call__(*args, **kwargs)
         object.__setattr__(instance, "_Step__frozen", True)
         return instance
@@ -71,6 +81,33 @@ class Step(ABC, metaclass=_Sealed):
     # would force an order the domain never asked for and would make the derivation assert something
     # untrue. It is a SEATING rule, read where the run is grouped rather than where it is ordered.
     contends: frozenset[str] = frozenset()
+
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        # IDENTITY IS THE DEPENDENCY CURRENCY, enforced here. Every structure the
+        # kernel derives is keyed by step INSTANCE - the ordering's nodes, the seating, the scope closure -
+        # so two steps a dict cannot tell apart collapse into ONE node and the run silently reconciles a
+        # smaller world than it was handed. Nothing raises, nothing is missing, yet one of the two steps
+        # simply never happens.
+        #
+        # Refused at CLASS DEFINITION rather than at construction, because that is where the mistake is,
+        # and because it is the only moment at which the message can name the fix. A @dataclass Step is the
+        # common way to arrive here without meaning to - it generates __eq__ by default - and the answer is
+        # @dataclass(eq=False), which keeps the generated constructor and the identity semantics both.
+        super().__init_subclass__(**kwargs)
+        cls.__addressable()
+
+    @classmethod
+    def __addressable(cls) -> None:
+        # Asked twice, at class definition and again at first construction, because a hand-written __eq__
+        # is there for the first and a decorator-generated one only exists by the second.
+        for verb in ("__eq__", "__hash__"):
+            defined = cls.__dict__.get(verb)
+            if defined is not None and getattr(defined, "__objclass__", None) is not object:
+                raise Malformed(
+                    f"{cls.__name__} defines {verb}, yet a step is addressed by identity. Two steps that "
+                    f"compare equal collapse into one node of the derivation, so one of them silently "
+                    f"never runs. Drop it or write @dataclass(eq=False) if a dataclass generated it."
+                )
 
     def __setattr__(self, key: str, value: Any) -> None:
         # The freeze's teeth. Construction assigns freely, the metaclass seals the instance the moment it

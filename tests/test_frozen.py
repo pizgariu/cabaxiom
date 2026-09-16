@@ -63,14 +63,17 @@ class TheClockTests(unittest.TestCase):
         # An __init__ wrapper installed at class-definition time occupies cls.__dict__["__init__"], which
         # makes @dataclass skip generating its own - and the step then crashes on object.__init__ instead
         # of taking its argument. The metaclass touches no __init__ at all, so this works.
-        @dataclass
+        #
+        # eq=False because a step is addressed by identity and the generated __eq__ would be refused. That
+        # is a different guard, tested where it belongs, while the sanctioned shape is this one.
+        @dataclass(eq=False)
         class Configured(Step):
             path: str
 
         self.assertEqual(Configured("/etc/app.conf").path, "/etc/app.conf")
 
     def test_a_dataclass_step_is_frozen_all_the_same(self):
-        @dataclass
+        @dataclass(eq=False)
         class Configured(Step):
             path: str
 

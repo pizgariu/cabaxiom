@@ -48,7 +48,8 @@ class Step(ABC, metaclass=_Sealed):
     # The declaration slots a caller may still set on a constructed step. `after` is configuration the
     # run reads once before anything executes, so setting it late changes the plan and never the state
     # a pass carries into the next one.
-    _SLOTS = frozenset({"expects", "requires", "provides", "wants", "demands", "contends"})
+    _SLOTS = frozenset({"expects", "requires", "provides", "wants", "demands", "contends",
+                        "prepares", "mandates", "uses", "needs"})
 
     # Step CLASSES this step expects to be ready before it runs. The word changed from `after` because
     # this slot is about to stop being the only one - `after` reads as an ordering primitive, while what a
@@ -72,6 +73,23 @@ class Step(ABC, metaclass=_Sealed):
 
     # The HARD companion of `wants`, refused at resolution if nothing in the run provides the capability.
     demands: tuple[str, ...] = ()
+
+    # Step CLASSES this step prepares the ground for - a REVERSED edge, so this step runs BEFORE the match
+    # rather than after it. The kind exists because a domain frequently cannot edit the class it must run
+    # ahead of - a third-party step or one owned by another team - and inverting the sentence is the only
+    # way to say it from the side that knows.
+    prepares: tuple[type["Step"], ...] = ()
+
+    # The HARD companion of `prepares`.
+    mandates: tuple[type["Step"], ...] = ()
+
+    # Specific step INSTANCES this step comes after, softly. Where `expects` names a kind and reaches every
+    # instance of it, this names one and reaches exactly that one - for a run holding two of a kind that
+    # mean different things.
+    uses: tuple["Step", ...] = ()
+
+    # The HARD companion of `uses`.
+    needs: tuple["Step", ...] = ()
 
     # Resources this step CONTENDS for - opaque labels grouping steps that may never run at the same time.
     #

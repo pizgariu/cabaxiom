@@ -162,6 +162,70 @@ class TheIdentityGateTests(unittest.TestCase):
         self.assertIn("twice", str(refused.exception))
 
 
+class TheReversedKindTests(unittest.TestCase):
+    """`prepares` points the other way, because a domain often cannot edit the class it must run before."""
+
+    def test_a_reversed_edge_makes_the_declaring_step_the_prerequisite(self):
+        class Third(Step):
+            pass
+
+        class Bootstrap(Step):
+            prepares = (Third,)
+
+        boot, third = Bootstrap(), Third()
+        graph = Graph((third, boot))
+        self.assertEqual(graph.dependencies(third), (boot,))    # Third needs Bootstrap
+        self.assertEqual(graph.dependencies(boot), ())          # and Bootstrap needs nothing
+
+    def test_the_hard_flavour_still_demands_the_match_is_present(self):
+        class Absent(Step):
+            pass
+
+        class Bootstrap(Step):
+            mandates = (Absent,)
+
+        with self.assertRaises(Presence):
+            Graph((Bootstrap(),)).demand()
+
+
+class TheInstanceKindTests(unittest.TestCase):
+    """`uses` names ONE step where `expects` names a kind and reaches every instance of it."""
+
+    def test_an_instance_edge_reaches_exactly_the_named_one(self):
+        class Store(Step):
+            pass
+
+        class Reader(Step):
+            pass
+
+        wanted, other, reader = Store(), Store(), Reader()
+        reader.uses = (wanted,)
+        graph = Graph((reader, wanted, other))
+        self.assertEqual(graph.dependencies(reader), (wanted,))
+
+    def test_a_class_edge_beside_it_reaches_both(self):
+        # The distinction the two kinds exist for, in one assertion.
+        class Store(Step):
+            pass
+
+        class Reader(Step):
+            expects = (Store,)
+
+        first, second, reader = Store(), Store(), Reader()
+        self.assertEqual(set(Graph((reader, first, second)).dependencies(reader)), {first, second})
+
+    def test_a_named_instance_outside_the_run_is_absent_however_alike(self):
+        class Store(Step):
+            pass
+
+        class Reader(Step):
+            pass
+
+        outside, inside, reader = Store(), Store(), Reader()
+        reader.uses = (outside,)
+        self.assertEqual(Graph((reader, inside)).dependencies(reader), ())
+
+
 class OneMatchSaysWhoAskedAndWhatAnsweredTests(unittest.TestCase):
     """A Match is the per-name view of an edge, where dependencies() is the per-step one. It carries the
     ROW rather than the slot's name, so a consumer reads hardness and addressing off the vocabulary."""

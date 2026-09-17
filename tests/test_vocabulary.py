@@ -82,20 +82,32 @@ class VocabularyTests(unittest.TestCase):
 
     def test_the_shipped_table_says_what_this_release_can_express(self):
         self.assertEqual([kind.slot for kind in Vocabulary.shipped()],
-                         ["expects", "requires", "wants", "demands"])
+                         ["expects", "requires", "prepares", "mandates",
+                          "wants", "demands", "uses", "needs"])
 
     def test_the_shipped_table_is_two_pairs_and_not_four_loose_rows(self):
         # Each kind is one dependency in two flavours, where the pairing is what lets a consumer ask whether
         # absence is fatal here without knowing which slot it is looking at.
         by_slot = {kind.slot: kind for kind in Vocabulary.shipped()}
-        self.assertEqual(by_slot["expects"].counterpart, "requires")
-        self.assertEqual(by_slot["wants"].counterpart, "demands")
-        self.assertEqual([by_slot[name].hard for name in ("expects", "requires", "wants", "demands")],
-                         [False, True, False, True])
+        for soft, hard in (("expects", "requires"), ("prepares", "mandates"),
+                           ("wants", "demands"), ("uses", "needs")):
+            with self.subTest(pair=(soft, hard)):
+                self.assertEqual(by_slot[soft].counterpart, hard)
+                self.assertEqual(by_slot[hard].counterpart, soft)
+                self.assertEqual((by_slot[soft].hard, by_slot[hard].hard), (False, True))
+
+    def test_the_table_spans_three_addressings_and_one_reversed_direction(self):
+        # The spread is the point. A table is only worth having if it expresses kinds that differ in more
+        # than their name. These differ in how they name a target, in whether absence is fatal and in
+        # which way the edge points.
+        by_slot = {kind.slot: kind for kind in Vocabulary.shipped()}
+        self.assertEqual(len({type(kind.addressing) for kind in Vocabulary.shipped()}), 3)
+        self.assertTrue(by_slot["prepares"].precedes)
+        self.assertFalse(by_slot["expects"].precedes)
 
     def test_growing_the_language_is_adding_a_row(self):
-        grown = Vocabulary.shipped().grown(*EdgeKind.paired("uses", "needs", BY_INSTANCE))
-        self.assertEqual([kind.slot for kind in grown][-2:], ["uses", "needs"])
+        grown = Vocabulary.shipped().grown(*EdgeKind.paired("follows", "insists_on", BY_CLASS))
+        self.assertEqual([kind.slot for kind in grown][-2:], ["follows", "insists_on"])
 
     def test_growing_leaves_the_table_it_grew_from_alone(self):
         # A new Vocabulary and not a mutation, so a run already holding the old one keeps reading it.
@@ -126,7 +138,7 @@ class VocabularyTests(unittest.TestCase):
     def test_row_order_is_derivation_order(self):
         # A table read twice draws its edges the same way twice, which is what makes a resolved order
         # reproducible rather than merely correct.
-        grown = Vocabulary.shipped().grown(*EdgeKind.paired("uses", "needs", BY_INSTANCE))
+        grown = Vocabulary.shipped().grown(*EdgeKind.paired("follows", "insists_on", BY_CLASS))
         self.assertEqual([kind.slot for kind in grown], [kind.slot for kind in grown])
 
 

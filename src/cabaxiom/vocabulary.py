@@ -204,12 +204,14 @@ class Vocabulary:
         # The language this kernel ships with. `expects` and `requires` are one dependency in its two
         # flavours, `wants` and `demands` the same pair addressed by capability rather than by class.
         #
-        # Nothing derives the capability rows yet - the seven hand-rolled walks still only know `expects`.
-        # They are declared here first on purpose, because a row that exists before anything reads it is
-        # how you find out whether the table can really express the kind, rather than discovering halfway
-        # through a derivation that it cannot.
+        # Four pairs, three addressings and one of them reversed. That spread is the point - the table is
+        # only worth having if it can express kinds that differ in more than their name, which these four
+        # differ in how they name their target, in whether absence is fatal and in which direction the
+        # edge points. The Graph derives all eight through one loop with no branch naming a slot.
         return cls(*EdgeKind.paired("expects", "requires", BY_CLASS),
-                   *EdgeKind.paired("wants", "demands", BY_LABEL))
+                   *EdgeKind.paired("prepares", "mandates", BY_CLASS, precedes=True),
+                   *EdgeKind.paired("wants", "demands", BY_LABEL),
+                   *EdgeKind.paired("uses", "needs", BY_INSTANCE))
 
     def grown(self, *kinds: EdgeKind) -> "Vocabulary":
         # This language plus more. A new Vocabulary rather than a mutation, so the run already holding the

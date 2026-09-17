@@ -40,6 +40,7 @@ from .errors import (
     Presence,
     Unresolvable,
 )
+from .graph import Graph, Match
 from .observer import Chorus, Observer
 from .ordering import DFS, Components, Kahn, Ordering, Priority
 from .partition import Chains, Levels, Partition, Placement
@@ -48,8 +49,11 @@ from .retry import Retry
 from .scope import Only, Scope, Skip
 from .settle import Clean, Settle, Stable
 from .step import Step
+from .vocabulary import BY_CLASS, BY_INSTANCE, BY_LABEL, Addressing, EdgeKind, Vocabulary
 
 __all__ = [
+    "Graph", "Match", "Vocabulary", "EdgeKind", "Addressing",
+    "BY_CLASS", "BY_LABEL", "BY_INSTANCE",
     "Malformed", "Unresolvable", "Cycle", "Coverage", "Presence", "Identity", "Misconfigured",
     "Drift", "DriftItem", "Assessment", "Changes", "Outcome", "Step",
     "Scope", "Only", "Skip",

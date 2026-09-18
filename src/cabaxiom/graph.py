@@ -15,7 +15,7 @@ from typing import final
 
 from .errors import Identity, Malformed, Presence
 from .step import Step
-from .vocabulary import MODES, EdgeKind, Vocabulary
+from .vocabulary import MODES, EdgeKind, Roster, Vocabulary
 
 # What a slot may hold. A plain alias rather than a `type` statement, since the floor is still 3.10.
 Declared = type[Step] | str | Step
@@ -89,7 +89,7 @@ class Graph:
             instances[type(step)].append(step)
             for capability in step.provides:            # off the INSTANCE, so one may provide and its twin not
                 providers[capability].append(step)
-        self.__instances: dict[type[Step], Sequence[Step]] = dict(instances)
+        self.__instances: dict[type[Step], Sequence[Step]] = {kind: Roster(held) for kind, held in instances.items()}
         self.__providers: dict[str, Sequence[Step]] = dict(providers)
 
         # ONE loop over the vocabulary. That is the whole point of the table. There is no branch here

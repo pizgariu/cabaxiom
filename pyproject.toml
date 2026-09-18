@@ -70,7 +70,7 @@ branch = true
 
 [tool.coverage.report]
 show_missing = true
-exclude_lines = ["pragma: no cover", "raise NotImplementedError", "if TYPE_CHECKING:", "@(abc\\.)?abstractmethod"]
+exclude_lines = ["pragma: no cover", "raise NotImplementedError", "if TYPE_CHECKING:", "@(abc\\.)?abstractmethod", "@(typing\\.)?overload"]
 
 [tool.mypy]
 python_version = "3.12"

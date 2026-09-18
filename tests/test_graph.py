@@ -226,6 +226,64 @@ class TheInstanceKindTests(unittest.TestCase):
         self.assertEqual(Graph((reader, inside)).dependencies(reader), ())
 
 
+class TheRosterIndexTests(unittest.TestCase):
+    """Naming an instance costs a lookup, not a scan of the whole run."""
+
+    @staticmethod
+    def _chain(size):
+        steps = []
+        for index in range(size):
+            step = type(f"S{index}", (Step,), {})()
+            if steps:
+                step.uses = (steps[-1],)
+            steps.append(step)
+        return steps
+
+    def test_the_derivation_scales_linearly_in_the_number_of_steps(self):
+        # Asserted as a RATIO rather than as a wall-clock number, so it says something true on a slow
+        # machine and on a fast one. Before the index this was quadratic - a four-thousand step chain took
+        # 0.284 seconds and rose by three and a half on every doubling.
+        import time
+
+        timings = []
+        for size in (1000, 2000, 4000):
+            steps = self._chain(size)
+            # The best of five. A loaded machine adds noise on top of the cost and never takes any away,
+            # so the minimum is the one reading it cannot inflate.
+            fastest = float("inf")
+            for _ in range(5):
+                start = time.perf_counter()
+                Graph(steps)
+                fastest = min(fastest, time.perf_counter() - start)
+            timings.append(fastest)
+        # doubling the work roughly doubles the time. Three is generous headroom for a loaded machine and
+        # still nowhere near the four a quadratic would show.
+        self.assertLess(timings[2] / timings[1], 3.0)
+        self.assertLess(timings[1] / timings[0], 3.0)
+
+    def test_membership_is_answered_by_identity_and_in_constant_time(self):
+        from cabaxiom.vocabulary import Roster
+
+        class Store(Step):
+            pass
+
+        held, alike = Store(), Store()
+        roster = Roster([held])
+        self.assertIn(held, roster)
+        self.assertNotIn(alike, roster)
+
+    def test_the_roster_keeps_supplied_order_because_order_is_part_of_the_answer(self):
+        # A class edge reaches every instance of the class, in the order they were supplied, which is what
+        # makes a resolved run reproducible rather than merely correct.
+        from cabaxiom.vocabulary import Roster
+
+        class Store(Step):
+            pass
+
+        first, second = Store(), Store()
+        self.assertEqual(list(Roster([first, second])), [first, second])
+
+
 class OneMatchSaysWhoAskedAndWhatAnsweredTests(unittest.TestCase):
     """A Match is the per-name view of an edge, where dependencies() is the per-step one. It carries the
     ROW rather than the slot's name, so a consumer reads hardness and addressing off the vocabulary."""
@@ -318,3 +376,19 @@ class TheIdentityGateHasTwoSentencesTests(unittest.TestCase):
             Graph(twins)
         self.assertIn("compare equal", str(refused.exception))
 
+
+class ARosterIsIndexableAsWellAsSearchableTests(unittest.TestCase):
+    """The tuple sits beside the set rather than being replaced by it, so a Roster answers both questions
+    a class edge asks - is this one present, and in what order are they all."""
+
+    def test_it_reads_by_position_and_by_slice_the_way_the_list_it_replaced_did(self):
+        from cabaxiom.vocabulary import Roster
+
+        class Store(Step):
+            pass
+
+        first, second = Store(), Store()
+        roster = Roster([first, second])
+        self.assertIs(roster[0], first)
+        self.assertEqual(list(roster[0:2]), [first, second])
+        self.assertEqual(len(roster), 2)

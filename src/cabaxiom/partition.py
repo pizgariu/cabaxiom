@@ -69,17 +69,36 @@ class Partition(tuple[tuple["Step", ...], ...], ABC):
         # been ordered by - the guard passed a seating it should have refused, so the hard `requires` edge
         # was invisible to it entirely.
         group_of = {step: index for index, group in enumerate(self) for step in group}
+        self.__seats(graph, group_of)
         for index, group in enumerate(self):
             for step in group:
                 for dependency in graph.dependencies(step):
-                    if dependency in group_of and not self._placement.holds(group_of[dependency], index):
+                    if not self._placement.holds(group_of[dependency], index):
                         raise Unresolvable(
                             f"{Step.named(step)} depends on {Step.named(dependency)}, yet the Ordering "
                             f"placed {Step.named(dependency)} in group {group_of[dependency]} and "
                             f"{Step.named(step)} in group {index} - a concurrent dispatcher needs a "
-                            f"dependency {self._placement.described}, so it would ignore Step.expects."
+                            f"dependency {self._placement.described}, so it would run them out of order."
                         )
 
+    def __seats(self, graph: "Graph", group_of: "dict[Step, int]") -> None:
+        # EVERY step, exactly once, before any placement is judged. The walk below asks where a dependency
+        # was seated, so a dependency that was seated nowhere used to make it skip that edge instead of
+        # answering - so an Ordering that dropped a step passed the guard and the run silently reconciled
+        # a smaller world than it was handed. A step seated twice is the same failure from the other side.
+        seated = sum(len(group) for group in self)
+        missing = [step for step in graph.steps if step not in group_of]
+        if missing:
+            named = ", ".join(dict.fromkeys(Step.named(step) for step in missing))
+            raise Unresolvable(
+                f"The Ordering left {named} out of the seating entirely, so the run would skip work it "
+                f"was handed. Every step of the run belongs to exactly one group."
+            )
+        if seated != len(group_of):
+            raise Unresolvable(
+                f"The Ordering seated {seated} steps into {len(group_of)} places, so at least one step "
+                f"appears in more than one group and would run twice."
+            )
 
 @final
 class Levels(Partition):

@@ -3,8 +3,9 @@ import asyncio
 import random
 import unittest
 
-from cabaxiom import DFS, Components, Kahn, Levels, Parallel, Partition, Priority, Reconciler, Serial, Step
+from cabaxiom import DFS, Components, Kahn, Parallel, Priority, Reconciler, Serial, Step, Unresolvable
 from cabaxiom.graph import Graph
+from cabaxiom.partition import Levels, Partition
 from support import A, B, C, X, Y, Z, _RecStep
 
 
@@ -281,3 +282,30 @@ class SlotsAreReadOffTheInstanceTests(unittest.TestCase):
         second.expects = (First,)
         edges = dict(Reconciler((second, first)).explain().edges)
         self.assertEqual(edges["Second"], ("First",))
+
+
+class TheSeatingCoversTheRunTests(unittest.TestCase):
+    """The guard's other half. It used to ask only "is each dependency placed correctly RELATIVE to its
+    dependent", which quietly excused a dependency that was placed nowhere at all - so an Ordering that
+    dropped a step or seated one twice walked straight past a guard whose whole job is the seating."""
+
+    def test_a_seating_that_drops_a_step_is_refused(self):
+        a, b = A([]), B([])         # B expects A
+        graph = Graph((a, b))
+        with self.assertRaises(Unresolvable) as ctx:
+            Levels(((b,),)).verify(graph)
+        told = str(ctx.exception)
+        self.assertIn("out of the seating entirely", told)
+        self.assertIn("A", told)
+
+    def test_a_seating_that_runs_one_step_twice_is_refused(self):
+        a, b = A([]), B([])
+        graph = Graph((a, b))
+        with self.assertRaises(Unresolvable) as ctx:
+            Levels(((a,), (a, b))).verify(graph)
+        self.assertIn("more than one group", str(ctx.exception))
+
+    def test_a_seating_that_covers_the_run_exactly_passes(self):
+        a, b = A([]), B([])
+        graph = Graph((a, b))
+        Levels(((a,), (b,))).verify(graph)   # no raise

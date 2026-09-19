@@ -4,6 +4,7 @@ import random
 import unittest
 
 from cabaxiom import DFS, Components, Kahn, Levels, Parallel, Partition, Priority, Reconciler, Serial, Step
+from cabaxiom.graph import Graph
 from support import A, B, C, X, Y, Z, _RecStep
 
 
@@ -110,7 +111,7 @@ class OrderingStrategyTests(unittest.TestCase):
         # An Ordering that does not override chains() inherits the base fallback - ONE chain equal to its flat
         # order, the sentinel a pipelining dispatcher rejects since it runs nothing concurrently. Kahn overrides
         # levels() but not chains(), so it lands on the fallback here.
-        chains = Kahn().chains((C([]), A([]), B([])))
+        chains = Kahn().chains(Graph((C([]), A([]), B([]))))
         [chain] = chains   # exactly one chain of everything
         self.assertEqual([type(step).__name__ for step in chain], ["A", "B", "C"])
 
@@ -140,7 +141,7 @@ class OrderingContractTests(unittest.TestCase):
             steps = tuple(cls() for cls in supplied)
             for ordering in (Kahn(), DFS()):
                 with self.subTest(ordering=type(ordering).__name__, graph=[cls.__name__ for cls in supplied]):
-                    resolved = ordering(steps)
+                    resolved = ordering(Graph(steps))
                     self.assertEqual(len(resolved), len(steps))   # no step dropped, no step invented
                     position = {type(step): index for index, step in enumerate(resolved)}
                     for step in resolved:
@@ -158,11 +159,11 @@ class OrderingContractTests(unittest.TestCase):
         for _ in range(25):
             supplied = self.__random_dag(randomness, randomness.randint(2, 12))
             steps = tuple(cls() for cls in supplied)
-            kahn = Kahn()
-            levels = Levels(kahn.levels(steps))
-            levels.verify()   # raises on any mis-split - the fanning dispatcher's own guard
+            kahn, graph = Kahn(), Graph(steps)
+            levels = Levels(kahn.levels(graph))
+            levels.verify(graph)   # raises on any mis-split - the fanning dispatcher's own guard
             flattened = tuple(step for level in levels for step in level)
-            self.assertEqual(flattened, kahn(steps))
+            self.assertEqual(flattened, kahn(graph))
 
     def test_a_planted_cycle_raises_for_both_strategies(self):
         randomness = random.Random(20260711)
@@ -175,9 +176,9 @@ class OrderingContractTests(unittest.TestCase):
             for ordering in (Kahn(), DFS()):
                 with self.subTest(ordering=type(ordering).__name__):
                     with self.assertRaises(ValueError):
-                        ordering(steps)
+                        ordering(Graph(steps))
             with self.assertRaises(ValueError):
-                Kahn().levels(steps)
+                Kahn().levels(Graph(steps))
 
 
 class PriorityOrderingTests(unittest.TestCase):
@@ -186,21 +187,21 @@ class PriorityOrderingTests(unittest.TestCase):
 
     def test_orders_independent_steps_by_key_default_class_name(self):
         # Supplied Z, Y, X - Kahn would keep that order, Priority emits the canonical X, Y, Z by class name.
-        order = Priority()((Z([]), Y([]), X([])))
+        order = Priority()(Graph((Z([]), Y([]), X([]))))
         self.assertEqual([type(step).__name__ for step in order], ["X", "Y", "Z"])
 
     def test_after_dominates_the_key(self):
         # C -> B -> A. The key cannot pull a dependency ahead of the thing that depends on it.
-        order = Priority()((C([]), A([]), B([])))
+        order = Priority()(Graph((C([]), A([]), B([]))))
         self.assertEqual([type(step).__name__ for step in order], ["A", "B", "C"])
 
     def test_injected_key_changes_the_order(self):
         # A reverse key (largest name first) flips the canonical order to Z, Y, X.
-        order = Priority(key=lambda step_class: -ord(step_class.__name__[0]))((X([]), Y([]), Z([])))
+        order = Priority(key=lambda step: -ord(type(step).__name__[0]))(Graph((X([]), Y([]), Z([]))))
         self.assertEqual([type(step).__name__ for step in order], ["Z", "Y", "X"])
 
     def test_keeps_every_instance_of_a_class(self):
-        order = Priority()((B([]), A([]), A([])))
+        order = Priority()(Graph((B([]), A([]), A([]))))
         self.assertEqual([type(step).__name__ for step in order], ["A", "A", "B"])
 
     def test_is_flat_only_and_rejected_by_a_fanning_executor(self):
@@ -218,7 +219,7 @@ class PriorityOrderingTests(unittest.TestCase):
 
         P.expects = (Q,)  # close the cycle
         with self.assertRaises(ValueError) as ctx:
-            Priority()((P([]), Q([])))
+            Priority()(Graph((P([]), Q([]))))
         self.assertIn("P", str(ctx.exception))
         self.assertIn("Q", str(ctx.exception))
 

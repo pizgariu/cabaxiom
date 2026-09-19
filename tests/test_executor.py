@@ -72,9 +72,9 @@ class ExecutorTests(unittest.TestCase):
         # verify on dependent steps) and accepts real Kahn waves - tied to arrange(), not to
         # the Parallel class.
         class WaveExecutor(Dispatcher):
-            def arrange(self, ordering, steps):
-                waves = Levels(ordering.levels(steps))
-                waves.verify()
+            def arrange(self, ordering, graph):
+                waves = Levels(ordering.levels(graph))
+                waves.verify(graph)
                 return waves
 
             async def probe(self, groups, read):
@@ -92,11 +92,11 @@ class ExecutorTests(unittest.TestCase):
         # capability check, yet a fanning dispatcher would run them together and ignore after=. The structural
         # invariant catches the mis-split at construction.
         class OneBigWave(Ordering):
-            def __call__(self, steps):
-                return steps
+            def __call__(self, graph):
+                return graph.steps
 
-            def levels(self, steps):
-                return (tuple(steps),)   # everything in one wave, dependencies be damned
+            def levels(self, graph):
+                return (graph.steps,)   # everything in one wave, dependencies be damned
 
         with self.assertRaises(ValueError):
             Reconciler((A([]), B([])), OneBigWave(), dispatcher=Parallel())   # B is after A, same wave

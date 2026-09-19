@@ -1,9 +1,12 @@
 """Scope - which of the handed steps take part in a run. Everything by default or Only / Skip by step type."""
-from typing import final
+from typing import TYPE_CHECKING, final
 
 from ._compat import override
 from .errors import Misconfigured
 from .step import Step
+
+if TYPE_CHECKING:
+    from .graph import Graph
 
 
 class Scope:
@@ -14,8 +17,9 @@ class Scope:
     dependencies on types too.
     """
 
-    def select(self, steps: tuple[Step, ...]) -> tuple[Step, ...]:
-        return steps
+    def select(self, graph: "Graph") -> tuple[Step, ...]:
+        # The base keeps every step, which is the run-everything default.
+        return graph.steps
 
 
 class _Named(Scope):
@@ -41,24 +45,22 @@ class _Named(Scope):
 class Only(_Named):
     """Keep the named step types plus the transitive dependencies of each, in the handed order.
 
-    A targeted run must stay a correct run. A target converging before its prerequisites would
-    trust state nobody put there. So Only grows its selection along Step.expects until it closes,
-    the way a targeted apply pulls in what its target depends on."""
+    A targeted run must stay a correct run - a target converging before its prerequisites would trust
+    state nobody put there. So Only grows its selection along the DERIVATION until it closes, the way a
+    targeted apply pulls in what its target depends on.
+
+    Along the derivation and not along one slot, which is the defect this closes. It walked `expects` by
+    hand, so a target that named a capability, an instance or a hard prerequisite had those edges narrowed
+    away - the run was assembled without something it had explicitly declared, yet nothing said so because
+    a soft edge to an absent step is legal."""
 
     @override
-    def select(self, steps: tuple[Step, ...]) -> tuple[Step, ...]:
+    def select(self, graph: "Graph") -> tuple[Step, ...]:
+        steps = graph.steps
         self._verify_present(steps)
-        wanted = set(self._types)
-        grown = True
-        while grown:   # grow the selection along after-edges until it closes
-            grown = False
-            for step in steps:
-                if type(step) in wanted:
-                    for dependency in step.expects:
-                        if dependency not in wanted:
-                            wanted.add(dependency)
-                            grown = True
-        return tuple(step for step in steps if type(step) in wanted)
+        seeds = tuple(step for step in steps if type(step) in self._types)
+        kept = graph.closure(seeds)      # the seeds plus every transitive prerequisite, in any kind
+        return tuple(step for step in steps if step in kept)
 
 
 @final
@@ -71,6 +73,7 @@ class Skip(_Named):
     asked for."""
 
     @override
-    def select(self, steps: tuple[Step, ...]) -> tuple[Step, ...]:
+    def select(self, graph: "Graph") -> tuple[Step, ...]:
+        steps = graph.steps
         self._verify_present(steps)
         return tuple(step for step in steps if type(step) not in self._types)

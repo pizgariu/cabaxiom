@@ -18,6 +18,7 @@ from cabaxiom import (
     Serial,
     Step,
 )
+from cabaxiom.graph import Graph
 from support import A, B, Boom, C, X, Y, _RecStep
 
 
@@ -27,7 +28,7 @@ class PipelineOrderingTests(unittest.TestCase):
 
     def test_components_groups_a_connected_chain_and_isolates_independents(self):
         # C -> B -> A is one weakly-connected component (one chain), X and Y are edgeless singletons.
-        chains = Components().chains((C([]), A([]), B([]), X([]), Y([])))
+        chains = Components().chains(Graph((C([]), A([]), B([]), X([]), Y([]))))
         names = {tuple(type(step).__name__ for step in chain) for chain in chains}
         self.assertEqual(names, {("A", "B", "C"), ("X",), ("Y",)})
 
@@ -38,12 +39,12 @@ class PipelineOrderingTests(unittest.TestCase):
         self.assertEqual(log, ["A", "B", "C"])
 
     def test_components_keeps_every_instance_of_a_class(self):
-        chains = Components().chains((B([]), A([]), A([])))
+        chains = Components().chains(Graph((B([]), A([]), A([]))))
         [chain] = chains   # A, A, B are one connected component
         self.assertEqual([type(step).__name__ for step in chain], ["A", "A", "B"])
 
     def test_components_ignores_a_dep_outside_the_supplied_set(self):
-        chains = Components().chains((B([]),))   # B.expects = (A,), yet A is not supplied
+        chains = Components().chains(Graph((B([]),)))   # B.expects = (A,), yet A is not supplied
         self.assertEqual([[type(s).__name__ for s in chain] for chain in chains], [["B"]])
 
     def test_components_raises_valueerror_naming_a_cycle(self):
@@ -55,7 +56,7 @@ class PipelineOrderingTests(unittest.TestCase):
 
         P.expects = (Q,)  # close the cycle within one component
         with self.assertRaises(ValueError) as ctx:
-            Components().chains((P([]), Q([])))
+            Components().chains(Graph((P([]), Q([]))))
         self.assertIn("P", str(ctx.exception))
         self.assertIn("Q", str(ctx.exception))
 
@@ -109,9 +110,9 @@ class PipelineOrderingTests(unittest.TestCase):
         # A custom dispatcher that builds a chain partition and verifies it accepts a clean split and rejects a
         # leaky one - the disjoint guard is tied to arrange(), not to the Pipeline class.
         class ChainExecutor(Dispatcher):
-            def arrange(self, ordering, steps):
-                chains = Chains(ordering.chains(steps))
-                chains.verify()
+            def arrange(self, ordering, graph):
+                chains = Chains(ordering.chains(graph))
+                chains.verify(graph)
                 return chains
 
             async def probe(self, groups, read):
@@ -121,11 +122,11 @@ class PipelineOrderingTests(unittest.TestCase):
                 return [], []
 
         class LeakyChains(Ordering):
-            def __call__(self, steps):
-                return steps
+            def __call__(self, graph):
+                return graph.steps
 
-            def chains(self, steps):
-                return tuple((step,) for step in steps)   # B lands in a chain apart from its dep A
+            def chains(self, graph):
+                return tuple((step,) for step in graph.steps)   # B lands in a chain apart from its dep A
 
         Reconciler((A([]),), Components(), dispatcher=ChainExecutor())   # one clean component - fine
         with self.assertRaises(ValueError):
@@ -135,11 +136,11 @@ class PipelineOrderingTests(unittest.TestCase):
         # An Ordering that overrides chains() but scatters dependent steps into SEPARATE chains passes the
         # capability check, yet concurrent chains would ignore that edge. verify catches it upfront.
         class LeakyChains(Ordering):
-            def __call__(self, steps):
-                return steps
+            def __call__(self, graph):
+                return graph.steps
 
-            def chains(self, steps):
-                return tuple((step,) for step in steps)   # every step its own chain, deps be damned
+            def chains(self, graph):
+                return tuple((step,) for step in graph.steps)   # every step its own chain, deps be damned
 
         with self.assertRaises(ValueError):
             Reconciler((A([]), B([])), LeakyChains(), dispatcher=Pipeline())   # B is after A, different chain
@@ -150,7 +151,8 @@ class PipelineOrderingTests(unittest.TestCase):
         self.assertEqual(Chains((("a", "b", "c"), ("x", "y"))).inverse(), (("y", "x"), ("c", "b", "a")))
 
     def test_chains_verify_passes_when_every_edge_stays_inside_one_chain(self):
-        Chains((Components().chains((C([]), A([]), B([]))))).verify()
+        graph = Graph((C([]), A([]), B([])))
+        Chains(Components().chains(graph)).verify(graph)
 
 
 class ChainInteriorTests(unittest.TestCase):

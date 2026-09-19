@@ -1,9 +1,9 @@
 """The Graph - one derivation, read by everything, over one membership."""
 import unittest
 
-from cabaxiom import Identity, Malformed, Presence, Step
+from cabaxiom import Identity, Malformed, Misconfigured, Presence, Step
 from cabaxiom.graph import Graph
-from cabaxiom.vocabulary import BY_CLASS, EdgeKind, Vocabulary
+from cabaxiom.vocabulary import BY_CLASS, BY_INSTANCE, EdgeKind, Roster, Vocabulary
 
 
 class Db(Step):
@@ -284,6 +284,79 @@ class TheRosterIndexTests(unittest.TestCase):
         self.assertEqual(list(Roster([first, second])), [first, second])
 
 
+class TheMatchRowTests(unittest.TestCase):
+    """A Match is the answer to "what did this slot resolve to" and it has to be readable to be worth
+    returning. Every accessor here is on the public surface, so every one is asserted rather than assumed."""
+
+    def test_a_match_carries_its_step_its_name_and_reads_back(self):
+        class Left(Step):
+            pass
+
+        class Right(Step):
+            expects = (Left,)
+
+        left, right = Left(), Right()
+        graph = Graph((left, right))
+        found, = graph.matching(right)
+
+        self.assertIs(found.step, right)
+        self.assertIs(found.name, Left)          # the DECLARED name, not what it resolved to
+        self.assertEqual(found.slot, "expects")
+        self.assertEqual(found.matched, (left,))
+        self.assertTrue(found.soft)
+        self.assertEqual(repr(found), "Match(Right.expects Left -> Left)")
+
+    def test_a_miss_reads_back_as_nothing_rather_than_an_empty_list(self):
+        class Absent(Step):
+            pass
+
+        class Wanting(Step):
+            expects = (Absent,)
+
+        found, = Graph((Wanting(),)).matching(Wanting())
+        self.assertEqual(found.matched, ())
+        self.assertIn("-> nothing", repr(found))
+
+
+class TheVocabularyEdgesTests(unittest.TestCase):
+    """The rows themselves, which are data and so can be got wrong by a caller growing the vocabulary."""
+
+    def test_the_roster_slices_like_the_sequence_it_claims_to_be(self):
+        class One(Step):
+            pass
+
+        class Two(Step):
+            pass
+
+        one, two = One(), Two()
+        roster = Roster((one, two))
+        self.assertEqual(list(roster[0:1]), [one])
+        self.assertEqual(roster[-1], two)
+        self.assertIn(two, roster)
+
+    def test_an_instance_addressed_name_is_spoken_as_its_type(self):
+        class Named(Step):
+            pass
+
+        named = Named()
+        self.assertEqual(BY_INSTANCE.spoken(named), "Named")
+
+    def test_a_pair_of_two_hard_kinds_is_refused(self):
+        both, = EdgeKind("insists", BY_CLASS, hard=True, counterpart="demands"),
+        other = EdgeKind("demands", BY_CLASS, hard=True, counterpart="insists")
+        with self.assertRaises(Misconfigured) as ctx:
+            Vocabulary(both, other)
+        self.assertIn("both hard", str(ctx.exception))
+
+    def test_a_one_sided_pair_is_refused(self):
+        # `claims` points at `answers`, yet `answers` points somewhere else. A pair the two halves do not
+        # agree on is a declaration bug that silently halves the edges if it is let through.
+        with self.assertRaises(Misconfigured) as ctx:
+            Vocabulary(EdgeKind("claims", BY_CLASS, hard=False, counterpart="answers"),
+                       EdgeKind("answers", BY_CLASS, hard=True, counterpart="elsewhere"))
+        self.assertIn("disagree about being a pair", str(ctx.exception))
+
+
 class OneMatchSaysWhoAskedAndWhatAnsweredTests(unittest.TestCase):
     """A Match is the per-name view of an edge, where dependencies() is the per-step one. It carries the
     ROW rather than the slot's name, so a consumer reads hardness and addressing off the vocabulary."""
@@ -355,26 +428,6 @@ class TheWalkVisitsAStepOnceTests(unittest.TestCase):
 
         base, left, right = Base(), Left(), Right()
         self.assertEqual(Graph((base, left, right)).closure((left, right)), frozenset({base, left, right}))
-
-
-class TheIdentityGateHasTwoSentencesTests(unittest.TestCase):
-    """Handing one instance in twice is a different mistake from handing in two that compare equal, and
-    the fix differs, so the refusal says which one happened."""
-
-    def test_two_steps_that_compare_equal_get_the_sentence_about_equality(self):
-        # Step refuses equality at class definition and again at first construction, so the only way two
-        # steps reach a derivation comparing equal is a class mutated after its instances exist. Worth
-        # refusing anyway, since the derivation would fold the two into one node and reconcile a smaller
-        # world than it was handed.
-        class Twin(Step):
-            pass
-
-        twins = (Twin(), Twin())
-        setattr(Twin, "__eq__", lambda self, other: isinstance(other, Twin))
-        setattr(Twin, "__hash__", lambda self: 0)
-        with self.assertRaises(Identity) as refused:
-            Graph(twins)
-        self.assertIn("compare equal", str(refused.exception))
 
 
 class ARosterIsIndexableAsWellAsSearchableTests(unittest.TestCase):

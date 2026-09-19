@@ -3,9 +3,13 @@ import operator
 from abc import ABC
 from collections import namedtuple
 from enum import Enum
-from typing import ClassVar, final
+from typing import TYPE_CHECKING, ClassVar, final
 
+from .errors import Unresolvable
 from .step import Step
+
+if TYPE_CHECKING:
+    from .graph import Graph
 
 
 @final
@@ -55,18 +59,23 @@ class Partition(tuple[tuple["Step", ...], ...], ABC):
     def inverse(self) -> tuple[tuple["Step", ...], ...]:
         return tuple(tuple(reversed(group)) for group in reversed(self))
 
-    def verify(self) -> None:
+    def verify(self, graph: "Graph") -> None:
         # A fanning dispatcher runs a whole group at once, so a step's dependency must be placed where that
-        # fan-out still honours Step.expects. The Ordering promises the shape but does not prove it, so a
-        # mis-split is caught here.
-        group_of = {type(step): index for index, group in enumerate(self) for step in group}
+        # fan-out still honours it. The Ordering promises the shape and does not prove it, so a mis-split is
+        # caught here.
+        #
+        # AGAINST THE WHOLE DERIVATION, not against one slot. It read `expects` by hand before, so a run
+        # ordered by a capability or by an instance was checked against edges that were not the ones it had
+        # been ordered by - the guard passed a seating it should have refused, so the hard `requires` edge
+        # was invisible to it entirely.
+        group_of = {step: index for index, group in enumerate(self) for step in group}
         for index, group in enumerate(self):
             for step in group:
-                for dependency in step.expects:
+                for dependency in graph.dependencies(step):
                     if dependency in group_of and not self._placement.holds(group_of[dependency], index):
-                        raise ValueError(
-                            f"{Step.named(step)} depends on {dependency.__name__}, yet the Ordering "
-                            f"placed {dependency.__name__} in group {group_of[dependency]} and "
+                        raise Unresolvable(
+                            f"{Step.named(step)} depends on {Step.named(dependency)}, yet the Ordering "
+                            f"placed {Step.named(dependency)} in group {group_of[dependency]} and "
                             f"{Step.named(step)} in group {index} - a concurrent dispatcher needs a "
                             f"dependency {self._placement.described}, so it would ignore Step.expects."
                         )

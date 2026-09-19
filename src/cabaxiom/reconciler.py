@@ -7,12 +7,14 @@ from .cancellation import Cancellation
 from .convergence import Convergence, Once
 from .dispatcher import Dispatcher, Serial, Write
 from .drift import Drift, Outcome
+from .graph import Graph
 from .observer import Observer
 from .ordering import Kahn, Ordering
 from .retry import Retry
 from .scope import Scope
 from .settle import Clean, Settle
 from .step import Step
+from .vocabulary import Vocabulary
 
 
 @final
@@ -64,6 +66,7 @@ class Reconciler:
     """
 
     def __init__(self, steps: Iterable[Step], ordering: Ordering | None = None, *,
+                 vocabulary: Vocabulary | None = None,
                  scope: Scope | None = None, dispatcher: Dispatcher | None = None,
                  convergence: Convergence | None = None, cancellation: Cancellation | None = None,
                  observer: Observer | None = None, retry: Retry | None = None):
@@ -82,7 +85,14 @@ class Reconciler:
         # run (Serial - a serial walk of levels, Parallel - independent waves, Pipeline - independent
         # chains). An dispatcher that cannot run the Ordering it was handed raises from arrange(),
         # naming the fix.
-        self.__partition = dispatcher.arrange(ordering, scope.select(tuple(steps)))
+        # ONE derivation, built here and handed to everything downstream. The scope narrows the
+        # membership through it, the ordering chooses an order through it, the shape's guard checks a
+        # seating against it and explain() draws it. Nothing derives a second one, which is what makes
+        # those four answers about one world rather than four opinions about four.
+        whole = Graph(tuple(steps), vocabulary)
+        self.__graph = Graph(scope.select(whole), whole.vocabulary)
+        self.__graph.demand()   # the hard-presence rule, fired the moment membership is final
+        self.__partition = dispatcher.arrange(ordering, self.__graph)
         self.__dispatcher = dispatcher
         self.__convergence = convergence
         self.__cancellation = cancellation
@@ -119,7 +129,7 @@ class Reconciler:
         # same resolved partition every other verb uses, so it explains the actual run and re-resolves nothing.
         groups = tuple(tuple(Step.named(step) for step in group) for group in self.__partition)
         edges = tuple(
-            (Step.named(step), tuple(dependency.__name__ for dependency in step.expects))
+            (Step.named(step), tuple(Step.named(need) for need in self.__graph.dependencies(step)))
             for group in self.__partition for step in group
         )
         return Explanation(groups, edges)

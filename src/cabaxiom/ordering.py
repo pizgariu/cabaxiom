@@ -1,244 +1,177 @@
-"""Ordering strategies - sequence Steps by Step.expects. Kahn (readiness waves), DFS (depth-first flat), Priority (best-first flat), Components (independent chains)."""
+"""Ordering strategies - choose a run order THROUGH a derivation, never deriving one of your own.
+
+Each strategy is handed the run's Graph and picks an order the edges allow. It does not read a slot, does
+not know which kinds exist and cannot disagree with the seating guard or the scope about what depends on
+what - because all three now read the same object. Before this, four strategies each walked the
+declaration their own way and the walks had already drifted apart.
+
+Keyed by INSTANCE. Two steps of one kind are two nodes that may sit in different places, which is what an
+instance-addressed edge means and what a class-keyed sort could not express."""
 import heapq
 from abc import ABC, abstractmethod
-from collections import defaultdict
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable
 from graphlib import CycleError, TopologicalSorter
 from typing import final
 
 from ._compat import override
 from .errors import Cycle
+from .graph import Graph
 from .step import Step
 
 
-def _declared(kind: type[Step], instances_of: Mapping[type[Step], Sequence[Step]]) -> tuple[type[Step], ...]:
-    # WHAT THE INSTANCES OF THIS CLASS EXPECT, not what the class does. A declaration slot is read off the
-    # object that carries it, while a class-keyed algorithm that reads the type instead silently drops
-    # anything a caller set on one instance. Three of the four strategies did exactly that, so one
-    # declaration produced a different order depending on which strategy was injected.
-    #
-    # The union, because a class-keyed node stands for every instance of the class and the node must
-    # therefore come after everything ANY of them named.
-    seen: dict[type[Step], None] = {}
-    for step in instances_of.get(kind, ()):
-        for dependency in step.expects:
-            seen[dependency] = None
-    return tuple(seen)
-
-
 class Ordering(ABC):
-    # Strategy interface for sequencing steps. A Reconciler is handed ONE Ordering and uses it to turn the
-    # supplied steps into a run order that honours Step.expects, so the algorithm can be swapped without
-    # touching converge logic. Contract for every implementation - scope after= to the supplied set, key the
-    # graph by class (every instance of a class comes out, in supplied order) and raise ValueError on a
-    # cycle or unsatisfiable order.
+    """Strategy for turning a derivation into a run order.
+
+    __call__ is the flat order every strategy answers. levels() and chains() are the SHAPED answers, and
+    a strategy that cannot shape its output that way inherits a one-group fallback rather than pretending
+    - the shape's guard then refuses the pairing, which is the honest place for that refusal.
+
+    Every verb takes the Graph ALONE. The membership travels ON the derivation, so a strategy cannot be
+    handed the edges of one world beside the steps of another."""
+
     @abstractmethod
-    def __call__(self, steps: tuple[Step, ...]) -> tuple[Step, ...]:
+    def __call__(self, graph: Graph) -> tuple[Step, ...]:
         ...
 
-    def levels(self, steps: tuple[Step, ...]) -> tuple[tuple[Step, ...], ...]:
-        # Topological LEVELS. Each inner tuple is a wave of mutually-independent steps, waves in dependency
-        # order. Default is ONE wave equal to the flat __call__ order. A level-capable ordering overrides.
-        return (self(steps),)
+    def levels(self, graph: Graph) -> tuple[tuple[Step, ...], ...]:
+        # Readiness waves, for a dispatcher that fans within a group. The fallback is one group holding
+        # the flat order, which is correct for a serial walk and refused by a fanning shape.
+        return (self(graph),)
 
-    def chains(self, steps: tuple[Step, ...]) -> tuple[tuple[Step, ...], ...]:
-        # Topological CHAINS, the dual of levels(). Each inner tuple is one chain run in series, the chains
-        # mutually independent so a pipelining dispatcher runs them concurrently. Default is ONE chain of the
-        # whole flat order, the sentinel a pipelining Reconciler rejects since it runs nothing concurrently.
-        # A chain-capable ordering overrides.
-        return (self(steps),)
+    def chains(self, graph: Graph) -> tuple[tuple[Step, ...], ...]:
+        # Independent strands, for a dispatcher that fans across groups. Same fallback, same reason.
+        return (self(graph),)
+
+    @staticmethod
+    def _sorted(graph: Graph, over: tuple[Step, ...] | None = None) -> "TopologicalSorter[Step]":
+        # One sorter, over instances, fed from the derivation. Every strategy that topologically sorts
+        # builds it here, so none of them can scope the edges differently from the others.
+        #
+        # The return annotation stays QUOTED through this rewrite, for the reason 0.3.1 quoted the one it
+        # replaced - graphlib.TopologicalSorter only became subscriptable in 3.11, while a signature is
+        # evaluated when the def runs, so unquoted it stops the package importing on 3.10.
+        held = graph.steps if over is None else over
+        within = set(held)
+        sorter: TopologicalSorter[Step] = TopologicalSorter()
+        for step in held:
+            sorter.add(step, *(need for need in graph.dependencies(step) if need in within))
+        return sorter
+
+    @staticmethod
+    def _stuck(cycle: CycleError) -> Cycle:
+        named = ", ".join(dict.fromkeys(Step.named(step) for step in cycle.args[1]))
+        return Cycle(f"Step dependency cycle or unsatisfiable order among: {named}")
 
 
 @final
 class Kahn(Ordering):
-    """Default Ordering - topological sort over Step.expects via stdlib graphlib.TopologicalSorter (Kahn)."""
-
-    @staticmethod
-    def __graph(steps: tuple[Step, ...]) -> "tuple[defaultdict[type[Step], list[Step]], TopologicalSorter[type[Step]]]":
-        # The return annotation is QUOTED because graphlib.TopologicalSorter only became subscriptable in
-        # 3.11, while a signature is evaluated when the def runs. Unquoted, this one line stopped the whole
-        # package from importing on 3.10, which pyproject declares as supported.
-        # Two invariants the sorter needs help with:
-        #   1. SCOPE EDGES to the supplied set. A dep naming a step outside the handed-in tuple is dropped,
-        #      so a caller may hand in a filtered subset without the sorter materialising a phantom node.
-        #   2. KEY NODES BY CLASS. after= names classes and the sorter keys by ==/hash, so run the graph
-        #      over type(step) and keep a class -> instances map. Two instances of one class collapse to one
-        #      node, yet each node maps back to every instance in supplied order, so nothing is dropped.
-        present = {type(step) for step in steps}
-        instances_of = defaultdict(list)  # class -> [instances], keeps supplied order, never drops a dupe
-        for step in steps:
-            instances_of[type(step)].append(step)
-        sorter: TopologicalSorter[type[Step]] = TopologicalSorter()
-        for step in steps:
-            declared_deps = tuple(dep for dep in step.expects if dep in present)  # scope to supplied set
-            sorter.add(type(step), *declared_deps)
-        return instances_of, sorter
+    """The default - a topological sort that also knows which steps are ready at the same time."""
 
     @override
-    def __call__(self, steps: tuple[Step, ...]) -> tuple[Step, ...]:
-        # Flat linear order. RAISE ValueError, not graphlib.CycleError, naming the stuck steps.
-        instances_of, sorter = Kahn.__graph(steps)
-        try:
-            return tuple(step for kind in sorter.static_order() for step in instances_of[kind])
-        except CycleError as cycle:
-            cycle_path = cycle.args[1]  # nodes on the cycle, first node repeated at the end
-            stuck = ", ".join(kind.__name__ for kind in dict.fromkeys(cycle_path))
-            raise Cycle(f"Step dependency cycle or unsatisfiable order among: {stuck}") from cycle
+    def __call__(self, graph: Graph) -> tuple[Step, ...]:
+        # Flattened waves rather than a second sort. TopologicalSorter.static_order breaks ties its own
+        # way, so asking it here would let the flat order disagree with the waves it is supposed to be.
+        return tuple(step for wave in self.levels(graph) for step in wave)
 
     @override
-    def levels(self, steps: tuple[Step, ...]) -> tuple[tuple[Step, ...], ...]:
-        # Real waves over the SAME graph via prepare/get_ready/done. Flattening the waves equals the
-        # static_order() above, so flat-order callers are unaffected.
-        instances_of, sorter = Kahn.__graph(steps)
+    def levels(self, graph: Graph) -> tuple[tuple[Step, ...], ...]:
+        # Real readiness waves. Everything with no unsettled prerequisite goes in one group. This is the
+        # only strategy that answers this honestly, which is why it is the default for a fanning shape.
+        sorter = self._sorted(graph)
+        supplied = {step: index for index, step in enumerate(graph.steps)}
+        waves: list[tuple[Step, ...]] = []
         try:
             sorter.prepare()
+            while sorter.is_active():
+                ready = sorter.get_ready()
+                waves.append(tuple(sorted(ready, key=lambda step: supplied[step])))
+                sorter.done(*ready)
         except CycleError as cycle:
-            stuck = ", ".join(kind.__name__ for kind in dict.fromkeys(cycle.args[1]))
-            raise Cycle(f"Step dependency cycle or unsatisfiable order among: {stuck}") from cycle
-        waves = []
-        while sorter.is_active():
-            ready = sorter.get_ready()
-            waves.append(tuple(inst for kind in ready for inst in instances_of[kind]))
-            sorter.done(*ready)
+            raise self._stuck(cycle) from cycle
         return tuple(waves)
 
 
 @final
 class DFS(Ordering):
-    """Swap-in alternative to Kahn - same result contract, a different (still valid) order on branching
-    graphs. Recurses into a node's deps and emits post-order, one chain to the bottom before siblings, so it
-    agrees with Kahn on a linear chain but differs on a diamond. Recursive (a deep after= chain leans on the
-    call stack) and catches a cycle by hitting a node already on the recursion path."""
+    """Depth-first post-order - a prerequisite lands immediately before the step that needed it.
+
+    Flat only. It answers no waves and no chains, so a fanning shape refuses to pair with it."""
 
     @override
-    def __call__(self, steps: tuple[Step, ...]) -> tuple[Step, ...]:
-        instances_of = defaultdict(list)  # class -> [instances], first-seen order, doubles as the node set
-        for step in steps:
-            instances_of[type(step)].append(step)
-        done: set[type[Step]] = set()
-        ordered_kinds: list[type[Step]] = []
+    def __call__(self, graph: Graph) -> tuple[Step, ...]:
+        ordered: list[Step] = []
+        done: set[Step] = set()
 
-        def visit(kind: type[Step], path: tuple[type[Step], ...]) -> None:
-            if kind in done:
+        def visit(step: Step, path: tuple[Step, ...]) -> None:
+            if step in done:
                 return
-            if kind in path:  # already on the recursion stack - a dependency cycle
-                cycle = path[path.index(kind):] + (kind,)
-                stuck = ", ".join(k.__name__ for k in dict.fromkeys(cycle))
-                raise Cycle(f"Step dependency cycle or unsatisfiable order among: {stuck}")
-            for dep in _declared(kind, instances_of):
-                if dep in instances_of:  # scope to the supplied set, membership never materialises a key
-                    visit(dep, path + (kind,))
-            done.add(kind)
-            ordered_kinds.append(kind)  # post-order: a dep lands before the step that needs it
+            if step in path:
+                named = ", ".join(dict.fromkeys(Step.named(held) for held in path + (step,)))
+                raise Cycle(f"Step dependency cycle or unsatisfiable order among: {named}")
+            for need in graph.dependencies(step):
+                visit(need, path + (step,))
+            done.add(step)
+            ordered.append(step)
 
-        for root in instances_of:  # dict keys ARE the node set, in first-seen order
-            visit(root, ())
-        return tuple(step for kind in ordered_kinds for step in instances_of[kind])
+        for step in graph.steps:
+            visit(step, ())
+        return tuple(ordered)
 
 
-def _by_class_name(step_class: type) -> str:
-    # Default Priority key - lexicographic by class name, a canonical order independent of input.
-    return step_class.__name__
+def _by_name(step: Step) -> object:
+    # The default priority is the step's own name, so the output is canonical rather than input-dependent.
+    return Step.named(step)
 
 
 @final
 class Priority(Ordering):
-    """Best-first Ordering. The ready set is a PRIORITY QUEUE, so at each step the ready class with the
-    smallest key is emitted next. The key maps a Step class to a sort key and is injected. The default is
-    the class name (reproducible output independent of input) or pass a domain priority to run more
-    important ready steps first. Flat-only like DFS, so it pairs with Serial, not a fanning dispatcher."""
+    """Best-first - at each point the READY step with the smallest key runs next.
 
-    def __init__(self, key: Callable[[type], object] | None = None):
-        # Resolved via None so no shared default leaks across instances. The key sees the Step CLASS, never
-        # an instance.
-        self.__key = key or _by_class_name
+    Flat only, like DFS. The key is injected, so a domain orders its own way within what the edges allow."""
+
+    def __init__(self, key: Callable[[Step], object] = _by_name):
+        self.__key = key
 
     @override
-    def __call__(self, steps: tuple[Step, ...]) -> tuple[Step, ...]:
-        # Kahn with a PRIORITY-QUEUE frontier (heapq). Pop the ready class with the smallest key, emit it,
-        # unlock its dependents, repeat. Keyed by CLASS, every instance out in supplied order. The heap tuple
-        # carries an integer tiebreak so equal keys keep first-ready order and the class is never compared.
-        # RAISE ValueError on a cycle, naming the stuck steps.
-        instances_of = defaultdict(list)  # class -> [instances], keeps supplied order, never drops a dupe
-        for step in steps:
-            instances_of[type(step)].append(step)
-        present = set(instances_of)
-        sorter: TopologicalSorter[type[Step]] = TopologicalSorter()
-        for step in steps:
-            sorter.add(type(step), *(dep for dep in _declared(type(step), instances_of) if dep in present))  # scope to supplied set
+    def __call__(self, graph: Graph) -> tuple[Step, ...]:
+        sorter = self._sorted(graph)
+        ordered: list[Step] = []
+        frontier: list[tuple[object, int, Step]] = []
+        tiebreak = 0                     # so equal keys keep first-ready order and a Step is never compared
         try:
             sorter.prepare()
-        except CycleError as cycle:
-            stuck = ", ".join(kind.__name__ for kind in dict.fromkeys(cycle.args[1]))
-            raise Cycle(f"Step dependency cycle or unsatisfiable order among: {stuck}") from cycle
-        frontier: list[tuple[object, int, type[Step]]] = []   # min-heap of (key, tiebreak, class): the ready set as a priority queue
-        tiebreak = 0          # stable order for equal keys, keeps a non-comparable key from comparing classes
-        ordered_kinds = []
-        ready = sorter.get_ready()
-        while ready or frontier:
-            for kind in ready:
-                heapq.heappush(frontier, (self.__key(kind), tiebreak, kind))
+            for step in sorter.get_ready():
+                heapq.heappush(frontier, (self.__key(step), tiebreak, step))
                 tiebreak += 1
-            _, _, kind = heapq.heappop(frontier)
-            ordered_kinds.append(kind)
-            sorter.done(kind)
-            ready = sorter.get_ready()
-        return tuple(step for kind in ordered_kinds for step in instances_of[kind])
+            while frontier:
+                _key, _tie, step = heapq.heappop(frontier)
+                ordered.append(step)
+                sorter.done(step)
+                for freed in sorter.get_ready():
+                    heapq.heappush(frontier, (self.__key(freed), tiebreak, freed))
+                    tiebreak += 1
+        except CycleError as cycle:
+            raise self._stuck(cycle) from cycle
+        return tuple(ordered)
 
 
 @final
 class Components(Ordering):
-    """Chain-capable Ordering for a pipelining dispatcher. It partitions the steps into weakly-connected
-    components (maximal groups with no Step.expects edge crossing between them), each component internally in
-    Kahn topological order. The components share no edge so they are mutually independent, letting a Pipeline
-    run each as its own serial chain with all chains concurrent. The flat __call__ concatenates the
-    components into a valid topological order.
+    """Independent strands - the run split into parts that share no edge, each internally in order.
 
-    Weakly-connected components, not a minimum path cover. Path-cover chains still share edges (a diamond's
-    two sides both depend on the fork and feed the join), so running them concurrently would ignore those
-    edges. A component is the largest group genuinely independent of every other."""
+    The split comes off the derivation rather than off one slot, so two steps joined by a capability are
+    one component as surely as two joined by a class edge."""
 
     @override
-    def __call__(self, steps: tuple[Step, ...]) -> tuple[Step, ...]:
-        return tuple(step for chain in self.chains(steps) for step in chain)
+    def __call__(self, graph: Graph) -> tuple[Step, ...]:
+        return tuple(step for chain in self.chains(graph) for step in chain)
 
     @override
-    def chains(self, steps: tuple[Step, ...]) -> tuple[tuple[Step, ...], ...]:
-        # Keyed by CLASS like Kahn. Union-find joins each step's class with every present after= dep into one
-        # component, then each component is Kahn-sorted over its own sub-graph. Component order and
-        # within-component instance order both follow first-seen, so the result is deterministic.
-        instances_of = defaultdict(list)  # class -> [instances], first-seen order, doubles as the node set
-        for step in steps:
-            instances_of[type(step)].append(step)
-        present = set(instances_of)
-        parent = {kind: kind for kind in instances_of}  # union-find over classes
-
-        def root(kind: type[Step]) -> type[Step]:
-            while parent[kind] != kind:
-                parent[kind] = parent[parent[kind]]  # path halving
-                kind = parent[kind]
-            return kind
-
-        for step in steps:
-            for dep in _declared(type(step), instances_of):
-                if dep in present:  # scope to supplied set, never materialise an absent dep
-                    parent[root(type(step))] = root(dep)
-
-        members_of = defaultdict(list)  # component root -> [classes], first-seen order
-        for kind in instances_of:
-            members_of[root(kind)].append(kind)
-
-        chains = []
-        for component in dict.fromkeys(root(kind) for kind in instances_of):  # components in first-seen order
-            member_classes = members_of[component]
-            member_set = set(member_classes)
-            sorter: TopologicalSorter[type[Step]] = TopologicalSorter()
-            for kind in member_classes:
-                sorter.add(kind, *(dep for dep in _declared(kind, instances_of) if dep in member_set))
+    def chains(self, graph: Graph) -> tuple[tuple[Step, ...], ...]:
+        chains: list[tuple[Step, ...]] = []
+        for component in graph.components():
             try:
-                ordered_kinds = tuple(sorter.static_order())
+                chains.append(tuple(self._sorted(graph, component).static_order()))
             except CycleError as cycle:
-                stuck = ", ".join(kind.__name__ for kind in dict.fromkeys(cycle.args[1]))
-                raise Cycle(f"Step dependency cycle or unsatisfiable order among: {stuck}") from cycle
-            chains.append(tuple(inst for kind in ordered_kinds for inst in instances_of[kind]))
+                raise self._stuck(cycle) from cycle
         return tuple(chains)

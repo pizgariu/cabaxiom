@@ -9,6 +9,7 @@ from typing import cast, final
 from ._compat import override
 from .cancellation import Cancellation, Cancelled
 from .drift import Assessed, Assessment, Changes, Drift, DriftItem, Outcome
+from .graph import Graph
 from .ordering import Ordering
 from .partition import Chains, Levels, Partition
 from .retry import Retry
@@ -51,7 +52,7 @@ class _Fan:
             use="Components",
         )
 
-    def __call__(self, dispatcher: str, ordering: Ordering, steps: tuple[Step, ...]) -> Partition:
+    def __call__(self, dispatcher: str, ordering: Ordering, graph: Graph) -> Partition:
         # An Ordering that does not override `via` only yields the flat fallback, so reject it as a class (the
         # unbound override check against the ABC names no concrete strategy) before running. Then build the
         # shape from the groups it produces and verify the placement upfront.
@@ -59,8 +60,8 @@ class _Fan:
             raise ValueError(
                 f"{dispatcher} needs a {self.__needs}, yet {type(ordering).__name__} {self.__otherwise}. Use {self.__use}."
             )
-        partition = self.__into(getattr(ordering, self.__via)(steps))
-        partition.verify()
+        partition = self.__into(getattr(ordering, self.__via)(graph))
+        partition.verify(graph)
         return partition
 
 
@@ -83,15 +84,15 @@ class BaseDispatcher(ABC):
     def __init__(self, on_error: OnError = OnError.FailFast):
         self._on_error = on_error
 
-    def arrange(self, ordering: Ordering, steps: tuple[Step, ...]) -> Partition:
+    def arrange(self, ordering: Ordering, graph: Graph) -> Partition:
         # The dispatcher turns the injected Ordering into the Partition SHAPE it runs. A non-fanning one
         # (Serial, no _shape) walks a serial-safe level partition (real waves from Kahn, the one-wave
         # fallback from DFS/Components) in order on one thread, honouring Step.expects with no verification.
         # A fanning one delegates to its composed shape, which demands the Ordering it needs, builds the
         # partition and verifies it upfront.
         if self._shape is None:
-            return Levels(ordering.levels(steps))
-        return self._shape(type(self).__name__, ordering, steps)
+            return Levels(ordering.levels(graph))
+        return self._shape(type(self).__name__, ordering, graph)
 
 
 class Dispatcher(BaseDispatcher, ABC):
@@ -342,8 +343,8 @@ class ThreadDispatcher(Dispatcher):
         self._shape = self.__underlying._shape   # the shape is the underlying one's - this decorates the WORK
 
     @override
-    def arrange(self, ordering: Ordering, steps: tuple[Step, ...]) -> Partition:
-        return self.__underlying.arrange(ordering, steps)
+    def arrange(self, ordering: Ordering, graph: Graph) -> Partition:
+        return self.__underlying.arrange(ordering, graph)
 
     @override
     async def execute(self, groups: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome], cancellation: Cancellation) -> tuple[list[Drift], list[Drift]]:

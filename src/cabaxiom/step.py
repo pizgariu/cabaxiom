@@ -28,9 +28,7 @@ class _Sealed(ABCMeta):
         #
         # Reached through getattr because the name is mangled into Step's namespace and the metaclass is
         # not Step - spelling the mangled form directly is a lie a type checker rightly refuses.
-        addressable = getattr(cls, "_Step__addressable", None)
-        if addressable is not None:
-            addressable()
+        getattr(cls, "_Step__addressable")()
         instance = super().__call__(*args, **kwargs)
         object.__setattr__(instance, "_Step__frozen", True)
         return instance

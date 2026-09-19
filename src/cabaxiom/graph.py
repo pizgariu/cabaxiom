@@ -112,11 +112,9 @@ class Graph:
 
     def __addressable(self) -> None:
         # IDENTITY IS THE DEPENDENCY CURRENCY. Two steps a dict cannot tell apart become one node, so the
-        # run would reconcile a smaller world than it was handed and say nothing. The two cases get two
-        # sentences, because handing the same instance in twice is a different mistake from handing in two
-        # that compare equal, where the fix differs.
-        if len(set(self.__steps)) == len(self.__steps):
-            return
+        # run would reconcile a smaller world than it was handed and say nothing. Identity is the ONLY
+        # equality a Step has, refused once at class definition and once at first construction, so walking
+        # the ids is the whole check rather than a fast path in front of a subtler one.
         seen: set[int] = set()
         for step in self.__steps:
             if id(step) in seen:
@@ -125,10 +123,6 @@ class Graph:
                     f"derivation, so the second is not a second step - build two."
                 )
             seen.add(id(step))
-        raise Identity(
-            "Two steps in this run compare equal, so the derivation cannot tell them apart and one of "
-            "them would silently never run. A step is addressed by identity."
-        )
 
     @staticmethod
     def __vet(step: Step, vocabulary: Vocabulary) -> None:

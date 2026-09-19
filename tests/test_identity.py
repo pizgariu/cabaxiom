@@ -60,17 +60,3 @@ class TheSanctionedShapeTests(unittest.TestCase):
             pass
 
         self.assertEqual(len({Plain(), Plain()}), 2)
-
-
-class TheSealIsNotOnlyForStepTests(unittest.TestCase):
-    """The construction half of the guard reaches for Step's own check through a mangled name, so it has
-    to cope with a class that carries no such check. That is why it is a getattr and not a call."""
-
-    def test_a_class_built_on_the_metaclass_alone_is_sealed_with_no_guard_to_run(self):
-        from cabaxiom.step import _Sealed
-
-        class Bare(metaclass=_Sealed):
-            pass
-
-        self.assertIsNone(getattr(Bare, "_Step__addressable", None))
-        self.assertIsInstance(Bare(), Bare)

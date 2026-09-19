@@ -44,10 +44,10 @@ import time
 from pathlib import Path
 
 try:
-    from cabaxiom import DriftItem, Fixpoint, Kahn, Parallel, Reconciler, Step
+    from cabaxiom import DriftItem, Fixpoint, Graph, Kahn, Parallel, Reconciler, Step
 except ModuleNotFoundError:  # running from a source checkout without an install
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-    from cabaxiom import DriftItem, Fixpoint, Kahn, Parallel, Reconciler, Step
+    from cabaxiom import DriftItem, Fixpoint, Graph, Kahn, Parallel, Reconciler, Step
 
 
 class Cluster:
@@ -160,7 +160,7 @@ def main() -> None:
     ]
 
     print("Resolved waves (Kahn):")
-    for index, wave in enumerate(Kahn().levels(tuple(steps))):
+    for index, wave in enumerate(Kahn().levels(Graph(tuple(steps)))):
         names = ", ".join(type(step).__name__ for step in wave)
         print(f"    wave {index}: {names}")
     print()

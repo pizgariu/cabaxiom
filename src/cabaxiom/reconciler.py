@@ -91,7 +91,9 @@ class Reconciler:
         # those four answers about one world rather than four opinions about four.
         whole = Graph(tuple(steps), vocabulary)
         self.__graph = Graph(scope.select(whole), whole.vocabulary)
-        self.__graph.demand()   # the hard-presence rule, fired the moment membership is final
+        # Handed the wider graph so a hard edge the SCOPE broke is told apart from one nothing ever
+        # satisfied. Same rule, opposite fixes, where the caller can only act on the one they are told.
+        self.__graph.demand(whole)
         self.__partition = dispatcher.arrange(ordering, self.__graph)
         self.__dispatcher = dispatcher
         self.__convergence = convergence

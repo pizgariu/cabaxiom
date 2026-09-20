@@ -244,14 +244,30 @@ class Graph:
             grouped[root(step)].append(step)
         return tuple(tuple(grouped[held]) for held in dict.fromkeys(root(step) for step in self.__steps))
 
-    def demand(self) -> None:
+    def demand(self, whole: "Graph | None" = None) -> None:
         # THE HARD-PRESENCE RULE, nothing else. A hard edge that matched nothing is a refusal, a soft
         # one that matched nothing is a shrug. Which it is comes off the ROW rather than off a list of
         # slot names this method would otherwise have to keep in step with the vocabulary.
+        #
+        # `whole` is the derivation this one was NARROWED FROM, when it was. A narrowed run is checked
+        # against the same rule, yet the diagnosis differs and only the wider graph can tell them apart -
+        # a declaration nothing ever satisfied is the caller's to fix, while one a scope carried off is
+        # the scope's. They are opposite fixes, where the second one sent people to loosen a slot that was
+        # right all along.
         for step in self.__steps:
             for match in self.matching(step):
                 if match.soft or match.matched:
                     continue
+                carried = () if whole is None else whole.matching(step)
+                lost = next((found.matched for found in carried
+                             if found.slot == match.slot and found.name == match.name and found.matched), ())
+                if lost:
+                    raise Presence(
+                        f"{Step.named(step)}.{match.slot} names {match.label}, yet the scope of this run "
+                        f"dropped the only {match.kind.addressing.noun} that answered it "
+                        f"({', '.join(dict.fromkeys(Step.named(gone) for gone in lost))}). A hard edge says "
+                        f"the world must contain it, so the scope has to keep it or leave out what needs it."
+                    )
                 raise Presence(
                     f"{Step.named(step)}.{match.slot} names {match.label} and this run has no such "
                     f"{match.kind.addressing.noun}. A hard edge says the world must contain it. The "

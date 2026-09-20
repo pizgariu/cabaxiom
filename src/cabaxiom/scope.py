@@ -13,8 +13,11 @@ class Scope:
     """Which of the handed steps take part in a run. The Reconciler resolves the scope once at
     construction, so every verb (the reads, converge, prune) sees the same set. The base keeps
     everything, so a reconciler with no scope behaves as if the seam were not there. Only and
-    Skip narrow the set by step type, the kernel's own currency, since `after` declares its
-    dependencies on types too.
+    Skip narrow the set by step type, which is the currency the caller writes at the call site.
+
+    Every scope is handed the run's whole Graph rather than a bare tuple of steps, so it narrows along
+    the same derivation everything else reads. What a scope may not do is narrow a run into one the
+    derivation refuses and the hard-presence rule says so with the scope named.
     """
 
     def select(self, graph: "Graph") -> tuple[Step, ...]:
@@ -67,10 +70,14 @@ class Only(_Named):
 class Skip(_Named):
     """Drop exactly the named step types and keep everything else, with no cascade.
 
-    A dependent of a skipped step still runs. `after` orders the steps present, it does not demand
-    their presence (the kernel already ignores an after-edge to an absent type), so skipping a
-    prerequisite means trusting the world already satisfies it, which is precisely what the caller
-    asked for."""
+    A dependent of a skipped step still runs, as long as it wanted that step SOFTLY. A soft edge orders
+    the steps present and does not demand their presence, so skipping a soft prerequisite means trusting
+    the world already satisfies it, which is precisely what the caller asked for.
+
+    A HARD edge is the other half of that sentence and the reason this scope cannot be a blind filter.
+    `requires`, `mandates`, `demands` and `needs` each say the world must contain the thing, so dropping
+    what answers one of them produces a run the caller declared to be wrong. That is refused, so the
+    refusal names the scope rather than the declaration, because the declaration was right."""
 
     @override
     def select(self, graph: "Graph") -> tuple[Step, ...]:

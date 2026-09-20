@@ -207,9 +207,23 @@ class Graph:
             frontier.extend(along(step))
         return frozenset(reached)
 
+    def contention(self) -> dict[str, tuple[Step, ...]]:
+        # Which steps compete for each contended label, in supplied order. A label only one step names is
+        # dropped, because contention is a relation between two steps and a lone claimant has no rival.
+        claimed: defaultdict[str, list[Step]] = defaultdict(list)
+        for step in self.__steps:
+            for label in sorted(step.contends):
+                claimed[label].append(step)
+        return {label: tuple(steps) for label, steps in claimed.items() if len(steps) > 1}
+
     def components(self) -> tuple[tuple[Step, ...], ...]:
         # The weakly-connected split, over the DERIVED edges rather than over one slot. Groups and members
         # both come out in supplied order, so a component split is reproducible.
+        #
+        # CONTENTION JOINS TOO, even though it is not an edge. A chain shape runs whole chains beside each
+        # other, so two steps that may never run at the same time have to land in the SAME chain, where the
+        # chain's own serial order keeps them apart. Splitting them into two chains is the one arrangement
+        # that breaks the declaration, exactly what the edge walk alone would produce.
         parent: dict[Step, Step] = {step: step for step in self.__steps}
 
         def root(step: Step) -> Step:
@@ -221,6 +235,10 @@ class Graph:
         for step in self.__steps:
             for prerequisite in self.dependencies(step):
                 parent[root(step)] = root(prerequisite)
+        for rivals in self.contention().values():
+            first = rivals[0]
+            for rival in rivals[1:]:
+                parent[root(rival)] = root(first)
         grouped: defaultdict[Step, list[Step]] = defaultdict(list)
         for step in self.__steps:
             grouped[root(step)].append(step)

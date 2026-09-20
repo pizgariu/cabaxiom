@@ -3,6 +3,7 @@ import operator
 from abc import ABC
 from collections import namedtuple
 from enum import Enum
+from itertools import combinations
 from typing import TYPE_CHECKING, ClassVar, final
 
 from .errors import Unresolvable
@@ -80,6 +81,27 @@ class Partition(tuple[tuple["Step", ...], ...], ABC):
                             f"{Step.named(step)} in group {index} - a concurrent dispatcher needs a "
                             f"dependency {self._placement.described}, so it would run them out of order."
                         )
+        self.__rivals(graph, group_of)
+
+    def __rivals(self, graph: "Graph", group_of: "dict[Step, int]") -> None:
+        # The contention rule, which is a SEATING rule and so has no other home. It is not an edge and never
+        # could be - an edge says which of two steps goes first, while contention says neither may run beside
+        # the other while taking no view on the order.
+        #
+        # Whether two seats run at the same time is DERIVED from the shape's own placement rule rather than
+        # declared a second time. A shape runs two seats concurrently exactly when neither is legally before
+        # the other, which reads as "in the same wave" for Levels and "in different chains" for Chains
+        # without either shape being asked. A third shape answers it the day it declares its placement.
+        for label, contending in graph.contention().items():
+            for first, second in combinations(contending, 2):
+                here, there = group_of[first], group_of[second]
+                if self._placement.holds(here, there) or self._placement.holds(there, here):
+                    continue
+                raise Unresolvable(
+                    f"{Step.named(first)} and {Step.named(second)} both contend for {label!r}, yet the "
+                    f"Ordering seated them where this shape runs them at the same time. A contended "
+                    f"resource needs one of them {self._placement.described} of the other."
+                )
 
     def __seats(self, graph: "Graph", group_of: "dict[Step, int]") -> None:
         # EVERY step, exactly once, before any placement is judged. The walk below asks where a dependency

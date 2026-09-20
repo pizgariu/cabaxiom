@@ -9,6 +9,7 @@ Keyed by INSTANCE. Two steps of one kind are two nodes that may sit in different
 instance-addressed edge means and what a class-keyed sort could not express."""
 import heapq
 from abc import ABC, abstractmethod
+from collections import defaultdict
 from collections.abc import Callable
 from graphlib import CycleError, TopologicalSorter
 from typing import final
@@ -58,6 +59,36 @@ class Ordering(ABC):
         return sorter
 
     @staticmethod
+    def _apart(graph: Graph, wave: tuple[Step, ...]) -> tuple[tuple[Step, ...], ...]:
+        # Splits ONE wave into as few consecutive waves as it takes for no wave to hold two rivals. Steps in
+        # a wave are mutually independent by construction, so any split of one is still a legal ordering -
+        # the split costs a barrier and buys the contention declaration, while a wave with no rivals in it
+        # comes back as itself.
+        #
+        # Greedy first-fit, which is graph colouring and so not optimal in general. Optimal is NP-hard and
+        # the prize is a wave or two of extra width, which is not worth an exponential search to a caller
+        # who declared contention precisely because the resource is the bottleneck.
+        rivals: defaultdict[Step, set[str]] = defaultdict(set)
+        for label, contending in graph.contention().items():
+            held = set(contending) & set(wave)
+            if len(held) > 1:
+                for step in held:
+                    rivals[step].add(label)
+        if not rivals:
+            return (wave,)
+        split: list[list[Step]] = []
+        taken: list[set[str]] = []
+        for step in wave:
+            wants = rivals[step]
+            seat = next((index for index, held in enumerate(taken) if held.isdisjoint(wants)), len(taken))
+            if seat == len(taken):
+                split.append([])
+                taken.append(set())
+            split[seat].append(step)
+            taken[seat] |= wants
+        return tuple(tuple(group) for group in split)
+
+    @staticmethod
     def _stuck(cycle: CycleError) -> Cycle:
         named = ", ".join(dict.fromkeys(Step.named(step) for step in cycle.args[1]))
         return Cycle(f"Step dependency cycle or unsatisfiable order among: {named}")
@@ -88,7 +119,7 @@ class Kahn(Ordering):
                 sorter.done(*ready)
         except CycleError as cycle:
             raise self._stuck(cycle) from cycle
-        return tuple(waves)
+        return tuple(split for wave in waves for split in self._apart(graph, wave))
 
 
 @final

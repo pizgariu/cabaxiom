@@ -44,7 +44,8 @@ from .graph import Graph, Match
 from .observer import Chorus, Observer
 from .ordering import DFS, Components, Kahn, Ordering, Priority
 from .partition import Chains, Levels, Partition, Placement
-from .reconciler import Explanation, Reconciler, Residual
+from .reconciler import Reconciler
+from .records import Explanation, Residual
 from .retry import Retry
 from .scope import Only, Scope, Skip
 from .settle import Clean, Settle, Stable

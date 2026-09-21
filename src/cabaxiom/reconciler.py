@@ -10,50 +10,12 @@ from .drift import Drift, Outcome
 from .graph import Graph
 from .observer import Observer
 from .ordering import Kahn, Ordering
+from .records import Explanation, Residual
 from .retry import Retry
 from .scope import Scope
 from .settle import Clean, Settle
 from .step import Step
 from .vocabulary import Vocabulary
-
-
-@final
-class Residual(list[Drift]):
-    """The list converge() returns (empty == verified success), also carrying the applied channel.
-
-    It is a list of the residual Drift, so callers that test truthiness, iterate or compare
-    against [] behave unchanged. `applied` records what apply() changed this run - the transaction
-    summary the residual cannot give, since the residual answers "what is STILL wrong", not "what
-    did you touch".
-    """
-    def __init__(self, residual: list[Drift], applied: list[Drift]):
-        super().__init__(residual)
-        self.applied: list[Drift] = list(applied)
-
-    def __repr__(self) -> str:
-        # The inherited list repr hides the applied channel, so show both.
-        return f"Residual({super().__repr__()}, applied={self.applied!r})"
-
-
-@final
-class Explanation:
-    """What the Reconciler resolved, surfaced read-only: the groups the dispatcher walks in run order plus the
-    `Step.expects` edges behind that order.
-
-    `groups` is the resolved run structure, each inner tuple one group of step type names - a wave (independent
-    within, sequential between) under a level dispatcher or a chain (sequential within, concurrent between)
-    under Pipeline. `edges` pairs each step type with the types it declares in `after`, in the same run order.
-    This is exactly the partition drift() and converge() walk, so it explains the real run and re-resolves
-    nothing.
-    """
-    def __init__(self, groups: tuple[tuple[str, ...], ...], edges: tuple[tuple[str, tuple[str, ...]], ...]):
-        self.groups = groups
-        self.edges = edges
-
-    def __repr__(self) -> str:
-        # One line. Each group a parenthesised set of type names, the groups joined in run order.
-        flow = " -> ".join("(" + ", ".join(group) + ")" for group in self.groups) or "()"
-        return f"Explanation({flow})"
 
 
 @final

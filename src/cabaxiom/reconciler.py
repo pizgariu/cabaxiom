@@ -10,7 +10,7 @@ from .drift import Drift, Outcome
 from .graph import Graph
 from .observer import Observer
 from .ordering import Kahn, Ordering
-from .records import Explanation, Residual
+from .records import Explanation, Reason, Residual
 from .retry import Retry
 from .scope import Scope
 from .settle import Clean, Settle
@@ -91,12 +91,18 @@ class Reconciler:
         # The structural read (returns an Explanation, not Drift). What the injected Ordering resolved and the
         # dispatcher will walk, as step type names in run order plus the Step.expects edges behind them. Reads the
         # same resolved partition every other verb uses, so it explains the actual run and re-resolves nothing.
+        walked = tuple(step for group in self.__partition for step in group)
         groups = tuple(tuple(Step.named(step) for step in group) for group in self.__partition)
         edges = tuple(
             (Step.named(step), tuple(Step.named(need) for need in self.__graph.dependencies(step)))
-            for group in self.__partition for step in group
+            for step in walked
         )
-        return Explanation(groups, edges)
+        reasons = tuple(
+            Reason(Step.named(step), match.slot, match.label,
+                   tuple(Step.named(found) for found in match.matched), not match.soft)
+            for step in walked for match in self.__graph.matching(step)
+        )
+        return Explanation(groups, edges, reasons)
 
     async def converge(self) -> Residual:
         # Apply every step and re-probe for what is STILL out of desired state. The returned residual

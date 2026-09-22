@@ -3,7 +3,7 @@ import ast
 import pathlib
 import unittest
 
-from cabaxiom import Explanation, Reconciler, Residual
+from cabaxiom import Explanation, Reconciler, Residual, Step
 from cabaxiom.drift import DriftItem
 from support import A, B
 
@@ -45,3 +45,62 @@ class TheRecordsStandWithoutTheEngineTests(unittest.TestCase):
         reconciler = Reconciler((A([]), B([])))
         self.assertIsInstance(reconciler.explain(), Explanation)
         self.assertEqual(reconciler.explain().groups, reconciler.explain().groups)
+
+
+class Db(Step):
+    provides = frozenset({"storage"})
+
+    async def assess(self):
+        return self.verified()
+
+
+class Cache(Step):
+    async def assess(self):
+        return self.verified()
+
+
+class Api(Step):
+    expects = (Cache,)
+    demands = ("storage",)
+
+    async def assess(self):
+        return self.verified()
+
+
+class Hopeful(Step):
+    wants = ("nothing-provides-this",)
+
+    async def assess(self):
+        return self.verified()
+
+
+class AnExplanationCarriesTheDeclarationsBehindItTests(unittest.TestCase):
+    """`edges` says Api depends on Db. With eight slots in the language that is not enough to act on -
+    a class named hardly, a capability named softly and an instance named by identity are three different
+    situations with three different fixes, yet flattened they all read the same."""
+
+    def test_each_reason_names_the_slot_the_name_and_what_it_resolved_to(self):
+        told = Reconciler((Db(), Cache(), Api())).explain()
+        self.assertEqual([str(reason) for reason in told.because("Api")],
+                         ["Api.expects Cache -> Cache", "Api.demands 'storage' -> Db"])
+
+    def test_a_reason_says_whether_the_declaration_was_hard(self):
+        soft, hard = Reconciler((Db(), Cache(), Api())).explain().because("Api")
+        self.assertFalse(soft.hard)      # expects trusts the world
+        self.assertTrue(hard.hard)       # demands does not
+
+    def test_a_soft_declaration_nothing_answered_still_shows_up_as_a_miss(self):
+        # The shape worth seeing. A hard miss is refused before a run reaches here, so an empty `matched`
+        # in an explanation is always a step that quietly ordered against nothing.
+        miss, = Reconciler((Hopeful(),)).explain().because("Hopeful")
+        self.assertEqual(miss.matched, ())
+        self.assertIn("-> nothing", str(miss))
+
+    def test_the_reasons_and_the_edges_describe_the_same_run(self):
+        told = Reconciler((Db(), Cache(), Api())).explain()
+        drawn = {step: set(needs) for step, needs in told.edges}
+        for reason in told.reasons:
+            self.assertTrue(set(reason.matched) <= drawn[reason.step])
+
+    def test_a_step_that_declared_nothing_has_no_reasons(self):
+        self.assertEqual(Reconciler((Db(), Cache(), Api())).explain().because("Cache"), ())

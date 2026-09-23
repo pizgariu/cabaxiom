@@ -14,17 +14,23 @@ if TYPE_CHECKING:
 
 
 @final
-class Placement(namedtuple("Placement", "holds described")):
+class Placement(namedtuple("Placement", "holds described noun")):
     # A shape's ordering rule as a value object. holds(dependency_group, dependent_group) is True when a
-    # dependency is legally placed for its dependent, while described is that rule in words for verify()'s error.
+    # dependency is legally placed for its dependent, described is that rule in words for verify()'s error,
+    # and noun is what ONE of that shape's groups is called.
+    #
+    # The noun is here rather than on the shape class because it is part of the same fact. A group of a
+    # Levels partition is a wave BECAUSE a dependency must sit in an earlier one, while a group of a Chains
+    # partition is a chain BECAUSE a dependency must sit in the same one. Anything that renders a resolved
+    # run reads it, so nothing downstream has to keep a second table of shape names in step with this one.
     __slots__ = ()
 
 
 class _Placements(Enum):
     # The two placement rules. The set is closed. A dependency sits in an earlier group for waves or the same
     # group for chains, so an enum rather than literals inline on each shape.
-    EARLIER = Placement(operator.lt, "in an earlier group")   # waves
-    SAME    = Placement(operator.eq, "in the same group")     # chains
+    EARLIER = Placement(operator.lt, "in an earlier group", "wave")
+    SAME    = Placement(operator.eq, "in the same group", "chain")
 
 
 class Partition(tuple[tuple["Step", ...], ...], ABC):

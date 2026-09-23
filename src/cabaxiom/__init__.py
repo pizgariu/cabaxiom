@@ -29,6 +29,7 @@ from .cancellation import (
     Some,
 )
 from .convergence import Backoff, Convergence, Exponential, Fixed, Fixpoint, Jitter, Once
+from .diagram import Diagram, Mermaid
 from .dispatcher import BaseDispatcher, Dispatcher, OnError, Parallel, Pipeline, Serial, ThreadDispatcher, Write
 from .drift import Assessment, Changes, Drift, DriftItem, Outcome
 from .errors import (
@@ -64,6 +65,6 @@ __all__ = [
     "OnError", "Dispatcher", "BaseDispatcher", "Serial", "Parallel", "Pipeline", "ThreadDispatcher", "Write", "Cancelled", "Cancellation", "Deadline", "Flag", "Rule", "Some", "Every", "Most", "Quorum", "AnyOf", "AllOf", "Majority",
     "Convergence", "Once", "Fixpoint", "Backoff", "Fixed", "Exponential", "Jitter",
     "Retry",
-    "Residual", "Reconciler", "Explanation", "Reason",
+    "Residual", "Reconciler", "Explanation", "Reason", "Diagram", "Mermaid",
     "Observer", "Chorus",
 ]

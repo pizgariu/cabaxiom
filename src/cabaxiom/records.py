@@ -60,14 +60,17 @@ class Explanation:
     `groups` is the resolved run structure, each inner tuple one group of step names - a wave (independent
     within, sequential between) under a level dispatcher or a chain (sequential within, concurrent between)
     under Pipeline. `edges` pairs each step with the steps it depends on, in the same run order. `reasons`
-    is the same information unflattened, one Reason per declaration the steps actually wrote. This is
-    exactly the partition every verb walks, so it explains the real run and re-resolves nothing.
+    is the same information unflattened, one Reason per declaration the steps actually wrote. `shape` is
+    what ONE of those groups is called under the dispatcher that resolved it, a wave or a chain, which is
+    the difference between running a group together and running it in series. This is exactly the partition
+    every verb walks, so it explains the real run and re-resolves nothing.
     """
     def __init__(self, groups: tuple[tuple[str, ...], ...], edges: tuple[tuple[str, tuple[str, ...]], ...],
-                 reasons: tuple[Reason, ...] = ()):
+                 reasons: tuple[Reason, ...] = (), shape: str = "group"):
         self.groups = groups
         self.edges = edges
         self.reasons = reasons
+        self.shape = shape
 
     def __repr__(self) -> str:
         # One line. Each group a parenthesised set of step names, the groups joined in run order.

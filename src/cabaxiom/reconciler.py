@@ -102,7 +102,7 @@ class Reconciler:
                    tuple(Step.named(found) for found in match.matched), not match.soft)
             for step in walked for match in self.__graph.matching(step)
         )
-        return Explanation(groups, edges, reasons)
+        return Explanation(groups, edges, reasons, self.__partition._placement.noun)
 
     async def converge(self) -> Residual:
         # Apply every step and re-probe for what is STILL out of desired state. The returned residual

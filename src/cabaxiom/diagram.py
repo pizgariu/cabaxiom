@@ -1,4 +1,4 @@
-"""Diagram - the axis that renders a resolved run. Mermaid ships here, DOT beside it.
+"""Diagram - the axis that renders a resolved run, with Mermaid and Graphviz DOT on it.
 
 A diagram is a strategy over an Explanation and nothing else. It is handed a run that has already been
 resolved, it re-derives nothing and it cannot reach the Reconciler, the Graph or a Step - so a rendering
@@ -70,3 +70,32 @@ class Mermaid(Diagram):
         # Mermaid node ids take no quotes and no punctuation, while a step name is a Python identifier, so
         # the name IS the id. The label carries the readable form in case that ever stops being true.
         return step
+
+
+@final
+class Dot(Diagram):
+    """Graphviz DOT, for a caller who wants a rendered file rather than a block in a README.
+
+    Where Mermaid dashes a soft edge, DOT styles it - the second renderer is where you find out whether
+    the axis was real, because the two languages agree on nothing except what has to be drawn. Both group
+    the same steps, label the same arrows and mark the same soft ones, while neither reaches past the
+    Explanation to do it. What differs is only how each language spells those three things.
+
+    Groups become clusters, which is the DOT spelling of a subgraph that gets a box drawn round it - the
+    `cluster_` prefix is not decoration, it is what makes Graphviz draw the box at all."""
+
+    @override
+    def __call__(self, explanation: Explanation) -> str:
+        drawn = ["digraph run {", "    rankdir=TB;", '    node [shape=box];']
+        for index, group in enumerate(explanation.groups):
+            drawn.append(f"    subgraph cluster_{index} {{")
+            drawn.append(f'        label="{explanation.shape} {index + 1}";')
+            drawn.extend(f'        "{step}";' for step in group)
+            drawn.append("    }")
+        for reason in self._drawn(explanation):
+            for found in reason.matched:
+                style = "" if reason.hard else ", style=dashed"
+                label = self._labelled(reason, found).replace('"', "'")
+                drawn.append(f'    "{found}" -> "{reason.step}" [label="{label}"{style}];')
+        drawn.append("}")
+        return "\n".join(drawn)

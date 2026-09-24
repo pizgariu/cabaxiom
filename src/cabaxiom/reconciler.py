@@ -1,5 +1,6 @@
 """Reconciler - resolves Steps once, then reports drift or converges and self-verifies. A Controller drives it in a loop."""
 import asyncio
+from collections import Counter
 from collections.abc import AsyncIterator, Callable, Iterable
 from typing import final
 
@@ -7,10 +8,11 @@ from .cancellation import Cancellation
 from .convergence import Convergence, Once
 from .dispatcher import Dispatcher, Serial, Write
 from .drift import Drift, Outcome
+from .errors import Unresolvable
 from .graph import Graph
 from .observer import Observer
 from .ordering import Kahn, Ordering
-from .records import Explanation, Reason, Residual
+from .records import Casualty, Explanation, Reason, Residual
 from .retry import Retry
 from .scope import Scope
 from .settle import Clean, Settle
@@ -103,6 +105,33 @@ class Reconciler:
             for step in walked for match in self.__graph.matching(step)
         )
         return Explanation(groups, edges, reasons, self.__partition._placement.noun)
+
+    def foresee(self, step: Step) -> Casualty:
+        # The counterfactual structural read, explain()'s twin. If THIS step failed, what would the run
+        # lose? Reads the same resolved partition and the same Graph every other verb uses, touches
+        # nothing and runs nothing.
+        #
+        # The dependency answer is the Graph's own fallout(), which is not a lookalike of the walk that
+        # would blame a failure but literally the walk, inverted from the one a targeted run closes over.
+        # The FailFast answer cannot come off the graph at all, because FailFast gates by RUN POSITION -
+        # a strictly later group cannot start once the run stops, while the failure's own group was
+        # admitted whole by a fanning dispatcher and is already in flight.
+        if step not in self.__graph.steps:
+            raise Unresolvable(
+                f"{Step.named(step)} is not in this run, so there is nothing to foresee about it. A "
+                f"forecast is about the run that was resolved, not about a step that might have been in it."
+            )
+        walked = tuple(group for group in self.__partition)
+        struck = self.__graph.fallout((step,))
+        blocked = tuple(Step.named(other) for other in self.__graph.steps if other in struck and other is not step)
+        seated = next(index for index, group in enumerate(walked) if step in group)
+        skipped = tuple(Step.named(other) for group in walked[seated + 1:] for other in group)
+        settling = tuple(Step.named(other) for other in walked[seated] if other is not step)
+        offers: Counter[str] = Counter(
+            capability for other in self.__graph.steps for capability in other.provides
+        )
+        starves = tuple(sorted(capability for capability in step.provides if offers[capability] == 1))
+        return Casualty(Step.named(step), blocked, skipped, settling, starves)
 
     async def converge(self) -> Residual:
         # Apply every step and re-probe for what is STILL out of desired state. The returned residual

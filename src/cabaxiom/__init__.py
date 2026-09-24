@@ -46,7 +46,7 @@ from .observer import Chorus, Observer
 from .ordering import DFS, Components, Kahn, Ordering, Priority
 from .partition import Chains, Levels, Partition, Placement
 from .reconciler import Reconciler
-from .records import Explanation, Reason, Residual
+from .records import Casualty, Explanation, Reason, Residual
 from .retry import Retry
 from .scope import Only, Scope, Skip
 from .settle import Clean, Settle, Stable
@@ -65,6 +65,6 @@ __all__ = [
     "OnError", "Dispatcher", "BaseDispatcher", "Serial", "Parallel", "Pipeline", "ThreadDispatcher", "Write", "Cancelled", "Cancellation", "Deadline", "Flag", "Rule", "Some", "Every", "Most", "Quorum", "AnyOf", "AllOf", "Majority",
     "Convergence", "Once", "Fixpoint", "Backoff", "Fixed", "Exponential", "Jitter",
     "Retry",
-    "Residual", "Reconciler", "Explanation", "Reason", "Diagram", "Mermaid", "Dot",
+    "Residual", "Reconciler", "Explanation", "Reason", "Casualty", "Diagram", "Mermaid", "Dot",
     "Observer", "Chorus",
 ]

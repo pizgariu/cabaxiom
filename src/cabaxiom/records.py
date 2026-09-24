@@ -1,4 +1,4 @@
-"""Records - what a run hands BACK. Residual is the verdict of converge(), Explanation the verdict of explain().
+"""Records - what a run hands BACK. Residual from converge(), Explanation from explain(), Casualty from foresee().
 
 These are not the engine and they were sitting in the engine's module. A record answers a question about a
 run that has already been resolved or already finished, holds nothing but what it was handed and does no
@@ -81,3 +81,52 @@ class Explanation:
         # Every declaration one step wrote, in the order the vocabulary lists the slots. The lookup callers
         # would otherwise write themselves over `reasons`, the one they would write differently each time.
         return tuple(reason for reason in self.reasons if reason.step == step)
+
+
+@final
+@dataclass(frozen=True)
+class Casualty:
+    """What ONE step's failure would cost this run, read before anything runs - explain()'s counterfactual.
+
+    `blocked` is the derivation's answer - every step that transitively depends on the failure, which is
+    every step that must not be allowed to converge after it. It is not a simulation. It is the Graph's
+    own fallout() walk, the same one a targeted run inverts to build its closure, so the forecast cannot
+    drift from the derivation it forecasts about.
+
+    READ THAT FIELD CAREFULLY AT THIS VERSION. It says what a failure WOULD cost, not what the kernel
+    currently withholds. `OnError.BestEffort` records the failure and keeps going, so every step named in
+    `blocked` still runs, against state nobody put there. Naming them is the whole point of this
+    read - it is the measurement that says how much a run stands to lose before anything is done about it.
+
+    `skipped` and `settling` are the FailFast answer, split in two because FailFast stops the
+    run by RUN POSITION rather than by edges - so what survives depends on the shape the dispatcher walks.
+    `skipped` is every step in a strictly later group, which no dispatcher can start once the run has
+    stopped. `settling` is the failure's own group-mates, which are indeterminate, because a fanning
+    dispatcher admitted the whole group at once and they are already in flight.
+
+    `starves` is a severity note rather than a further casualty. It names the capabilities this step is
+    the only present provider of. Every step wanting one of them already stands in `blocked`, because a
+    capability edge fans to every provider, yet a FUTURE declaration written against a starved capability
+    fails differently - a `demands` refuses at resolution and a `wants` goes quiet.
+
+    A Casualty is truthy when it is NOT contained, so it reads as the finding it is."""
+
+    failed: str
+    blocked: tuple[str, ...]
+    skipped: tuple[str, ...]
+    settling: tuple[str, ...]
+    starves: tuple[str, ...]
+
+    @property
+    def contained(self) -> bool:
+        # Nothing else depends on it. The run would lose this step and no more, which under BestEffort is
+        # the difference between a failure and an incident.
+        return not self.blocked
+
+    def __bool__(self) -> bool:
+        return not self.contained
+
+    def __str__(self) -> str:
+        if self.contained:
+            return f"{self.failed} would fail alone"
+        return f"{self.failed} would fail, blocking {', '.join(self.blocked)}"

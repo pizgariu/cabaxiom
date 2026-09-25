@@ -6,7 +6,7 @@ from enum import Enum
 from itertools import combinations
 from typing import TYPE_CHECKING, ClassVar, final
 
-from .errors import Unresolvable
+from .errors import Misconfigured, Unresolvable
 from .step import Step
 
 if TYPE_CHECKING:
@@ -58,7 +58,7 @@ class Partition(tuple[tuple["Step", ...], ...], ABC):
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
         if not isinstance(cls.__dict__.get("_placement"), Placement):
-            raise ValueError(
+            raise Misconfigured(
                 f"{cls.__name__} is a Partition shape and declares no _placement, so nothing says where a "
                 f"dependency may sit relative to the step that needs it. Assign one of the placements."
             )

@@ -3,7 +3,7 @@ import asyncio
 import random
 import unittest
 
-from cabaxiom import DFS, Components, Kahn, Parallel, Priority, Reconciler, Serial, Step, Unresolvable
+from cabaxiom import DFS, Components, Kahn, Misconfigured, Parallel, Priority, Reconciler, Serial, Step, Unresolvable
 from cabaxiom.graph import Graph
 from cabaxiom.partition import Levels, Partition
 from support import A, B, C, X, Y, Z, _RecStep
@@ -236,7 +236,7 @@ class TheShapeDeclaresItsRuleTests(unittest.TestCase):
     first verify() - a whole run away from the class statement that got it wrong."""
 
     def test_a_shape_that_declares_no_placement_is_refused_at_class_definition(self):
-        with self.assertRaises(ValueError) as ctx:
+        with self.assertRaises(Misconfigured) as ctx:
             class Ruleless(Partition):
                 __slots__ = ()
 

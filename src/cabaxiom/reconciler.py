@@ -122,8 +122,12 @@ class Reconciler:
                 f"forecast is about the run that was resolved, not about a step that might have been in it."
             )
         walked = tuple(group for group in self.__partition)
+        order = tuple(other for group in walked for other in group)
         struck = self.__graph.fallout((step,))
-        blocked = tuple(Step.named(other) for other in self.__graph.steps if other in struck and other is not step)
+        # In RUN order, like every other read on this class. Off the graph it would come out in supplied
+        # order, so a caller reading a forecast beside an explanation would see the same steps listed twice
+        # in two different sequences and have no way to tell which one meant anything.
+        blocked = tuple(Step.named(other) for other in order if other in struck and other is not step)
         seated = next(index for index, group in enumerate(walked) if step in group)
         skipped = tuple(Step.named(other) for group in walked[seated + 1:] for other in group)
         settling = tuple(Step.named(other) for other in walked[seated] if other is not step)

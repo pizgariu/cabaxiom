@@ -5,7 +5,7 @@ The graph models bringing up a tiny service stack:
     Network
       |-- Database
       |-- Cache
-             \\-- AppServers   (after Database and Cache)
+             \\-- AppServers   (expects Database and Cache)
 
 Kahn resolves that into three waves:
 

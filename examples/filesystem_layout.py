@@ -5,7 +5,7 @@ Two Step kinds model an on-disk scaffold:
   Directory  ensure a directory exists (created with its parents)
   TextFile   ensure a file exists and holds exactly the desired content
 
-TextFile declares `after = (Directory,)`. Because after edges are keyed by CLASS, that one
+TextFile declares `expects = (Directory,)`. Because that slot is addressed by CLASS, that one
 line means every directory is created before any file is written, no matter what order the
 steps are supplied in. The files deliberately do NOT create their own parent directories, so
 the dependency is load-bearing. Without it, a file could be written before its directory

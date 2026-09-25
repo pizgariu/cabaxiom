@@ -98,75 +98,90 @@ Cabaxiom is that principle and nothing else, boiled down to a small kernel with 
 You subclass `Step` and answer one question. What is the gap between the world and what I want? You report that gap as drift and you know how to close it.
 
 ```python
-from cabaxiom import Assessment, Step
+from cabaxiom import Step, DriftItem
 
 class Config(Step):
     def __init__(self, key: str, want: str) -> None:
         self.key = key
         self.want = want
 
-    def assess(self) -> Assessment:
-        have = read_config(self.key)                  # WATCH
+    async def assess(self):
+        have = await read_config(self.key)            # WATCH
         if have == self.want:                         # COMPARE
-            return self.verified()
-        return self.drifted(f"want {self.want!r}, have {have!r}")
+            return self.verified()                    # no gap
+        return self.drifted(self.key, f"want {self.want!r}, have {have!r}")
 
-    def apply(self):
-        write_config(self.key, self.want)             # ACT
-        return self.changed(self.key)
+    async def apply(self):
+        await write_config(self.key, self.want)       # ACT
+        return self.changed(self.key, "wrote desired value")
 ```
 
-`assess()` is WATCH plus COMPARE in one probe and it never mutates. Answer `self.verified()` when the world already matches and `self.drifted(...)` with what is wrong when it does not. `apply()` is ACT, answers what it changed and must be idempotent. The kernel calls both and re-probes after the write. You never write the loop. The git example at the top is three steps of exactly this shape.
+`assess()` is WATCH plus COMPARE in one method and it never mutates. `apply()` is ACT and it must be idempotent. The kernel calls both. You never write the loop. The git example at the top is three steps of exactly this shape.
+
+One read, four channels. `assess()` returns an `Assessment` carrying `deviation` (the gap), `plan` (what closing it would do), `advisory` (a finding about a world that is already correct) and `footprint` (what a teardown would remove). One probe fills all four, so an expensive read is paid for once and the four answers describe the same moment. `verified()`, `drifted()`, `unchanged()` and `changed()` are the shorthands for the ordinary cases, while a step that needs more than one channel returns a full `Assessment`.
 
 The kernel reads only two fields out of your drift, through the `Drift` protocol - a `name` and a `message`. That is the entire contract. `DriftItem(name, message)` is the ready-made implementation and covers almost every step. Because the kernel reads nothing else, your domain stays entirely yours.
 
-### `after` - declare dependencies, get ordering for free
+### The declaration language - say what you need, get ordering for free
 
-A step names what must run before it with one class attribute:
+A step names what must be ready before it, while the slot it uses says both HOW the thing is addressed and how badly it is needed.
 
 ```python
 class InitialCommit(Step):
-    expects = (GitConfig,)
+    expects = (GitConfig,)               # a class, softly
 
-class LocalBranch(Step):
-    expects = (InitialCommit,)
+class Api(Step):
+    demands = ("database",)              # a capability, and the run is wrong without it
+
+class Postgres(Step):
+    provides = frozenset({"database"})   # what answers a capability
+
+class Migrate(Step):
+    contends = frozenset({"db"})         # never runs beside anything else naming "db"
 ```
 
-Hand the reconciler these in any order and it sorts them into dependency waves. That is what produced the correct plan in the opening output. A dependency cycle raises `ValueError` at construction and names the steps it could not place. A dependency on a step outside the set you passed is ignored, so a subset still reconciles cleanly.
+Eight slots in four pairs, one soft and one hard in each. A soft slot orders against the thing if it is present and shrugs if it is not. A hard slot refuses the run when nothing answers it.
+
+| Addressed by | Soft | Hard | Resolves to |
+| --- | --- | --- | --- |
+| Class | `expects` | `requires` | every step of that class |
+| Class, reversed | `prepares` | `mandates` | run BEFORE the steps named |
+| Capability | `wants` | `demands` | every step whose `provides` names it |
+| Instance | `uses` | `needs` | that one step and no other |
+
+`contends` is the one declaration that is not an edge, nor could it be. An edge says which of two steps comes first. Contention says neither may run beside the other and takes no view on the order, so it is read where the run is SEATED - a wave shape puts rivals in different waves, a chain shape puts them in the same chain.
+
+Hand the reconciler these in any order and it derives one dependency graph, which the ordering, the seating guard, the scope and `explain()` all read. A cycle raises `Cycle` at construction and names the steps it could not place.
 
 ### `Reconciler` - the engine
 
 ```python
 import asyncio
-
 from cabaxiom import Reconciler
 
 reconciler = Reconciler([LocalBranch(...), GitConfig(...), InitialCommit(...)])
 
-asyncio.run(reconciler.plan())                 # the ordered gap, no changes made
-residual = asyncio.run(reconciler.converge())  # WATCH -> COMPARE -> ACT -> re-probe
+await reconciler.plan()                  # the ordered gap, no changes made
+residual = await reconciler.converge()   # WATCH -> COMPARE -> ACT -> re-probe
 
 if not residual:
     print("verified clean")
 ```
 
+The kernel is async native and there is exactly one of it, awaited on your own loop. A blocking `apply()` gets there through `ThreadDispatcher`, which relocates the call to a worker thread and lays the retry back over it.
+
 `converge()` returns a `Residual`, a `list[Drift]` of whatever gap outlived the run. Empty means the kernel acted, probed again and confirmed reality now matches intent. The changes made along the way live on a separate channel, `residual.applied`, which is what the examples print under "applied this run". Keeping the two apart means "what I fixed" never blurs into "what is still wrong".
 
 ### `watch()` - the loop that never ends
 
-`converge()` is one turn of the crank. `watch()` keeps turning it, once per wake, for as long as the world keeps moving.
+`converge()` is one turn of the crank. `watch()` turns it, hands back the residual, then waits for a step to say look again.
 
 ```python
-from cabaxiom import Clean
-
-async for residual in reconciler.watch():                # one converge per wake
-    log_gap(residual)
-
-async for residual in reconciler.watch(settle=Clean()):  # stop at the first clean pass
+async for residual in reconciler.watch():
     log_gap(residual)
 ```
 
-The steps say when to look, through `Step.watch()`. The loop sleeps between wakes. A wake carries no payload and means only look again, so each pass re-asks the whole question and a missed, doubled or coalesced wake is harmless. A declaration whose steps announce nothing converges once and finishes.
+The difference from a tick source is who decides when to look. A step implements `watch()` to yield when its own corner of the world moves. The wake carries no payload deliberately - a level-triggered wake costs one clean pass when it is spurious, while an edge-triggered one costs correctness. `Clean` and `Stable` are the stop conditions.
 
 ---
 
@@ -176,17 +191,14 @@ Every axis of behavior is a small object you swap. The defaults resolve to `Kahn
 
 | Axis | The question it answers | Default | Alternatives |
 | --- | --- | --- | --- |
-| **Ordering** | Given the `after` graph, in what order do steps run? | `Kahn` (dependency waves) | `DFS` (flat post-order), `Priority(key=...)` (best-first frontier over a key), `Components` (split into independent chains) |
-| **Dispatcher** | How does an ordered group actually run? | `Serial` (one step at a time) | `Parallel` (gather each wave on the event loop), `Pipeline` (run independent chains concurrently), `ThreadDispatcher` (relocate a blocking apply to a thread) |
+| **Ordering** | Given the derived graph, in what order do steps run? | `Kahn` (dependency waves) | `DFS` (flat post-order), `Priority(key=...)` (best-first frontier over a key), `Components` (split into independent chains) |
+| **Dispatcher** | How does an ordered group actually run? | `Serial` (one step at a time) | `Parallel` (fan each wave onto the loop), `Pipeline` (run independent chains concurrently), `ThreadDispatcher` (relocate a blocking step to a worker) |
+| **Scope** | Which of the handed steps take part at all? | `Scope` (all of them) | `Only(...)` (the named types plus everything they depend on), `Skip(...)` (drop the named types, no cascade) |
 | **Error policy** | When a step fails, stop or push on? | `OnError.FailFast` | `OnError.BestEffort` (finish the group, collect failures) |
 | **Convergence** | How many apply-then-probe passes per converge? | `Once` (single pass) | `Fixpoint(max_passes=...)` (repeat until the residual stops changing by value or a ceiling is hit) |
 | **Cancellation** | When should a run abort cooperatively between steps? | `Cancellation` (never aborts) | `Deadline(seconds)` (wall-clock budget), `Flag` (manual switch), the composites `AnyOf` / `AllOf` / `Majority` that nest into a tree or `Quorum(..., rule=...)` with `Some` / `Every` / `Most` for a custom rule |
 
-`Parallel` and `Pipeline` hold no pool and need no ceremony. Hand one to the `dispatcher=` parameter and it is ready.
-
 ```python
-import asyncio
-
 from cabaxiom import Reconciler, Parallel, Fixpoint, Deadline
 
 reconciler = Reconciler(
@@ -195,12 +207,12 @@ reconciler = Reconciler(
     convergence=Fixpoint(max_passes=10),
     cancellation=Deadline(seconds=30),
 )
-residual = asyncio.run(reconciler.converge())
+residual = await reconciler.converge()
 ```
 
 ### More than converge
 
-A `Reconciler` reads and writes state through a handful of verbs. Each fans across every step in resolved order, reversed for the teardown verbs. A `Step` answers `assess()`, `apply()` and `prune()`. The rest are the engine's own reads of what your steps reported.
+A `Reconciler` reads and writes state through a handful of verbs. Each fans across every step in resolved order, reversed for the teardown verbs.
 
 - `drift()` reports the gap without touching anything.
 - `plan()` is a dry-run read of the pending diff, in resolved order.
@@ -209,11 +221,62 @@ A `Reconciler` reads and writes state through a handful of verbs. Each fans acro
 - `converge()` applies, then re-probes, returning the `Residual`.
 - `prune()` is the reverse-order teardown itself, verifying the same way a converge does.
 
+Two more read the run rather than the world, so neither touches anything and neither is a coroutine.
+
+`explain()` hands back what was resolved - the groups the dispatcher will walk plus one `Reason` per declaration the steps actually wrote. A flat "Api depends on Postgres" is not enough to act on when eight slots can draw that edge, so a Reason names the slot, what was written and whether it was hard.
+
+```python
+told = reconciler.explain()
+told.groups                     # (('Postgres', 'Cache'), ('Api',))
+told.because("Api")             # Api.expects Cache -> Cache
+                                # Api.demands 'database' -> Postgres
+```
+
+`foresee(step)` is the counterfactual twin. If that one step failed, what would this run lose?
+
+```python
+told = reconciler.foresee(postgres)
+told.blocked                    # ('Api', 'Cdn')  - everything that transitively needs it
+told.starves                    # ('database',)   - it is the only present provider
+bool(told)                      # True, because the damage is not contained
+```
+
+Read `blocked` for what it is. It says what a failure WOULD cost, not what the kernel withholds - `OnError.BestEffort` records the failure and keeps going, so those steps still run, against state nobody put there. Naming them is the measurement that says how much a run stands to lose.
+
+### Drawing a run
+
+`Mermaid` and `Dot` render an `Explanation` as source text. Both are handed a run that is already resolved and can reach nothing else, so a rendering bug makes an ugly picture and never a wrong run.
+
+```python
+from cabaxiom import Mermaid
+
+print(Mermaid()(reconciler.explain()))
+```
+
+```
+flowchart TD
+    subgraph g0["wave 1"]
+        Postgres[Postgres]
+        Cache[Cache]
+    end
+    subgraph g1["wave 2"]
+        Api[Api]
+    end
+    Cache -.->|expects| Api
+    Postgres -->|demands 'database'| Api
+```
+
+A dashed arrow is a soft declaration, so the picture shows at a glance which edges the run would still be correct without.
+
 ---
 
 ## Examples
 
-The [`examples/`](examples/) directory holds three runnable, self-contained programs. Each builds a real throwaway resource, converges it, ends with an empty residual and cleans up on the way out. Run any of them with `python examples/<name>.py`.
+The [`examples/`](examples/) directory holds four runnable, self-contained programs. Each builds a real throwaway resource, converges it, ends with an empty residual and cleans up on the way out. Run any of them with `python examples/<name>.py`.
+
+### `derived_order.py` - the run, read before it runs
+
+Every verb in it reads the RUN rather than the world, so nothing is touched until the last line. A six-step stack uses every slot in the language. The script prints the resolved waves, one `Reason` per declaration behind them, the wave the seating split because two steps `contends` for the same resource, what a `Vault` failure would cost and the whole thing as a Mermaid diagram. Read it second.
 
 ### `git_repo_state.py` - the flagship
 
@@ -268,14 +331,14 @@ Nothing else is pulled in. The kernel leans on the standard library alone and ev
 
 ## When not to reach for this
 
-The re-probe is the entire guarantee and it is only as honest as your `drift()`. If a step cannot observe the thing it changed, `converge()` can't tell a real fix from a no-op. An empty residual then means only that `drift()` returned nothing. Write `drift()` to read the world, never to echo what `apply()` intended.
+The re-probe is the entire guarantee, only as honest as your `assess()`. If a step cannot observe the thing it changed, `converge()` can't tell a real fix from a no-op. An empty residual then means only that `assess()` reported nothing. Write `assess()` to read the world, never to echo what `apply()` intended.
 
 A few more boundaries, stated plainly:
 
 - Reconciliation earns its keep when a system will drift and you want it to keep correcting itself. If all you need is a one-shot transformation that runs once and is never checked again, a plain function is simpler and you should write that instead. The value here is the loop.
-- It does not poll or schedule on its own. `watch()` sleeps until a step announces its world moved through `Step.watch()`, so the clock belongs to the world rather than to a timer.
+- It does not poll or schedule on its own. `watch()` advances when one of your own steps says the world moved. Nothing in the kernel holds a clock.
 - It's not a state store. It keeps no history and no desired-state document. Each step owns its own notion of desired and observed.
-- The engine is asyncio to the bone. A blocking or CPU-bound `apply()` belongs on `ThreadDispatcher`, which relocates the call to a thread, while everything else stays on the caller's loop.
+- Concurrency is the event loop, plus `ThreadDispatcher` for a blocking domain. Neither scales CPU-bound apply work across cores. This is built for I/O-bound reconciliation.
 
 ---
 

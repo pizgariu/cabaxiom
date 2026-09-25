@@ -67,3 +67,43 @@ class TheProseTellsTheTruthAboutTheTreeTests(unittest.TestCase):
 
     def roadmap(self):
         return CHANGELOG.read_text(encoding="utf-8").split("## Roadmap", 1)[1].split("\n[", 1)[0]
+
+
+class TheReadmeNamesOnlyThingsThatExistTests(unittest.TestCase):
+    """0.4.0 shipped a README describing `drift()` as a hook, a synchronous `converge()`, a `Controller`
+    and an `Executor`, all of which that same release had deleted. It went unnoticed because the suite
+    ran the examples and never read the prose."""
+
+    def setUp(self):
+        self.told = README.read_text(encoding="utf-8")
+        self.public = set(cabaxiom.__all__)
+
+    def test_every_capitalised_name_in_a_code_fence_is_one_the_package_exports(self):
+        # Only inside fences and only names that look like a public class. Prose says "Reconciler" in
+        # sentences too, yet a fence is where a reader copies from, so a fence is where a lie costs.
+        for fence in re.findall(r"```python\n(.*?)```", self.told, re.S):
+            for imported in re.findall(r"^from cabaxiom import (.+)$", fence, re.M):
+                for name in (part.strip() for part in imported.split(",")):
+                    self.assertIn(name, self.public, f"README imports {name}, which cabaxiom does not export")
+
+    def test_no_retired_name_survives_anywhere_in_the_prose(self):
+        # The names 0.4.0 deleted. Each one was still being taught after it stopped existing.
+        for gone in ("Controller", "BaseExecutor", "BaseReconciler", "AsyncReconciler", "OnError.Halt"):
+            self.assertNotIn(gone, self.told, f"README still teaches {gone}, which no longer exists")
+
+    def test_the_retired_read_hooks_are_not_taught_as_step_methods(self):
+        for gone in ("def drift(self)", "def plan(self)", "def audit(self)", "def footprint(self)"):
+            self.assertNotIn(gone, self.told, f"README still teaches {gone}, replaced by assess()")
+
+    def test_the_engine_verbs_are_shown_awaited(self):
+        # They became coroutines in 0.4.0. A README that shows them called bare teaches a coroutine leak.
+        for fence in re.findall(r"```python\n(.*?)```", self.told, re.S):
+            for called in re.findall(r"(?<!await )reconciler\.(converge|plan|drift|prune|audit)\(\)", fence):
+                self.fail(f"README calls reconciler.{called}() without await")
+
+    def test_every_declaration_slot_the_kernel_ships_is_documented(self):
+        from cabaxiom.vocabulary import Vocabulary
+        for kind in Vocabulary.shipped():
+            self.assertIn(f"`{kind.slot}`", self.told, f"README does not mention the {kind.slot} slot")
+        for slot in ("provides", "contends"):
+            self.assertIn(f"`{slot}`", self.told)

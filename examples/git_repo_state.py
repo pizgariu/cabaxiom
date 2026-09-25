@@ -9,7 +9,7 @@ through plain subprocess calls:
   LocalBranch    ensure a named local branch exists (after InitialCommit, since a branch
                  must point at a commit)
 
-The `after` edges form the chain GitConfig -> InitialCommit -> LocalBranch. The steps are
+The `expects` edges form the chain GitConfig -> InitialCommit -> LocalBranch. The steps are
 handed to the Reconciler in a scrambled order on purpose, so the default Kahn ordering
 resolves them back into a runnable sequence.
 
@@ -160,7 +160,7 @@ def main() -> None:
             "commit.gpgsign": "false",
         }
 
-        # Handed in scrambled - branch before commit before config. Kahn resolves the after
+        # Handed in scrambled - branch before commit before config. Kahn resolves the expects
         # edges, so the reconciler still runs config -> commit -> branch.
         steps = [
             LocalBranch(repo, branch_name),

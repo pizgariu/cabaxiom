@@ -8,6 +8,36 @@ Every release is a pre-release on the road to the 1.0.0 freeze.
 
 Nothing yet.
 
+## [0.5.0] - 2026-09-26
+**One derivation. Every question about what depends on what is answered by the same object, while the language it reads grew from one slot to eight.**
+
+### Added
+- **`cabaxiom.Graph`, the one home for every edge a declaration draws.** Seven places used to walk the declarations themselves - four ordering strategies, the seating guard, `Only`'s closure and `explain()` - and the walks had already drifted apart. The guard resolved a class name to every instance of that class while the ordering resolved it to the first one, so a run holding two of a kind could be seated in a shape the guard called clean and the order called impossible. There is one `Graph` per run now, built by the `Reconciler` and handed to everything downstream, so those answers are about one world rather than four opinions about four.
+- **Eight declaration slots in four pairs plus the table that holds them.** `expects`/`requires` name a class, `prepares`/`mandates` name a class and run BEFORE it, `wants`/`demands` name a capability that `provides` answers, `uses`/`needs` name one step by identity. The soft half of each pair orders against the thing when it is present and shrugs when it is not. The hard half refuses the run. They are rows in a `Vocabulary` rather than branches in the derivation, so growing the language is adding a row and nothing that reads edges has to learn the new one.
+- **`contends`, the declaration that is not an edge and could not be.** An edge says which of two steps comes first. Contention says neither may run beside the other and takes no view on the order, so drawing it as an edge would force a sequence the domain never asked for. It is read where the run is SEATED - `Kahn` splits a wave that holds two rivals, `Components` unions them into one chain. Whether two seats run at the same time is derived from the placement rule each shape already declares, so a shape added later answers it the day it declares its placement.
+- **`Malformed`, `Unresolvable` and `Misconfigured`, the kernel's named refusals.** Each subclasses the builtin it replaces, so `except TypeError` and `except ValueError` keep working. They have no shared root deliberately - a malformed declaration, an unsatisfiable run and a misconfigured strategy are three unrelated mistakes, so one base would invite a caller to catch all three where they meant to catch one.
+- **`Explanation.reasons` and `because(step)`.** A flat "Api depends on Db" was enough when one slot drew every edge. With eight it is a question nobody asked, because a class named softly, a capability named hardly and an instance named by identity read identically once flattened and have three different fixes. A `Reason` carries the slot, what was written, what it resolved to and whether it was hard.
+- **`Reconciler.foresee(step)`, explain()'s counterfactual twin.** If that one step failed, what would this run lose? `blocked` is the `Graph`'s own `fallout()` walk, which is the closure walk with the direction reversed, so the forecast cannot drift from the derivation it forecasts about. `skipped` and `settling` are the FailFast answer and come off the run position instead, because FailFast gates by where a step sits and not by what depends on it. `starves` names the capabilities the step is the only present provider of.
+- **`cabaxiom.Diagram`, with `Mermaid` and `Dot` on it.** A diagram is a strategy over an `Explanation` and reaches nothing else - not the `Reconciler`, not the `Graph`, not a `Step` - so a rendering bug makes an ugly picture and never a wrong run. It draws the reasons rather than the edges, so an arrow carries the declaration that drew it and a soft one is dashed.
+- **`cabaxiom.records`, where the verdicts of a run live.** `Residual`, `Explanation`, `Reason` and `Casualty` hold what they were handed and do no work, which is why they outlive the `Reconciler` that made them. The engine imports them and nothing there imports the engine.
+- **`examples/derived_order.py`.** Six steps using every slot in the language, where nothing touches the world until the last line. It prints the resolved waves, the declaration behind each edge, the wave the seating split for contention, what one failure would cost and the run as a Mermaid diagram.
+
+### Fixed
+- **A seating that dropped a step passed the guard.** The check asked whether each dependency was placed correctly relative to its dependent, yet asked it only of dependencies it could find in the seating. One placed nowhere was skipped rather than answered, so `Levels(((api,),)).verify(graph)` came back clean while `db` never ran and the run reconciled a smaller world than the caller passed in. A step seated into two groups vanished the same way and then ran twice. Both are refused before any placement is judged.
+- **A refusal blamed the declaration when the scope was at fault.** A scope chooses membership, which is what the hard-presence rule reads, so `Skip(Vault)` could turn a correct run into one the caller's own declaration refuses. The refusal then advised loosening a `demands` that was right, which fixes the message and breaks the next run. `demand()` is handed the derivation it was narrowed from and tells the two apart.
+- **The README taught an API this project had deleted.** `drift()` as a step hook, a synchronous `converge()`, a `Controller` and an `Executor` were all still written down as the way to use the kernel. `tests/test_docs.py` reads the prose now - it refuses a name in a code fence the package does not export, refuses a retired name anywhere, refuses an engine verb shown without `await` and requires every shipped slot to be documented.
+- **Two steps that compare equal collapsed into one node.** Identity is the dependency currency, since every structure the kernel derives is keyed by step instance. A `@dataclass` step slipped past the class-definition check because a decorator runs after the class body, so the guard fires again at first construction.
+
+### BC break
+- `Step.after` is now `Step.expects`. It is the same slot with the same meaning - the name changed because it stopped being the only one, while `after` reads as an ordering primitive rather than as a dependency.
+- `Ordering.__call__`, `.levels()` and `.chains()` take a `Graph` instead of a tuple of steps. A custom Ordering reads `graph.steps` for the membership and `graph.dependencies(step)` for the edges.
+- `Partition.verify()` takes the `Graph` the seating came from. A custom Dispatcher that builds and verifies its own shape writes `partition.verify(graph)`.
+- `Scope.select()` takes a `Graph`. A custom Scope reads `graph.steps` and can now narrow along `graph.closure()` instead of walking a slot itself.
+- `Priority(key=...)` receives the step, not its class. Write `key=lambda step: type(step).__name__` for the old behaviour. An instance-addressed run can hold two steps of one class that deserve different priorities, which a key seeing only the class cannot express.
+- A `Partition` shape declares `_placement` as a class attribute checked at class definition. A shape without one raises `Misconfigured` at the class statement rather than at its first `verify()`.
+- `Kahn`'s flat order is its waves flattened. It used to ask `TopologicalSorter.static_order()`, which breaks ties its own way, so the flat order was not the order the waves would run in. Anything that depended on the old tie-breaking sees a different but equally valid topological order.
+- `Explanation` and `Residual` moved to `cabaxiom.records`. Both are still exported from `cabaxiom` itself, so `from cabaxiom import Residual` is unchanged.
+
 ## [0.4.2] - 2026-09-12
 
 **The documentation said four things about this package that were not true. Nothing in the suite could have noticed.**
@@ -143,12 +173,12 @@ Nothing. 0.3.1 is 0.3.0 with two defects removed.
 
 Planned milestones, in rough order. Nothing here is a promise of scope.
 
-- **0.5.0** - One derivation for every question about what depends on what. A `Graph` built once per run and handed to everything downstream, eight declaration slots in four soft-and-hard pairs, `provides` answering a named capability the way a systemd unit does, `contends` for the resources two steps may not hold at once, a drawing axis with Mermaid and Graphviz on it and `foresee()` to cost one step's failure before anything runs.
 - **0.6.0** - The other half of the kernel. A `Ledger` that keeps what a run said about itself rather than two lists, artifacts flowing between steps through `produces` and `consumes`, a run mode that pairs a shape with the worker walking it, capacity held across processes, a warrant that can refuse a run before its first write, chaos injected on purpose, a whole reconciler nested inside one step and three proofs that read a run back - idempotence, reversibility and the smallest failing subset. The reusable doubles the suite grew ship with it as `cabaxiom.testing`, so a domain tests its own Steps against ready-made fakes. The Python floor rises to 3.12.
 - **0.7.0** - Layers a test can enforce. The flat package becomes `cabaxiom.core` in four layers whose arrows a linter checks, the laboratory moves out to `cabaxiom.laboratory` and the front door narrows to what you declare, run and catch. Every name that moves answers with the line to type instead of a bare ImportError.
 - **0.8.0** - The easter egg, kept for last because the kernel came first.
 - **1.0.0** - API stability. Freeze the public surface and commit to Semantic Versioning guarantees for it. The first non-prerelease, cut from the last of the 0.x line.
-[unreleased]: https://github.com/pizgariu/cabaxiom/compare/v0.4.2...HEAD
+[unreleased]: https://github.com/pizgariu/cabaxiom/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/pizgariu/cabaxiom/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/pizgariu/cabaxiom/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/pizgariu/cabaxiom/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/pizgariu/cabaxiom/compare/v0.3.0...v0.4.0

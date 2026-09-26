@@ -145,3 +145,19 @@ class BothRenderersDrawTheSameRunTests(unittest.TestCase):
         soft = sum(1 for reason in told.reasons for _ in reason.matched if not reason.hard)
         self.assertEqual(Mermaid()(told).count("-.->"), soft)
         self.assertEqual(Dot()(told).count("style=dashed"), soft)
+
+
+class NothingIsDrawnTwiceTests(unittest.TestCase):
+    """A run may hold two instances of one class. The drawing is keyed by name, so they are one node -
+    which is only true if the node and its arrows are emitted once."""
+
+    def test_a_shared_node_is_declared_once_in_both_languages(self):
+        told = Reconciler((Db(), Api(), Db())).explain()
+        self.assertEqual(told.groups[0].count("Db"), 2, "the run no longer holds the twin this guards")
+        self.assertEqual(Mermaid()(told).count("Db[Db]"), 1)
+        self.assertEqual(Dot()(told).count('"Db";'), 1)
+
+    def test_an_arrow_from_a_shared_node_is_drawn_once(self):
+        told = Reconciler((Db(), Api(), Db())).explain()
+        self.assertEqual(Mermaid()(told).count('-->|"demands'), 1)
+        self.assertEqual(Dot()(told).count('"Db" -> "Api"'), 1)

@@ -10,6 +10,7 @@ A flat arrow says two steps are ordered. A labelled one says WHICH declaration o
 one says the declaration was soft, so a reader can see at a glance which edges the run would still be
 correct without."""
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from typing import final
 
 from ._compat import override
@@ -37,6 +38,13 @@ class Diagram(ABC):
         return tuple(reason for reason in explanation.reasons if reason.matched)
 
     @staticmethod
+    def _once(lines: Iterable[str]) -> tuple[str, ...]:
+        # Two steps of one class share a node, since a drawing is made from names rather than identities.
+        # Sharing a node means declaring it once. The group walk declared it per instance instead and drew
+        # every arrow once per instance too, which DOT renders as that many parallel edges.
+        return tuple(dict.fromkeys(lines))
+
+    @staticmethod
     def _labelled(reason: Reason, drawn: str) -> str:
         # An arrow carries its slot and, when the slot is addressed by something other than the step's own
         # kind, the name that was written. `expects Cache -> Cache` says the name twice, so it says it once.
@@ -54,15 +62,17 @@ class Mermaid(Diagram):
     @override
     def __call__(self, explanation: Explanation) -> str:
         drawn = ["flowchart TD"]
+        arrows: list[str] = []
         for index, group in enumerate(explanation.groups):
             drawn.append(f'    subgraph g{index}["{explanation.shape} {index + 1}"]')
-            drawn.extend(f"        {self.__key(step)}[{step}]" for step in group)
+            drawn.extend(self._once(f"        {self.__key(step)}[{step}]" for step in group))
             drawn.append("    end")
         for reason in self._drawn(explanation):
             for found in reason.matched:
                 arrow = "-->" if reason.hard else "-.->"
                 label = self.__quoted(self._labelled(reason, found))
-                drawn.append(f"    {self.__key(found)} {arrow}|{label}| {self.__key(reason.step)}")
+                arrows.append(f"    {self.__key(found)} {arrow}|{label}| {self.__key(reason.step)}")
+        drawn.extend(self._once(arrows))
         return "\n".join(drawn)
 
     @staticmethod
@@ -102,15 +112,17 @@ class Dot(Diagram):
     @override
     def __call__(self, explanation: Explanation) -> str:
         drawn = ["digraph run {", "    rankdir=TB;", '    node [shape=box];']
+        arrows: list[str] = []
         for index, group in enumerate(explanation.groups):
             drawn.append(f"    subgraph cluster_{index} {{")
             drawn.append(f"        label={self.__escaped(f'{explanation.shape} {index + 1}')};")
-            drawn.extend(f"        {self.__escaped(step)};" for step in group)
+            drawn.extend(self._once(f"        {self.__escaped(step)};" for step in group))
             drawn.append("    }")
         for reason in self._drawn(explanation):
             for found in reason.matched:
                 style = "" if reason.hard else ", style=dashed"
                 label = self.__escaped(self._labelled(reason, found))
-                drawn.append(f"    {self.__escaped(found)} -> {self.__escaped(reason.step)} [label={label}{style}];")
+                arrows.append(f"    {self.__escaped(found)} -> {self.__escaped(reason.step)} [label={label}{style}];")
+        drawn.extend(self._once(arrows))
         drawn.append("}")
         return "\n".join(drawn)

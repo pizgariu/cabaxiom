@@ -107,11 +107,16 @@ class DotTests(unittest.TestCase):
         self.assertIn('"Db" -> "Api" [label="demands \'storage\'"];', drawn)
 
     def test_a_label_cannot_break_out_of_its_own_quotes(self):
-        # DOT quotes attribute values, so a double quote inside a label would end it early and produce
-        # source that does not parse. A capability label is caller-supplied text, so it gets flattened.
+        # DOT quotes attribute values, so a double quote inside a label ends it early and produces source
+        # that does not parse. It is escaped rather than flattened, since flattening drew a picture naming
+        # a capability nobody declared. The assertion this replaces compared a count to itself.
         drawn = Dot()(Explanation((("A",),), (), (Reason("A", "wants", '"odd"', ("B",), False),), "wave"))
-        self.assertIn("label=\"wants 'odd'\"", drawn)
-        self.assertEqual(drawn.count('"'), drawn.count('"'))
+        self.assertIn('label="wants \\"odd\\""', drawn)
+        self.assertNotIn("wants 'odd'", drawn)
+
+    def test_a_backslash_is_escaped_rather_than_read_as_an_escape(self):
+        drawn = Dot()(Explanation((("A",),), (), (Reason("A", "wants", "back\\slash", ("B",), False),), "wave"))
+        self.assertIn('label="wants back\\\\slash"', drawn)
 
     def test_graphviz_itself_accepts_the_output(self):
         if shutil.which("dot") is None:

@@ -92,18 +92,25 @@ class Dot(Diagram):
     Groups become clusters, which is the DOT spelling of a subgraph that gets a box drawn round it - the
     `cluster_` prefix is not decoration, it is what makes Graphviz draw the box at all."""
 
+    @staticmethod
+    def __escaped(text: str) -> str:
+        # DOT escapes with a backslash, so the backslash is replaced first or it escapes the escape. The
+        # line this replaces rewrote a quote into an apostrophe, which parses and then draws a picture
+        # naming a capability nobody declared.
+        return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
     @override
     def __call__(self, explanation: Explanation) -> str:
         drawn = ["digraph run {", "    rankdir=TB;", '    node [shape=box];']
         for index, group in enumerate(explanation.groups):
             drawn.append(f"    subgraph cluster_{index} {{")
-            drawn.append(f'        label="{explanation.shape} {index + 1}";')
-            drawn.extend(f'        "{step}";' for step in group)
+            drawn.append(f"        label={self.__escaped(f'{explanation.shape} {index + 1}')};")
+            drawn.extend(f"        {self.__escaped(step)};" for step in group)
             drawn.append("    }")
         for reason in self._drawn(explanation):
             for found in reason.matched:
                 style = "" if reason.hard else ", style=dashed"
-                label = self._labelled(reason, found).replace('"', "'")
-                drawn.append(f'    "{found}" -> "{reason.step}" [label="{label}"{style}];')
+                label = self.__escaped(self._labelled(reason, found))
+                drawn.append(f"    {self.__escaped(found)} -> {self.__escaped(reason.step)} [label={label}{style}];")
         drawn.append("}")
         return "\n".join(drawn)

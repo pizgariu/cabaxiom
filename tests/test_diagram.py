@@ -59,13 +59,13 @@ class MermaidTests(unittest.TestCase):
 
     def test_a_soft_edge_is_dashed_and_a_hard_one_is_solid(self):
         drawn = Mermaid()(Reconciler((Db(), Cache(), Api())).explain())
-        self.assertIn("Cache -.->|expects| Api", drawn)
-        self.assertIn("Db -->|demands 'storage'| Api", drawn)
+        self.assertIn('Cache -.->|"expects"| Api', drawn)
+        self.assertIn('Db -->|"demands \'storage\'"| Api', drawn)
 
     def test_an_arrow_does_not_say_the_name_twice_when_the_name_is_the_target(self):
         # `expects Cache -> Cache` is the same word twice. A capability or an instance is not.
         drawn = Mermaid()(Reconciler((Db(), Cache(), Api())).explain())
-        self.assertNotIn("expects Cache|", drawn)
+        self.assertNotIn('expects Cache"|', drawn)
 
     def test_a_declaration_nothing_answered_draws_no_arrow(self):
         class Hopeful(Step):
@@ -77,6 +77,16 @@ class MermaidTests(unittest.TestCase):
         drawn = Mermaid()(Reconciler((Hopeful(),)).explain())
         self.assertNotIn("-->", drawn)
         self.assertNotIn("-.->", drawn)
+
+    def test_a_label_cannot_close_itself_early(self):
+        # `provides = {"cache|store"}` drew `-->|demands 'cache|store'| Api`, where the pipe inside the
+        # capability ends the label and the flowchart stops parsing.
+        told = Explanation((("A",), ("B",)), (), (Reason("B", "demands", "'cache|store'", ("A",), True),), "wave")
+        self.assertIn("""A -->|"demands 'cache|store'"| B""", Mermaid()(told))
+
+    def test_a_quote_in_a_label_survives_as_an_entity(self):
+        told = Explanation((("A",), ("B",)), (), (Reason("B", "wants", '"odd"', ("A",), False),), "wave")
+        self.assertIn('-.->|"wants #quot;odd#quot;"| B', Mermaid()(told))
 
     def test_an_empty_run_still_renders_a_flowchart(self):
         self.assertEqual(Mermaid()(Explanation((), ())), "flowchart TD")

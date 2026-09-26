@@ -61,7 +61,7 @@ class Mermaid(Diagram):
         for reason in self._drawn(explanation):
             for found in reason.matched:
                 arrow = "-->" if reason.hard else "-.->"
-                label = self._labelled(reason, found)
+                label = self.__quoted(self._labelled(reason, found))
                 drawn.append(f"    {self.__key(found)} {arrow}|{label}| {self.__key(reason.step)}")
         return "\n".join(drawn)
 
@@ -70,6 +70,14 @@ class Mermaid(Diagram):
         # Mermaid node ids take no quotes and no punctuation, while a step name is a Python identifier, so
         # the name IS the id. The label carries the readable form in case that ever stops being true.
         return step
+
+    @staticmethod
+    def __quoted(label: str) -> str:
+        # A capability is free text a domain writes, so it arrives holding whatever that domain chose. A
+        # pipe is what delimits an edge label, so an unquoted one closes the label and leaves the rest of
+        # the line as syntax. Quoting carries the punctuation through. The one character it cannot carry
+        # is the quote itself, which Mermaid spells as an entity.
+        return '"' + label.replace('"', "#quot;") + '"'
 
 
 @final

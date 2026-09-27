@@ -161,3 +161,28 @@ class NothingIsDrawnTwiceTests(unittest.TestCase):
         told = Reconciler((Db(), Api(), Db())).explain()
         self.assertEqual(Mermaid()(told).count('-->|"demands'), 1)
         self.assertEqual(Dot()(told).count('"Db" -> "Api"'), 1)
+
+
+class ContentionIsDrawnAsALinkTests(unittest.TestCase):
+    """An arrow says one step runs before another. Contention says neither may run beside the other and
+    takes no view on the order, so it is drawn without a head in both languages."""
+
+    def told(self):
+        class Left(Step):
+            contends = frozenset({"lock"})
+
+        class Right(Step):
+            contends = frozenset({"lock"})
+
+        return Reconciler((Left(), Right())).explain()
+
+    def test_mermaid_links_the_rivals_without_an_arrowhead(self):
+        self.assertIn('Left ---|"contends lock"| Right', Mermaid()(self.told()))
+
+    def test_dot_links_the_rivals_without_an_arrowhead(self):
+        self.assertIn('"Left" -> "Right" [label="contends lock", dir=none, style=dotted];', Dot()(self.told()))
+
+    def test_a_run_with_no_contention_draws_no_link(self):
+        told = Reconciler((Db(), Cache(), Api())).explain()
+        self.assertNotIn("---", Mermaid()(told))
+        self.assertNotIn("dir=none", Dot()(told))

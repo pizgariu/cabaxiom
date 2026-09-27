@@ -45,6 +45,17 @@ class Diagram(ABC):
         return tuple(dict.fromkeys(lines))
 
     @staticmethod
+    def _contended(explanation: Explanation) -> tuple[tuple[str, str, str], ...]:
+        # Contention drawn as what it is - EVERY pair of rivals over one resource, undirected. A directed
+        # arrow standing in for it would say one of them runs first, which is the one thing the declaration
+        # refuses to say. Every pair rather than a chain, since the rule holds between all of them.
+        return tuple(
+            (one, other, resource)
+            for resource, rivals in explanation.contention
+            for index, one in enumerate(rivals) for other in rivals[index + 1:]
+        )
+
+    @staticmethod
     def _labelled(reason: Reason, drawn: str) -> str:
         # An arrow carries its slot and, when the slot is addressed by something other than the step's own
         # kind, the name that was written. `expects Cache -> Cache` says the name twice, so it says it once.
@@ -72,6 +83,8 @@ class Mermaid(Diagram):
                 arrow = "-->" if reason.hard else "-.->"
                 label = self.__quoted(self._labelled(reason, found))
                 arrows.append(f"    {self.__key(found)} {arrow}|{label}| {self.__key(reason.step)}")
+        for one, other, resource in self._contended(explanation):
+            arrows.append(f"    {self.__key(one)} ---|{self.__quoted('contends ' + resource)}| {self.__key(other)}")
         drawn.extend(self._once(arrows))
         return "\n".join(drawn)
 
@@ -123,6 +136,9 @@ class Dot(Diagram):
                 style = "" if reason.hard else ", style=dashed"
                 label = self.__escaped(self._labelled(reason, found))
                 arrows.append(f"    {self.__escaped(found)} -> {self.__escaped(reason.step)} [label={label}{style}];")
+        for one, other, resource in self._contended(explanation):
+            arrows.append(f"    {self.__escaped(one)} -> {self.__escaped(other)} "
+                          f"[label={self.__escaped('contends ' + resource)}, dir=none, style=dotted];")
         drawn.extend(self._once(arrows))
         drawn.append("}")
         return "\n".join(drawn)

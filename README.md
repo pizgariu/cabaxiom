@@ -245,7 +245,7 @@ Read `blocked` for what it is. It says what a failure WOULD cost, not what the k
 
 ### Drawing a run
 
-`Mermaid` and `Dot` render an `Explanation` as source text. Both are handed a run that is already resolved and can reach nothing else, so a rendering bug makes an ugly picture and never a wrong run.
+`Mermaid` and `Dot` render an `Explanation` as source text. Both are handed a run that is already resolved and can reach nothing else, so a rendering bug makes an ugly picture and never a wrong run. Contention is drawn without an arrowhead, since it says neither step may run beside the other while taking no view on which of them goes first.
 
 ```python
 from cabaxiom import Mermaid

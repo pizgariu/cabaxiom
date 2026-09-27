@@ -8,6 +8,16 @@ Every release is a pre-release on the road to the 1.0.0 freeze.
 
 Nothing yet.
 
+## [0.5.2] - 2026-09-27
+
+**Two reads of a resolved run that answered less than they knew.**
+
+### Fixed
+- **`explain()` said nothing about the contention that seated the run.** `contends` is not an edge, so it moves steps between groups without ordering them. Three independent steps came back in two waves with an empty `reasons`, empty `edges` and nothing drawn, so a reader could see the split and never learn its cause. An `Explanation` now pairs each contended resource with its rivals. Both renderers draw that as an undirected link rather than an arrow, since the declaration takes no view on which of the two goes first.
+- **`because()` answered a typo with silence.** A name this run never resolved came back as an empty tuple, which is also what a step that declared nothing comes back as. Two different findings spelled the same way. It refuses an unresolved name now, the way `foresee()` already refused one.
+
+### BC break
+Nothing. `Explanation` grew a keyword argument with a default, so a caller or a `Diagram` written against 0.5.0 still works. `because()` raising `Unresolvable` is the repair - a name it refuses is one it previously answered wrongly.
 ## [0.5.1] - 2026-09-27
 
 **Three defects in the drawing axis 0.5.0 shipped, all of them in what the picture says rather than in what the run does.**
@@ -188,7 +198,8 @@ Planned milestones, in rough order. Nothing here is a promise of scope.
 - **0.7.0** - Layers a test can enforce. The flat package becomes `cabaxiom.core` in four layers whose arrows a linter checks, the laboratory moves out to `cabaxiom.laboratory` and the front door narrows to what you declare, run and catch. Every name that moves answers with the line to type instead of a bare ImportError.
 - **0.8.0** - The easter egg, kept for last because the kernel came first.
 - **1.0.0** - API stability. Freeze the public surface and commit to Semantic Versioning guarantees for it. The first non-prerelease, cut from the last of the 0.x line.
-[unreleased]: https://github.com/pizgariu/cabaxiom/compare/v0.5.1...HEAD
+[unreleased]: https://github.com/pizgariu/cabaxiom/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/pizgariu/cabaxiom/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/pizgariu/cabaxiom/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/pizgariu/cabaxiom/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/pizgariu/cabaxiom/compare/v0.4.1...v0.4.2

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import final
 
 from .drift import Drift
+from .errors import Unresolvable
 
 
 @final
@@ -80,6 +81,16 @@ class Explanation:
     def because(self, step: str) -> tuple[Reason, ...]:
         # Every declaration one step wrote, in the order the vocabulary lists the slots. The lookup callers
         # would otherwise write themselves over `reasons`, the one they would write differently each time.
+        #
+        # A name this run never resolved is REFUSED rather than answered with an empty tuple, because an
+        # empty tuple is the honest answer for a step that declared nothing. The two are not the same
+        # finding and they were spelled the same way, so a typo read as a step with no declarations.
+        # foresee() already refuses it. Two structural reads of one run should not disagree.
+        if step not in {named for group in self.groups for named in group}:
+            raise Unresolvable(
+                f"{step} is not in this run, so there is nothing it could have declared. An explanation is "
+                f"about the run that was resolved, not about a step that might have been in it."
+            )
         return tuple(reason for reason in self.reasons if reason.step == step)
 
 

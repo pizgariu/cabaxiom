@@ -3,7 +3,7 @@ import ast
 import pathlib
 import unittest
 
-from cabaxiom import Explanation, Reconciler, Residual, Step
+from cabaxiom import Explanation, Reconciler, Residual, Step, Unresolvable
 from cabaxiom.drift import DriftItem
 from support import A, B
 
@@ -104,3 +104,12 @@ class AnExplanationCarriesTheDeclarationsBehindItTests(unittest.TestCase):
 
     def test_a_step_that_declared_nothing_has_no_reasons(self):
         self.assertEqual(Reconciler((Db(), Cache(), Api())).explain().because("Cache"), ())
+
+    def test_a_name_this_run_never_resolved_is_refused_rather_than_answered_with_nothing(self):
+        # The defect this closes. A typo and a step that declared nothing both came back as (), so the
+        # read that exists to explain a run quietly explained a step that was never in it.
+        told = Reconciler((Db(), Cache(), Api())).explain()
+        with self.assertRaises(Unresolvable) as refused:
+            told.because("Cahce")
+        self.assertIn("Cahce", str(refused.exception))
+        self.assertEqual(told.because("Cache"), ())

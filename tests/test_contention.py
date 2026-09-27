@@ -1,7 +1,7 @@
 """contends - mutual exclusion, which is a seating rule and never an ordering."""
 import unittest
 
-from cabaxiom import Components, Kahn, Step, Unresolvable
+from cabaxiom import Components, Kahn, Reconciler, Step, Unresolvable
 from cabaxiom.graph import Graph
 from cabaxiom.partition import Chains, Levels
 from cabaxiom.vocabulary import Vocabulary
@@ -125,3 +125,25 @@ class ContentionIsASeatingRuleTests(unittest.TestCase):
 
         migrate, reindex = Migrate(), Ordered()
         self.assertEqual(Kahn().levels(Graph((migrate, reindex))), ((migrate,), (reindex,)))
+
+
+class ContentionIsCarriedOutOfTheRunTests(unittest.TestCase):
+    """The seating rule moves steps between groups. An explanation that does not carry it hands back a
+    shape with no cause, which is the one thing an explanation exists not to do."""
+
+    def test_a_split_wave_names_the_resource_that_split_it(self):
+        class Left(Step):
+            contends = frozenset({"lock"})
+
+        class Right(Step):
+            contends = frozenset({"lock"})
+
+        told = Reconciler((Left(), Right())).explain()
+        self.assertEqual(len(told.groups), 2, "the rivals are no longer seated apart")
+        self.assertEqual(told.contention, (("lock", ("Left", "Right")),))
+
+    def test_a_resource_only_one_step_names_is_no_contention_at_all(self):
+        class Lonely(Step):
+            contends = frozenset({"lock"})
+
+        self.assertEqual(Reconciler((Lonely(),)).explain().contention, ())

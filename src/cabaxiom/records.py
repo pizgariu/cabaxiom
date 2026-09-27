@@ -65,13 +65,21 @@ class Explanation:
     what ONE of those groups is called under the dispatcher that resolved it, a wave or a chain, which is
     the difference between running a group together and running it in series. This is exactly the partition
     every verb walks, so it explains the real run and re-resolves nothing.
+
+    `contention` is the one thing here that is not an edge. `contends` says two steps may never run beside
+    each other, so it is read where the run is SEATED and it moves steps between groups without ordering
+    them. Left off this record it moved them silently - three independent steps came back in two waves with
+    an empty `reasons` and no way to learn why. It pairs each contended resource with its rivals in run
+    order, which is a cause a reader can act on rather than a shape they have to accept.
     """
     def __init__(self, groups: tuple[tuple[str, ...], ...], edges: tuple[tuple[str, tuple[str, ...]], ...],
-                 reasons: tuple[Reason, ...] = (), shape: str = "group"):
+                 reasons: tuple[Reason, ...] = (), shape: str = "group",
+                 contention: tuple[tuple[str, tuple[str, ...]], ...] = ()):
         self.groups = groups
         self.edges = edges
         self.reasons = reasons
         self.shape = shape
+        self.contention = contention
 
     def __repr__(self) -> str:
         # One line. Each group a parenthesised set of step names, the groups joined in run order.

@@ -223,7 +223,7 @@ A `Reconciler` reads and writes state through a handful of verbs. Each fans acro
 
 Two more read the run rather than the world, so neither touches anything and neither is a coroutine.
 
-`explain()` hands back what was resolved - the groups the dispatcher will walk plus one `Reason` per declaration the steps actually wrote. A flat "Api depends on Postgres" is not enough to act on when eight slots can draw that edge, so a Reason names the slot, what was written and whether it was hard.
+`explain()` hands back what was resolved - the groups the dispatcher will walk plus one `Reason` per declaration the steps actually wrote. A flat "Api depends on Postgres" is not enough to act on when eight slots can draw that edge, so a Reason names the slot, what was written and whether it was hard. It also carries the contention that seated the run, since `contends` moves steps between groups without ordering them and a split with no stated cause is not an explanation.
 
 ```python
 told = reconciler.explain()

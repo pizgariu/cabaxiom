@@ -85,8 +85,8 @@ class Reconciler:
 
     async def footprint(self) -> list[Drift]:
         # The teardown preview. Everything the steps own that exists now, flattened in the order
-        # prune() would tear it down. Read-only through the same engine as the other reads, and
-        # prune() never consults it.
+        # prune() would tear it down. Read-only through the same engine as the other reads. prune()
+        # never consults it.
         return await self.__probe(self.__partition.inverse(), "footprint")
 
     def explain(self) -> Explanation:
@@ -104,7 +104,11 @@ class Reconciler:
                    tuple(Step.named(found) for found in match.matched), not match.soft)
             for step in walked for match in self.__graph.matching(step)
         )
-        return Explanation(groups, edges, reasons, self.__partition._placement.noun)
+        contention = tuple(
+            (resource, tuple(Step.named(rival) for rival in rivals))
+            for resource, rivals in self.__graph.contention().items()
+        )
+        return Explanation(groups, edges, reasons, self.__partition._placement.noun, contention)
 
     def foresee(self, step: Step) -> Casualty:
         # The counterfactual structural read, explain()'s twin. If THIS step failed, what would the run

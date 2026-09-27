@@ -8,6 +8,17 @@ Every release is a pre-release on the road to the 1.0.0 freeze.
 
 Nothing yet.
 
+## [0.5.1] - 2026-09-27
+
+**Three defects in the drawing axis 0.5.0 shipped, all of them in what the picture says rather than in what the run does.**
+
+### Fixed
+- **A capability could close a Mermaid edge label.** An edge label is delimited by pipes and a capability is free text a domain writes, so `provides = {"cache|store"}` rendered `-->|demands 'cache|store'| Api` and the flowchart stopped parsing at the pipe. The label is quoted now and a quote inside it becomes the entity Mermaid spells it with.
+- **A DOT label flattened a quote into an apostrophe.** A capability holding a double quote was rewritten rather than escaped, so the drawing named something nobody declared. It is escaped now, backslash first. The guard meant to catch this compared one count to itself, which is an assertion that cannot fail.
+- **Two instances of one class were drawn twice.** Both renderers key a node by name, so a run holding two instances of one class declared the node twice and drew every arrow twice. DOT rendered that as two parallel edges between the same pair, which reads as two distinct dependencies. A shared node is one node, so it is emitted once.
+
+### BC break
+Nothing. The rendered text changes for a declaration that carries punctuation. No API moved.
 ## [0.5.0] - 2026-09-26
 **One derivation. Every question about what depends on what is answered by the same object, while the language it reads grew from one slot to eight.**
 
@@ -177,7 +188,8 @@ Planned milestones, in rough order. Nothing here is a promise of scope.
 - **0.7.0** - Layers a test can enforce. The flat package becomes `cabaxiom.core` in four layers whose arrows a linter checks, the laboratory moves out to `cabaxiom.laboratory` and the front door narrows to what you declare, run and catch. Every name that moves answers with the line to type instead of a bare ImportError.
 - **0.8.0** - The easter egg, kept for last because the kernel came first.
 - **1.0.0** - API stability. Freeze the public surface and commit to Semantic Versioning guarantees for it. The first non-prerelease, cut from the last of the 0.x line.
-[unreleased]: https://github.com/pizgariu/cabaxiom/compare/v0.5.0...HEAD
+[unreleased]: https://github.com/pizgariu/cabaxiom/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/pizgariu/cabaxiom/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/pizgariu/cabaxiom/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/pizgariu/cabaxiom/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/pizgariu/cabaxiom/compare/v0.4.0...v0.4.1

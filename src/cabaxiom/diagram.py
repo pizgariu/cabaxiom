@@ -13,7 +13,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from typing import final
 
-from ._compat import override
+from typing import override
 from .records import Explanation, Reason
 
 

@@ -432,7 +432,7 @@ class TheWalkVisitsAStepOnceTests(unittest.TestCase):
 
 class ARosterIsIndexableAsWellAsSearchableTests(unittest.TestCase):
     """The tuple sits beside the set rather than being replaced by it, so a Roster answers both questions
-    a class edge asks - is this one present, and in what order are they all."""
+    a class edge asks - is this one present and in what order are they all."""
 
     def test_it_reads_by_position_and_by_slice_the_way_the_list_it_replaced_did(self):
         from cabaxiom.vocabulary import Roster

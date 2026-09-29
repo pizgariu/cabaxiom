@@ -6,7 +6,7 @@ from collections.abc import Callable
 from enum import Enum
 from typing import cast, final
 
-from ._compat import override
+from typing import override
 from .cancellation import Cancellation, Cancelled
 from .drift import Assessed, Assessment, Changes, Drift, DriftItem, Outcome
 from .graph import Graph
@@ -360,7 +360,7 @@ class ThreadDispatcher(Dispatcher):
 
     @override
     async def probe(self, groups: tuple[tuple[Step, ...], ...], read: Callable[[Step], Assessed]) -> list[Assessment]:
-        # The reads move too. A blocking assess() blocks the loop exactly as a blocking apply() does, and
+        # The reads move too. A blocking assess() blocks the loop exactly as a blocking apply() does and
         # a domain that needed the bridge for one of them almost always needs it for both.
         blocking = cast(Callable[[Step], Assessment], read)
         return await self.__underlying.probe(groups, lambda step: asyncio.to_thread(blocking, step))

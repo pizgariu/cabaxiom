@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from typing import final
 
-from ._compat import override
+from typing import override
 from .drift import Drift
 from .errors import Misconfigured
 

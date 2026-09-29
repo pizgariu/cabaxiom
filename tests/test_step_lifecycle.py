@@ -83,7 +83,7 @@ class PlanTests(unittest.TestCase):
 
 class AuditTests(unittest.TestCase):
     """audit() is the advisory read channel - findings about a system IN desired state that still
-    deserve attention. Opt-in per step, flattened by the same read engine as drift and plan, and
+    deserve attention. Opt-in per step, flattened by the same read engine as drift and plan and
     invisible to converge - advice never dirties the residual proof."""
 
     class Advising(Step):
@@ -107,7 +107,7 @@ class AuditTests(unittest.TestCase):
             def assess(self) -> list:
                 return Assessment(advisory=[DriftItem("second", "y")])
 
-        rec = Reconciler((AdviseSecond(), AdviseFirst()))   # shuffled, after= must order the advice
+        rec = Reconciler((AdviseSecond(), AdviseFirst()))   # shuffled, expects must order the advice
         self.assertEqual([item.name for item in asyncio.run(rec.audit())], ["first", "second"])
 
     def test_converge_never_touches_audit_findings(self):

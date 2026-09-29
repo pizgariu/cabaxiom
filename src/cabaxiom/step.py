@@ -3,7 +3,7 @@ from abc import ABC, ABCMeta
 from collections.abc import AsyncIterator
 from typing import Any, final
 
-from ._compat import override
+from typing import override
 from .drift import Assessment, Changes, Drift, DriftItem, Outcome
 from .errors import Malformed
 
@@ -43,7 +43,7 @@ class Step(ABC, metaclass=_Sealed):
     caller-side Step subclass.
     """
 
-    # The declaration slots a caller may still set on a constructed step. `after` is configuration the
+    # The declaration slots a caller may still set on a constructed step. `expects` is configuration the
     # run reads once before anything executes, so setting it late changes the plan and never the state
     # a pass carries into the next one.
     _SLOTS = frozenset({"expects", "requires", "provides", "wants", "demands", "contends",
@@ -56,7 +56,7 @@ class Step(ABC, metaclass=_Sealed):
     # nothing beside `after`.
     expects: tuple[type["Step"], ...] = ()
 
-    # The HARD companion of `expects`. Soft trusts the world when the target is absent, hard says so, and
+    # The HARD companion of `expects`. Soft trusts the world when the target is absent, hard says so and
     # both are sentences a domain genuinely wants to write - "run after the database step if there is one"
     # and "there had better be a database step" are different declarations.
     requires: tuple[type["Step"], ...] = ()

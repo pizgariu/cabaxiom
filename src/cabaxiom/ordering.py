@@ -14,7 +14,7 @@ from collections.abc import Callable
 from graphlib import CycleError, TopologicalSorter
 from typing import final
 
-from ._compat import override
+from typing import override
 from .errors import Cycle
 from .graph import Graph
 from .step import Step
@@ -23,7 +23,7 @@ from .step import Step
 class Ordering(ABC):
     """Strategy for turning a derivation into a run order.
 
-    __call__ is the flat order every strategy answers. levels() and chains() are the SHAPED answers, and
+    __call__ is the flat order every strategy answers. levels() and chains() are the SHAPED answers and
     a strategy that cannot shape its output that way inherits a one-group fallback rather than pretending
     - the shape's guard then refuses the pairing, which is the honest place for that refusal.
 

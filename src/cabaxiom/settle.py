@@ -2,7 +2,7 @@
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 
-from ._compat import override
+from typing import override
 from .drift import Drift
 from .errors import Misconfigured
 

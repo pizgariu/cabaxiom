@@ -1,7 +1,7 @@
 """Observer - optional trace hooks fired around each converge pass, composed via Chorus."""
 from typing import final
 
-from ._compat import override
+from typing import override
 from .drift import Drift
 
 

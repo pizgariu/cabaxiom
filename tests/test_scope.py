@@ -31,7 +31,7 @@ class ScopeTests(unittest.TestCase):
         self.assertEqual(log, ["A", "B", "C"])
 
     def test_skip_drops_the_named_steps_and_does_not_cascade(self):
-        # C is after B, yet skipping B leaves C in. `after` orders the steps present, it does not
+        # C is after B, yet skipping B leaves C in. `expects` orders the steps present, it does not
         # demand their presence, so a skipped prerequisite is trusted, not propagated.
         log = []
         asyncio.run(Reconciler((A(log), B(log), C(log)), scope=Skip(B)).converge())

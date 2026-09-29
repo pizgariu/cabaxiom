@@ -119,12 +119,12 @@ class OrderingStrategyTests(unittest.TestCase):
 
 class OrderingContractTests(unittest.TestCase):
     """The ordering contract proven over RANDOMIZED DAGs, for both strategies at once. The resolved order
-    honours after=, Kahn's waves pass verify, flattening the waves equals the flat order, and
-    a planted cycle raises ValueError. Seeded, so any failure reproduces byte-for-byte."""
+    honours expects, Kahn's waves pass verify, flattening the waves equals the flat order and a planted
+    cycle raises ValueError. Seeded, so any failure reproduces byte-for-byte."""
 
     @staticmethod
     def __random_dag(randomness, size):
-        # `size` fresh step classes with random after= edges pointing only BACKWARD (towards classes made
+        # `size` fresh step classes with random expects edges pointing only BACKWARD (towards classes made
         # earlier), so the graph is a DAG by construction. Returned in a shuffled supplied order, so the
         # strategies never get to lean on definition order.
         classes = []

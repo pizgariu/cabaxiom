@@ -1,7 +1,7 @@
 """Scope - which of the handed steps take part in a run. Everything by default or Only / Skip by step type."""
 from typing import TYPE_CHECKING, final
 
-from ._compat import override
+from typing import override
 from .errors import Misconfigured
 from .step import Step
 

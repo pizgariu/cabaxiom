@@ -30,7 +30,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v4.2.2
       - uses: actions/setup-python@v5.3.0
@@ -39,7 +39,7 @@ jobs:
       - name: Install
         run: pip install -e ".[dev]"
       - name: Test
-        # Real measured coverage sits at 97 percent, so the gate is parked a few points under.
+        # The suite holds 100% line and branch coverage; the gate enforces it, so any drop fails CI.
         run: pytest --cov=cabaxiom --cov-report=term-missing --cov-fail-under=100
 
   build:
@@ -53,6 +53,13 @@ jobs:
         run: pip install build
       - name: Build distributions
         run: python -m build
+      - name: Smoke-test the wheel
+        # Install the BUILT artifact (not the source tree) and import it: a wheel missing py.typed or
+        # packaging the wrong directory would otherwise ship green.
+        run: |
+          pip install dist/*.whl
+          python -c "import cabaxiom; print('wheel ok:', cabaxiom.__version__)"
+          python -c "import importlib.resources as r; assert r.files('cabaxiom').joinpath('py.typed').is_file(), 'py.typed missing from the wheel'"
       - uses: actions/upload-artifact@v4.4.3
         with:
           name: dist

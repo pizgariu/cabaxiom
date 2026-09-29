@@ -89,7 +89,7 @@ class ExecutorTests(unittest.TestCase):
 
     def test_guard_rejects_a_custom_ordering_whose_waves_violate_after(self):
         # A level-aware Ordering that overrides levels() but returns one wave of DEPENDENT steps passes the
-        # capability check, yet a fanning dispatcher would run them together and ignore after=. The structural
+        # capability check, yet a fanning dispatcher would run them together and ignore expects. The structural
         # invariant catches the mis-split at construction.
         class OneBigWave(Ordering):
             def __call__(self, graph):

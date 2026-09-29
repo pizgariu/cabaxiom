@@ -27,7 +27,7 @@ class FreezeTests(unittest.TestCase):
         self.assertIn("state hides between passes", str(refused.exception))
 
     def test_a_declaration_slot_stays_settable(self):
-        # `after` is configuration a run reads once before anything executes, so setting it late changes
+        # `expects` is configuration a run reads once before anything executes, so setting it late changes
         # the plan and never the state one pass carries into the next.
         class First(Step):
             pass

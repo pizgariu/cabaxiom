@@ -24,7 +24,7 @@ Run it:
 
 Expected stdout - the plan lists every pending change (the three config keys, the missing
 initial commit and the missing branch), the first converge reports what it changed and
-returns an empty residual, a second converge is a clean no-op (idempotent), and
+returns an empty residual, a second converge is a clean no-op (idempotent) and
 a direct git inspection confirms the config, the commit and the branch are all in place. The
 example builds a throwaway repository in a temp directory and deletes it on the way out, so
 it runs anywhere with git installed.

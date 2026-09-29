@@ -8,7 +8,7 @@ from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar, final, overload
 
-from ._compat import override
+from typing import override
 from .errors import Misconfigured
 
 if TYPE_CHECKING:                      # step.py imports THIS module while its own class body runs, so the

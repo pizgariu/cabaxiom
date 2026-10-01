@@ -1,270 +1,361 @@
-"""Reconciler - resolves Steps once, then reports drift or converges and self-verifies. A Controller drives it in a loop."""
+"""Reconciler. Resolves Steps once, then assesses the world or converges and self-verifies - one
+engine, async native, woken by events instead of driven by a polling loop."""
 import asyncio
-from collections import Counter
-from collections.abc import AsyncIterator, Callable, Iterable
-from typing import final
+from collections.abc import AsyncIterator, Iterable, Mapping, Sequence
+from typing import cast, final
 
 from .cancellation import Cancellation
 from .convergence import Convergence, Once
-from .dispatcher import Dispatcher, Serial, Write
-from .drift import Drift, Outcome
-from .errors import Unresolvable
+from .dispatcher import Parallel, RunMode, Write
+from .drift import Artifacts, Drift
 from .graph import Graph
+from .lease import Authority
+from .ledger import Reading, Statement
 from .observer import Observer
 from .ordering import Kahn, Ordering
-from .records import Casualty, Explanation, Reason, Residual
-from .retry import Retry
+from .records import Casualty, Explanation, Residual
+from .retry import BaseRetry, Retry
 from .scope import Scope
-from .settle import Clean, Settle
 from .step import Step
 from .vocabulary import Vocabulary
+from .warrant import Warrant
 
 
 @final
 class Reconciler:
-    """Resolves an explicit, ordered set of Steps once, then either reports drift (read-only) or
-    converges actual -> desired (idempotent) and self-verifies by re-probing for the residual.
+    """Resolves an explicit, ordered set of Steps once, then either assesses the world (read-only) or
+    converges actual -> desired (idempotent) and self-verifies by re-assessing for the residual.
+
+    ONE engine, one colour. The sync and async families used to mirror each other verb for verb. The
+    mirror was the maintenance. Every fix landed twice or drifted. The engine is async native now - a step
+    with blocking I/O rides ThreadDispatcher, which bridges it onto the loop, so the sync DOMAIN is still
+    served while the sync ENGINE is gone. converge() is awaited, so the event loop is the one thing a
+    consumer must bring.
 
     No registry, no auto-discovery, no capability probing. The kernel takes the steps it is handed.
-    Ordering is an injected strategy (Kahn by default). The self-verifying converge is the core.
+    Ordering is an injected strategy (Kahn by default). The self-verifying converge is the core and
+    watch() is the standing form of it - woken by the steps' own event sources instead of a timer.
     """
 
     def __init__(self, steps: Iterable[Step], ordering: Ordering | None = None, *,
-                 vocabulary: Vocabulary | None = None,
-                 scope: Scope | None = None, dispatcher: Dispatcher | None = None,
+                 scope: Scope | None = None, mode: RunMode | None = None,
                  convergence: Convergence | None = None, cancellation: Cancellation | None = None,
-                 observer: Observer | None = None, retry: Retry | None = None):
-        # Resolve defaults here, not as mutable default args. A default instance in the signature
-        # would be built once at import and shared across every Reconciler, a trap the moment a
-        # default holds state (a pool, a flag).
-        scope = scope or Scope()   # the base keeps every step, the run-everything default
+                 observer: Observer | None = None, retry: BaseRetry | None = None,
+                 vocabulary: Vocabulary | None = None, authority: Authority | None = None,
+                 warrant: Warrant | None = None):
+        scope = scope or Scope()
         ordering = ordering or Kahn()
-        dispatcher = dispatcher or Serial()
-        convergence = convergence or Once()
-        cancellation = cancellation or Cancellation()
-        observer = observer or Observer()
-        retry = retry or Retry(1)   # the neutral single try, which wraps nothing
-        # The scope first decides WHICH of the handed steps take part, resolved once here so every
-        # verb sees the same set. Then the dispatcher builds and verifies the partition shape it can
-        # run (Serial - a serial walk of levels, Parallel - independent waves, Pipeline - independent
-        # chains). An dispatcher that cannot run the Ordering it was handed raises from arrange(),
-        # naming the fix.
-        # ONE derivation, built here and handed to everything downstream. The scope narrows the
-        # membership through it, the ordering chooses an order through it, the shape's guard checks a
-        # seating against it and explain() draws it. Nothing derives a second one, which is what makes
-        # those four answers about one world rather than four opinions about four.
-        whole = Graph(tuple(steps), vocabulary)
-        self.__graph = Graph(scope.select(whole), whole.vocabulary)
-        # Handed the wider graph so a hard edge the SCOPE broke is told apart from one nothing ever
-        # satisfied. Same rule, opposite fixes, where the caller can only act on the one they are told.
-        self.__graph.demand(whole)
-        self.__partition = dispatcher.arrange(ordering, self.__graph)
-        self.__dispatcher = dispatcher
-        self.__convergence = convergence
-        self.__cancellation = cancellation
-        self.__observer = observer
-        self.__retry = retry
 
-    async def drift(self) -> list[Drift]:
-        # Flatten every step's drift, in resolved order. [] == fully in desired state.
-        return await self.__probe(self.__partition, "deviation")
+        self._mode = mode or Parallel()
+        self._convergence = convergence or Once()
+        self._cancellation = cancellation or Cancellation()
+        self._observer = observer or Observer()
+        self._retry = retry or Retry(1)   # the neutral single try, which wraps nothing
+        # None means no capacity is asked for, so the write path wraps nothing at all - the same
+        # zero-cost neutral the retry takes. A run whose steps declare no `leases` sees no difference
+        # either way, so the axis is invisible until somebody wants it.
+        self._authority = authority
+        # None means no gate, so neither write verb takes the leading probe - so the axis costs nothing
+        # at all until somebody asks for it, which is the same neutral every other axis ships. BOTH write
+        # verbs ask it, converge before the first wave and prune before the first teardown, because a
+        # destructive-scale policy is a question about the one verb that destroys anything.
+        self._warrant = warrant
 
-    async def plan(self) -> list[Drift]:
-        # The dry run. What converge WOULD do, without doing it. Flatten every step's plan() preview
-        # in resolved order, reusing the Drift channel. [] == nothing to do. Read-only, so it is safe
-        # to call before converge() to show the work.
-        return await self.__probe(self.__partition, "plan")
-
-    async def audit(self) -> list[Drift]:
-        # The advisory read. Flatten every step's audit() (findings about a system that meets desired
-        # state yet still deserves attention) in resolved order, through the same read engine as drift
-        # and plan. [] == nothing to advise. converge() never calls this and its findings never enter
-        # the residual, so the empty residual stays the proof desired state was reached. A consumer
-        # opts in by calling audit() itself, typically alongside drift().
-        return await self.__probe(self.__partition, "advisory")
-
-    async def footprint(self) -> list[Drift]:
-        # The teardown preview. Everything the steps own that exists now, flattened in the order
-        # prune() would tear it down. Read-only through the same engine as the other reads. prune()
-        # never consults it.
-        return await self.__probe(self.__partition.inverse(), "footprint")
+        # The world is derived ONCE, over the full membership and the one vocabulary - construction vets
+        # every declaration. The scope then narrows the DERIVATION itself. Select() is Graph in, Graph out,
+        # so the language cannot fork on the way through - it rides inside the one object being narrowed,
+        # and the second Vocabulary.shipped() a forgotten keyword used to summon has nowhere left to
+        # appear. The dispatcher resolves the final, scoped graph into the run shape it will walk.
+        self._graph = scope.select(Graph(tuple(steps), Vocabulary.shipped() if vocabulary is None else vocabulary))
+        self._partition = self._mode.resolve(ordering, self._graph)
 
     def explain(self) -> Explanation:
-        # The structural read (returns an Explanation, not Drift). What the injected Ordering resolved and the
-        # dispatcher will walk, as step type names in run order plus the Step.expects edges behind them. Reads the
-        # same resolved partition every other verb uses, so it explains the actual run and re-resolves nothing.
-        walked = tuple(step for group in self.__partition for step in group)
-        groups = tuple(tuple(Step.named(step) for step in group) for group in self.__partition)
-        edges = tuple(
-            (Step.named(step), tuple(Step.named(need) for need in self.__graph.dependencies(step)))
-            for step in walked
+        # The structural read (returns an Explanation, not Drift). What the injected Ordering resolved and
+        # the dispatcher will walk, as per-instance labels in run order, the resolved edges behind that
+        # order (read off the run's own Graph, so every edge kind is present by construction, capabilities
+        # included) plus the declarations that produced them. Reads the same resolved partition and Graph
+        # every other verb uses, so it explains the actual run and re-resolves nothing.
+        ordered = tuple(step for group in self._partition for step in group)
+        labels = self.__labelled()
+        groups = tuple(tuple(labels[step] for step in group) for group in self._partition)
+        # Every landed arrow with the slot that produced it, straight off the Graph's per-name view and
+        # ORIENTED here by the kind's own direction. A `precedes` declaration lands with the declarer on
+        # the prerequisite side, so the (dependent, prerequisite, slot) contract holds for every kind and
+        # no consumer re-derives a direction the vocabulary owns - the lesson Enclosure already paid for.
+        # The resolved dependency mapping is a projection of these, so the picture and the edge list
+        # cannot tell two different stories about one run.
+        arrows = tuple(
+            (labels[reached], labels[step], matched.slot) if matched.kind.precedes
+            else (labels[step], labels[reached], matched.slot)
+            for step in ordered
+            for matched in self._graph.matching(step)
+            for reached in matched.matched
         )
-        reasons = tuple(
-            Reason(Step.named(step), match.slot, match.label,
-                   tuple(Step.named(found) for found in match.matched), not match.soft)
-            for step in walked for match in self.__graph.matching(step)
-        )
-        contention = tuple(
-            (resource, tuple(Step.named(rival) for rival in rivals))
-            for resource, rivals in self.__graph.contention().items()
-        )
-        return Explanation(groups, edges, reasons, self.__partition._placement.noun, contention)
+        # The declaration mappings, one per vocabulary slot and driven BY the vocabulary. How a declared
+        # name reads on the page is the ADDRESSING's business (by class reads as the class name, by label
+        # as its label, an instance by its per-instance run label, present ones only), so the next edge
+        # kind arrives here with no new code. `provides` and `contends` ride along as the declarations the
+        # vocabulary does not drive - sets of opaque labels rather than addressings over steps, sorted, the
+        # declarations being sets. `contends` is NOT an edge kind and never becomes one, so it contributes
+        # no arrow and the drawing stays a picture of the declaration.
+        declared = {
+            kind.slot: tuple(
+                (labels[step], seen)
+                for step in ordered
+                if (seen := kind.addressing.shown(getattr(step, kind.slot, ()), labels))
+            )
+            for kind in self._graph.vocabulary
+        }
+        declared["provides"] = tuple(
+            (labels[step], tuple(sorted(step.provides))) for step in ordered if step.provides)
+        declared["contends"] = tuple(
+            (labels[step], tuple(sorted(step.contends))) for step in ordered if step.contends)
+
+        return Explanation(groups, shape=self._partition.placement.grouping, arrows=arrows, declared=declared, vocabulary=tuple(self._graph.vocabulary))
 
     def foresee(self, step: Step) -> Casualty:
         # The counterfactual structural read, explain()'s twin. If THIS step failed, what would the run
-        # lose? Reads the same resolved partition and the same Graph every other verb uses, touches
-        # nothing and runs nothing.
+        # lose? Reads the same resolved partition and Graph every other verb uses, touches nothing and
+        # runs nothing.
         #
-        # The dependency answer is the Graph's own fallout(), which is not a lookalike of the walk that
-        # would blame a failure but literally the walk, inverted from the one a targeted run closes over.
-        # The FailFast answer cannot come off the graph at all, because FailFast gates by RUN POSITION -
-        # a strictly later group cannot start once the run stops, while the failure's own group was
-        # admitted whole by a fanning dispatcher and is already in flight.
-        if step not in self.__graph.steps:
-            raise Unresolvable(
-                f"{Step.named(step)} is not in this run, so there is nothing to foresee about it. A "
-                f"forecast is about the run that was resolved, not about a step that might have been in it."
+        # The BestEffort answer is the Graph's fallout(), which is not a lookalike of the blame walk but
+        # literally the one the Ledger runs, so a forecast that disagreed with the handling would be a
+        # contradiction rather than a bug. The Halt answer is split, because Halt gates by RUN POSITION
+        # and not by edges. A strictly later group cannot start once the run stands still, while the
+        # failure's own group is indeterminate - a fanning dispatcher admitted it whole, so it settles.
+        labels = self.__labelled()
+        if step not in labels:
+            raise ValueError(
+                f"{Step.named(step)} is not in this run, so there is nothing to foresee about it."
             )
-        walked = tuple(group for group in self.__partition)
-        order = tuple(other for group in walked for other in group)
-        struck = self.__graph.fallout((step,))
-        # In RUN order, like every other read on this class. Off the graph it would come out in supplied
-        # order, so a caller reading a forecast beside an explanation would see the same steps listed twice
-        # in two different sequences and have no way to tell which one meant anything.
-        blocked = tuple(Step.named(other) for other in order if other in struck and other is not step)
-        seated = next(index for index, group in enumerate(walked) if step in group)
-        skipped = tuple(Step.named(other) for group in walked[seated + 1:] for other in group)
-        settling = tuple(Step.named(other) for other in walked[seated] if other is not step)
-        offers: Counter[str] = Counter(
-            capability for other in self.__graph.steps for capability in other.provides
-        )
-        starves = tuple(sorted(capability for capability in step.provides if offers[capability] == 1))
-        return Casualty(Step.named(step), blocked, skipped, settling, starves)
+        struck = self._graph.fallout((step,))
+        blocked = tuple(labels[other] for other in labels if other in struck and other is not step)
+        position = next(index for index, group in enumerate(self._partition) if step in group)
+        skipped = tuple(labels[other] for group in self._partition.groups[position + 1:] for other in group)
+        settling = tuple(labels[other] for other in self._partition.groups[position] if other is not step)
+        offered: dict[str, int] = {}
+        for other in labels:
+            for capability in other.provides:
+                offered[capability] = offered.get(capability, 0) + 1
+        starves = tuple(sorted(capability for capability in step.provides if offered[capability] == 1))
+        return Casualty(labels[step], blocked, skipped, settling, starves)
+
+    def __labelled(self) -> dict[Step, str]:
+        # The run's per-instance labels, in RUN order - minted by the one shared labeller, since these
+        # names are read across citizens (an Indictment names the accused, this names the run, a Casualty
+        # marks it, a Diagram paints it) and a second tally over a different order made one string mean
+        # two different steps. Shared by BOTH structural reads here, because explain() and foresee()
+        # describing the same run must name the same step the same way.
+        return Step.labelled(step for group in self._partition for step in group)
+
+    def __settled(self, returns: Sequence[Drift], failures: Sequence[Drift], applied: list[Drift],
+                 reprobe: Sequence[Drift], waited: Sequence[Drift] = ()) -> list[Drift]:
+        # The tail of a converge pass. The fresh re-assessment arrives already awaited, what apply()
+        # changed is routed to the applied channel and kept OUT of the residual so an empty list stays
+        # verified-success, then the residual is this run's failures plus that re-assessment. `applied`
+        # accumulates on the caller's own coroutine across passes (never in a dispatcher's workers), so it
+        # stays race-free and in resolved order.
+        #
+        # Each hook is handed a TUPLE. An Observer is a trace, so a trace must not be able to rewrite what
+        # it traces - the residual IS this kernel's proof, so an observer that appended to the list it was
+        # shown once made a verified-clean run come back dirty. A Chorus relayed the same object to
+        # every member so one could alter what a later one saw. A tuple does not merely discard the
+        # mutation the way a copy did - it refuses it, with the Sequence annotation saying so up front.
+        applied.extend(returns)
+        self._observer.acted(tuple(returns))
+        # Deferrals ride into the residual beside the failures and stay a SEPARATE argument the whole way,
+        # so no sentence between the pool and the report can rename a full queue into a broken step. A run
+        # whose only trouble is exhausted capacity is not clean, which is what this line says.
+        residual = [*failures, *waited, *reprobe]
+        self._observer.remained(tuple(residual))
+        return residual
+
+    def __pruned(self, statement: Statement) -> Residual:
+        # The tail of a teardown, the prune twin of __settled. The residue each prune() returned (what
+        # SURVIVED) concatenated with any hard dispatcher failures is the residual proof set, which the
+        # teardown observer hook then sees. Unlike __settled there is no re-assessment channel - the read
+        # is deliberately NOT re-run after a teardown (it measures deviation from the should-EXIST state,
+        # so it would report everything as missing) - so the survived residue IS the proof. The two
+        # groups' order within the set does not matter, it is a (name, message) proof set.
+        residual = Residual([*statement.returns, *statement.failures, *statement.deferred], failures=statement.failures, produced=statement.produced)
+        self._observer.pruned(tuple(residual))
+        return residual
+
+    async def assess(self) -> Reading:
+        # THE read fan. Every step's assess() over the resolved partition, deviations flattened in run
+        # order. One verb where four used to fan separately, because the four always read the same world
+        # - the record each step returns still carries the plan, the advice and the footprint apart and
+        # this fan surfaces the deviation channel, the one converge() re-probes for its proof. The
+        # Reading is a Sequence of exactly those deviations, so every list-shaped caller reads it as
+        # before - and carries what each assess PRODUCED beside them, the read's own data-flow.
+        return await self._mode.dispatcher.probe(self._partition.groups, self._graph, lambda step, inputs: step.assess(inputs), self._cancellation, self._observer)
+
+    async def __refused(self) -> tuple[Reading, tuple[Drift, ...]] | None:
+        # THE GATE, asked once and before anything is written. The ONE home BOTH write verbs ask it from -
+        # so a refusal cannot come to mean one thing to a converge and another to a teardown. It answers the
+        # reading it judged beside the reasons or None when the run may proceed. The verdict each verb then
+        # mints is its own, because the two residuals are made of different channels and are announced through
+        # different hooks.
+        #
+        # Only when a warrant was injected, so a run without one takes no leading probe and pays nothing,
+        # which is the neutral-by-default rule every axis in this kernel follows. The reading is the whole
+        # world as it stands, all four channels, which is what lets a policy judge scale rather than guess it.
+        #
+        # IT IS HANDED OVER WHOLE FOR EITHER VERB. That is a decision rather than an omission. assent() is
+        # opaque about which channel it weighed, so a reconciler narrowing the reading per verb would be
+        # forging a record the probe never answered - and Reading's own contract is that it is total over the
+        # run or not minted at all. A gate handed a hollowed channel cannot be told apart from one that never
+        # looked. So a Ceiling bounding the deviations refuses a teardown too, reading as the policy it
+        # is - a world that never reached its declaration is a world whose teardown would destroy what nobody
+        # built.
+        if self._warrant is None:
+            return None
+        reading = await self.assess()
+        refused = tuple(self._warrant.assent(reading))
+        return (reading, refused) if refused else None
 
     async def converge(self) -> Residual:
-        # Apply every step and re-probe for what is STILL out of desired state. The returned residual
-        # is the proof it worked, `applied` the record of what changed.
+        # Apply every step and re-assess for what is STILL out of desired state. The returned residual is
+        # the proof it worked, `applied` the record of what changed.
         #
-        # CQS - a command returning its own outcome (this run's failures + a fresh re-probe + applied),
+        # CQS. A command returning its own outcome (this run's failures + a fresh re-assessment + applied),
         # none reconstructible by a later read. Splitting into a query would need a persistent store to
         # read the post-state back, which this kernel deliberately lacks. Persistence is a consumer
-        # concern. The pure queries are drift/plan/audit.
-        #
-        # The injected Convergence strategy decides how many times to repeat the apply -> re-probe
-        # cycle. Once (default) runs it a single time, Fixpoint loops until the residual settles, for
-        # steps that only come good once an earlier step's apply() has cleared the way.
-        #
-        # A step's apply() may RAISE (FailFast propagates, BestEffort records it as residual Drift) and
-        # may optionally return what it changed. The dispatcher hands those changes back as its first
-        # list, apart from the failures, so we accumulate them into `applied` here on the calling thread
-        # across every pass and keep them OUT of the residual, preserving empty-list == verified-success.
-        # Collecting on this thread (not in the dispatcher's workers) keeps applied race-free and in
-        # resolved order under a fanning dispatcher. A report-only step returns None and contributes
-        # nothing here, so the re-probe still surfaces it in the residual.
+        # concern. The injected Convergence strategy decides how many times to repeat the apply ->
+        # re-assess cycle: Once (default) runs it a single time, Fixpoint loops until the residual
+        # settles, for steps that only come good once an earlier step's apply() has cleared the way.
+        if (verdict := await self.__refused()) is not None:
+            reading, refused = verdict
+            # A REFUSAL IS A VERDICT. Nothing was applied, so the applied channel is empty and the
+            # failures channel is empty too, because nothing broke. The reasons ride in the residual
+            # BESIDE what the probe found, which keeps "empty means verified" honest - a refused run
+            # really did not reach its declaration - and they ride in their own channel so no caller
+            # reads a policy decision as a crash. The deviations are the channel THIS residual is made
+            # of, which is the rule the teardown's own verdict follows with its own channel.
+            #
+            # The empty applied channel is ANNOUNCED as well as returned. That is not ceremony. A
+            # trace closes one pass by pairing acted with remained (Journal buffers what acted said and
+            # writes it out when remained arrives), so a path firing only the second half leaves the
+            # previous run's buffer standing - and one Journal reused across a written run and then a
+            # refused one recorded the writes of the first as the refusal's own. Firing both halves is
+            # what makes "nothing was applied" true in the trace and not only in the record. began()
+            # stays deliberately unfired, because no pass began and Timing opens its span on it.
+            self._observer.acted(())
+            self._observer.remained(tuple([*refused, *reading]))
+            return Residual([*refused, *reading], vetoed=refused, produced=reading.produced)
+
         applied: list[Drift] = []
+        told: list[Drift] = []              # the failures of the LAST cycle, for the minted channel
+        latest: list[Drift] | None = None   # the flat list that cycle handed the policy, for the identity check
+        held: Mapping[Step, Artifacts] = {}   # the LAST cycle's produced map, a photograph retaken per pass
+
+        # The run's write, verb spoken. A Write is the retry-wrapped callable every dispatcher calls as
+        # before, plus the verb a transport needs in its envelope and the relay() that rebuilds the whole
+        # stack around a relocated hook. Built here because only the reconciler knows which write this is.
+        do = Write(self._retry, self._observer, lambda step, inputs: step.apply(inputs), "apply", self._authority)
 
         async def cycle() -> list[Drift]:
-            self.__observer.began()
-            applied_this_pass, failures = await self.__execute(self.__partition, lambda step: step.apply())
-            applied.extend(applied_this_pass)
-            self.__observer.acted(applied_this_pass)
+            nonlocal latest, held
+            self._observer.began()
+            statement = await self._mode.dispatcher.execute(self._partition.groups, self._graph, do, self._cancellation, self._observer)
+            returns, failures, waited = statement.returns, statement.failures, statement.deferred
+            held = statement.produced
+            told[:] = failures
+            # Bound to a local as well as to the nonlocal, because the nonlocal is declared
+            # list[Drift] | None for its pre-first-pass state and a reader should not have to do the
+            # narrowing in their head to see what this hands back.
+            latest = settled = self.__settled(returns, failures, applied, await self.assess(), waited)
+            return settled
 
-            residual = failures + await self.drift()
-            self.__observer.remained(residual)
-            return residual
-
-        return Residual(await self.__convergence(cycle), applied)
-
-    async def watch(self, *, settle: Settle | None = None) -> AsyncIterator[Residual]:
-        """The standing run - converge, hand back the residual, then wait for a step to say look again.
-
-        It replaces a tick-driven Controller. The difference is who decides when to look. A tick source
-        made the CALLER guess an interval, so a fast world was answered late and a quiet one was polled for
-        nothing. Here the steps say when their own world moved, through Step.watch(), while the loop sleeps
-        between wakes rather than counting.
-
-        Level-triggered throughout. A wake carries no payload and means only look again, so this re-reads
-        the WHOLE declaration every time rather than processing a delta. That is what makes a missed wake,
-        a coalesced wake and a doubled wake all harmless.
-
-        It ends when the injected Settle says so or when every step's source is exhausted - a declaration
-        of steps that announce nothing converges once and then finishes, rather than hanging on a wake that
-        can never come.
-        """
-        deciding = settle if settle is not None else Clean()
-        sources: list[AsyncIterator[None]] = [step.watch().__aiter__()
-                                              for group in self.__partition for step in group]
-        async def woken_by(source: AsyncIterator[None]) -> None:
-            # One wake from one source. A source that has run dry raises StopAsyncIteration through this
-            # and the loop below reads that as "this step has nothing more to say", which is a different
-            # fact from "nothing has happened yet" and has to stay tellable from it.
-            await source.__anext__()
-
-        pending: dict[asyncio.Task[None], AsyncIterator[None]] = {
-            asyncio.create_task(woken_by(source)): source for source in sources
-        }
+        # The convergence policy lives once in passes(). It yields the wait before each pass, the cycle
+        # runs and sends back its residual, while StopIteration carries the final residual out.
+        passes = self._convergence.passes()
         try:
+            wait = next(passes)
             while True:
-                residual = await self.converge()
-                yield residual
-                if deciding.settled(residual):
-                    return
-                while pending:
-                    done, _ = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
-                    woke = False
-                    for task in done:
-                        source = pending.pop(task)
-                        try:
-                            task.result()
-                        except StopAsyncIteration:
-                            continue          # that step has nothing more to say, the others may
-                        pending[asyncio.create_task(woken_by(source))] = source
-                        woke = True
-                    if woke:
-                        break
-                if not pending:
-                    return                    # every source is exhausted, so no wake can ever arrive
-        finally:
-            for task in pending:
-                task.cancel()
+                if wait:
+                    await asyncio.sleep(wait)
+                wait = passes.send(await cycle())
+        except StopIteration as done:
+            # The failures channel is honest only for the residual the policy actually returned from its
+            # last cycle - a custom passes() synthesizing some other list gets an empty channel rather
+            # than a guessed one, so the view stays exactly what the policy answered.
+            flat = cast(list[Drift], done.value)
+            return Residual(flat, failures=told if flat is latest else (), applied=applied, produced=held if flat is latest else None)
 
-    async def prune(self) -> list[Drift]:
+    async def prune(self) -> Residual:
         # The deletion half, the mirror of converge. Run every step's prune() in REVERSE resolved order
         # (tear a dependent down before the thing it depends on) through the same dispatcher, so the
-        # OnError policy and the serial/parallel choice apply identically.
+        # teardown inherits the whole failure semantics without a second engine.
         #
-        # CQS - like converge, a command returning its own outcome, the residue that survived teardown
-        # ([] == everything gone). Even less splittable, since prune has no re-probe.
+        # THE GATE, on the verb it was built for. Ceiling's own words are that a footprint bound
+        # refuses "a run that would tear down more than five things", so prune is the only verb that tears
+        # anything down - yet the gate sat in converge alone, so the one question the footprint channel exists
+        # to ask could not be asked of the one verb it is about. It cost nothing to notice, because nothing in
+        # the suite composed a warrant with a teardown.
         #
-        # Self-verifying. Each prune() removes its artifact and returns what SURVIVED, which the dispatcher
-        # collects, so the returned residual is the proof teardown worked. drift() is deliberately NOT
-        # re-probed here. It measures deviation from the should-EXIST state, so after teardown it would
-        # report everything as "missing" (noise, not proof). Concatenate the survived residue with any
-        # hard dispatcher failures under BestEffort. The residual is a (name, message) proof set, so the
-        # order of the two groups within it does not matter.
-        residue, failures = await self.__execute(self.__partition.inverse(), lambda step: step.prune())
-        return residue + failures
+        # THE LEADING PROBE IS TAKEN WHILE THE WORLD STILL STANDS, which is why a read before a teardown is
+        # coherent at all. __pruned says why the read is deliberately NOT re-run afterwards - it measures
+        # deviation from a world that should EXIST, so it would report a successful teardown as everything
+        # being missing - and that objection is about a reading taken AFTER the removal. It does not touch
+        # this one, which reads the standing world and whose footprint channel is precisely the question a
+        # destructive-scale policy asks.
+        if (verdict := await self.__refused()) is not None:
+            reading, refused = verdict
+            # A REFUSED TEARDOWN SURVIVED ENTIRELY, so this residual means what survived - so the reasons
+            # ride beside the FOOTPRINT, the channel that says what a teardown would have removed and
+            # therefore names exactly what is still standing. Converge's veto rides its reasons beside the
+            # deviations by the same rule, each verb carrying the channel its own residual is made of. The
+            # deviations would be a category error here, naming a converge's finding inside a survival proof,
+            # and an empty residue channel would leave a caller no reading of the world its probe paid for.
+            # Nothing was torn down and nothing broke, so the failures channel stays empty exactly as it does
+            # for a refused converge. pruned() is fired because it is the teardown's own closing hook -
+            # a trace that recorded every teardown but the refused one would be the same lie the converge
+            # veto's unpaired hooks already were.
+            residual = Residual([*refused, *reading.footprint], vetoed=refused, produced=reading.produced)
+            self._observer.pruned(tuple(residual))
+            return residual
 
-    # noinspection PyMethodMayBeStatic
-    async def __probe(self, groups: tuple[tuple[Step, ...], ...], channel: str) -> list[Drift]:
-        # The single READ engine. One assess() per step, flattened over the whole run, with the caller
-        # naming which channel of the reading it came for. drift, plan and audit walk the resolved
-        # partition, footprint walks the teardown order, so the direction is still the caller's to hand
-        # in - what changed is that the four verbs now share one PROBE and not merely one flattener.
-        #
-        # A step with an expensive read used to pay for it four times over, since nothing forced the four
-        # answers to describe the same moment of the world. Now they cannot describe different ones.
-        readings = await self.__dispatcher.probe(groups, lambda step: step.assess())
-        return [item for reading in readings for item in getattr(reading, channel)]
+        do = Write(self._retry, self._observer, lambda step, inputs: step.prune(inputs), "prune", self._authority)
+        statement = await self._mode.dispatcher.execute(self._partition.inverse(), self._graph, do, self._cancellation, self._observer)
+        return self.__pruned(statement)
 
-    async def __execute(self, groups: tuple[tuple[Step, ...], ...], do: Callable[[Step], Outcome]) -> tuple[list[Drift], list[Drift]]:
-        # The single WRITE engine. Sequence steps, funnelling both converge (forward partition,
-        # do = apply) and prune (reversed partition, do = prune) through the injected Dispatcher. The
-        # write callable goes in wrapped by the injected Retry, so a transient failure spends its
-        # attempts inside the dispatcher's unit of work and only a failure that outlived them meets
-        # the OnError policy. Retry is a transparent wrapper that may hand back an awaitable-returning
-        # callable (an async step under Async), which is the same Outcome the dispatcher's do already
-        # declares, so the wrapper needs no restating on the way in. The Dispatcher owns HOW (serial,
-        # level-parallel or chain-pipelined) and the OnError policy. It returns two lists apart -
-        # (do-returns, failures). The direction is the caller's.
-        return await self.__dispatcher.execute(groups, Write(self.__retry, do), self.__cancellation)
+    async def watch(self) -> AsyncIterator[Residual]:
+        # The standing converge, woken by the world instead of a timer. Each step's watch() is monitored
+        # concurrently, a yield from any of them queues one wake, with every wake answered by a full
+        # converge - level-triggered to the bone. The wake carries no payload and is never trusted as a
+        # report, the re-assessment that follows is still the only truth, so a spurious wake costs one
+        # clean pass and a missed one is caught by the next. The first converge runs unconditionally,
+        # because a watcher that starts on a drifted world should not wait for the world to move again
+        # before saying so.
+        yield await self.converge()
+
+        queue: asyncio.Queue[Step] = asyncio.Queue()
+
+        async def _monitor(step: Step) -> None:
+            try:
+                async for _ in step.watch():
+                    await queue.put(step)
+            except asyncio.CancelledError:
+                pass
+
+        tasks = [asyncio.create_task(_monitor(step)) for step in self._graph.steps]
+
+        try:
+            while True:
+                await queue.get()
+                # Coalesce a burst. Ten wakes queued during one converge are one drifted world. Ten
+                # converges over it would be nine no-ops paid at full price. Draining here is what makes
+                # a wake mean "look again", never "look once per event".
+                while not queue.empty():
+                    queue.get_nowait()
+
+                if self._cancellation.cancelled():
+                    break
+
+                yield await self.converge()
+        finally:
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+

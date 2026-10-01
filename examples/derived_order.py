@@ -14,9 +14,9 @@ The stack is a small one and every slot in the language earns its place in it:
 
 Four things come out of it, in order:
 
-  explain()   the groups the dispatcher will walk plus one Reason per declaration actually written.
+  explain()   the groups the run mode will walk plus one arrow per declaration that actually landed.
               "Api depends on Vault" is not enough to act on when eight slots can draw that edge, so
-              each Reason names the slot, the thing that was written and whether it was hard.
+              each arrow names the slot it came from and the vocabulary says whether that slot is hard.
 
   contends    Postgres and Migrate are mutually independent - nothing orders them - so a wave shape
               would happily run them together. The seating splits the wave instead, which is what
@@ -26,7 +26,7 @@ Four things come out of it, in order:
               not off a simulation. It separates what DEPENDS on the failure from what merely
               sits after it in the run.
 
-  Mermaid()   the same picture as text you can paste into a README. A dashed arrow is a soft
+  mermaid()   the same picture as text you can paste into a README. A dashed arrow is a soft
               declaration, so you can see at a glance which edges the run would survive without.
 """
 import asyncio
@@ -34,16 +34,16 @@ import sys
 from pathlib import Path
 
 try:
-    from cabaxiom import Mermaid, Parallel, Reconciler, Step
+    from cabaxiom import Parallel, Reconciler, Step
 except ModuleNotFoundError:                                  # running from a checkout, not an install
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-    from cabaxiom import Mermaid, Parallel, Reconciler, Step
+    from cabaxiom import Parallel, Reconciler, Step
 
 
 class Vault(Step):
     provides = frozenset({"secrets"})
 
-    async def assess(self):
+    async def assess(self, inputs):
         return self.verified()
 
 
@@ -51,7 +51,7 @@ class Postgres(Step):
     provides = frozenset({"storage"})
     contends = frozenset({"db"})
 
-    async def assess(self):
+    async def assess(self, inputs):
         return self.verified()
 
 
@@ -59,14 +59,14 @@ class Migrate(Step):
     demands = ("storage",)
     contends = frozenset({"db"})
 
-    async def assess(self):
+    async def assess(self, inputs):
         return self.verified()
 
 
 class Cache(Step):
     expects = (Postgres,)
 
-    async def assess(self):
+    async def assess(self, inputs):
         return self.verified()
 
 
@@ -74,12 +74,12 @@ class Api(Step):
     demands = ("secrets",)
     expects = (Cache,)
 
-    async def assess(self):
+    async def assess(self, inputs):
         return self.verified()
 
 
 class Smoke(Step):
-    async def assess(self):
+    async def assess(self, inputs):
         return self.verified()
 
 
@@ -90,7 +90,7 @@ def main() -> None:
     smoke.needs = (api,)                 # by IDENTITY - that one Api, not every Api in the run
 
     # Handed in scrambled. Nothing below tells the kernel an order.
-    reconciler = Reconciler((smoke, cache, migrate, api, vault, postgres), dispatcher=Parallel())
+    reconciler = Reconciler((smoke, cache, migrate, api, vault, postgres), mode=Parallel())
     told = reconciler.explain()
 
     print("Resolved waves:")
@@ -99,15 +99,15 @@ def main() -> None:
     print()
 
     print("Why each step sits where it does:")
-    for group in told.groups:
-        for name in group:
-            for reason in told.because(name):
-                weight = "hard" if reason.hard else "soft"
-                print(f"    {reason}   ({weight})")
+    hardness = {kind.slot: "hard" if kind.hard else "soft" for kind in told.vocabulary}
+    for dependent, prerequisite, slot in told.arrows:
+        print(f"    {dependent} {slot} {prerequisite}   ({hardness[slot]})")
     print()
 
     seats = {name: index for index, group in enumerate(told.groups) for name in group}
     print("Contention (Postgres and Migrate both name 'db' while nothing orders them):")
+    for resource, holders in told.contention:
+        print(f"    '{resource}' is held by {', '.join(holders)}")
     print(f"    Postgres is in wave {seats['Postgres'] + 1}, Migrate in wave {seats['Migrate'] + 1}")
     print("    -> the seating split the wave, because a wave runs together and these two may not")
     print()
@@ -116,7 +116,7 @@ def main() -> None:
     forecast = reconciler.foresee(vault)
     print(f"    {forecast}")
     print(f"    blocked  {', '.join(forecast.blocked) or 'nothing'}    (depends on it, transitively)")
-    print(f"    skipped  {', '.join(forecast.skipped) or 'nothing'}    (a later wave, under FailFast)")
+    print(f"    skipped  {', '.join(forecast.skipped) or 'nothing'}    (a later wave, under Halt)")
     print(f"    settling {', '.join(forecast.settling) or 'nothing'}    (its own wave, already in flight)")
     print(f"    starves  {', '.join(forecast.starves) or 'nothing'}    (it is the only provider)")
     print()
@@ -126,7 +126,7 @@ def main() -> None:
 
     print("The same run as Mermaid (paste it into a README and GitHub draws it):")
     print()
-    for line in Mermaid()(told).splitlines():
+    for line in told.mermaid().splitlines():
         print(f"    {line}")
     print()
 

@@ -22,23 +22,25 @@ def dependency_graphs(draw, max_nodes=6):
 def _build(edges, log):
     # One fresh Step subclass per node, its `expects` wired to the classes of its dependencies (built first,
     # since a dependency has a lower index). apply() records the step name so a test can read the run order.
+    def _record(self, inputs, _log=log):
+        _log.append(type(self).__name__)
+        return None, {}
+
     classes = []
     for index, deps in enumerate(edges):
         expects = tuple(classes[d] for d in deps)
-        classes.append(type(f"S{index}", (Step,), {
-            "expects": expects,
-            "apply": lambda self, _log=log: _log.append(type(self).__name__),
-        }))
+        classes.append(type(f"S{index}", (Step,), {"expects": expects, "apply": _record}))
     return [cls() for cls in classes]
 
 
-class OrderingProperties(unittest.TestCase):
+class OrderingProperties(unittest.IsolatedAsyncioTestCase):
     @settings(deadline=None, suppress_health_check=[HealthCheck.differing_executors])
     @given(dependency_graphs())
     def test_kahn_applies_every_dependency_before_its_dependent(self, edges):
         # The core ordering invariant. Whatever the DAG, no step runs before something it declares in `expects`.
+        # Hypothesis drives this synchronously, so the coroutine converge runs under asyncio.run.
         log: list[str] = []
-        asyncio.run(Reconciler(_build(edges, log)).converge())   # Serial dispatcher, Kahn ordering, both defaults
+        asyncio.run(Reconciler(_build(edges, log)).converge())   # Parallel executor, Kahn ordering, both defaults
         position = {name: i for i, name in enumerate(log)}
         for index, deps in enumerate(edges):
             for dep in deps:
@@ -47,24 +49,27 @@ class OrderingProperties(unittest.TestCase):
     @settings(deadline=None, suppress_health_check=[HealthCheck.differing_executors])
     @given(dependency_graphs())
     def test_parallel_accepts_every_dag_kahn_resolves(self, edges):
-        # Kahn's waves are always safe to fan out. For any DAG, arrange plus verify under Parallel never rejects.
-        dispatcher = Parallel()
-        Reconciler(_build(edges, []), Kahn(), dispatcher=dispatcher)
+        # Kahn's waves are always safe to fan out. For any DAG, staging under Parallel (arrange plus verify) never rejects.
+        executor = Parallel()
+        Reconciler(_build(edges, []), Kahn(), mode=executor)
 
 
-class ConvergenceProperties(unittest.TestCase):
+class ConvergenceProperties(unittest.IsolatedAsyncioTestCase):
     @settings(deadline=None, suppress_health_check=[HealthCheck.differing_executors])
     @given(st.integers(min_value=1, max_value=25))
     def test_fixpoint_never_exceeds_max_passes(self, max_passes):
         # Termination guarantee. A step that never settles is applied exactly max_passes times, never more.
+        # Hypothesis drives this synchronously, so the coroutine converge runs under asyncio.run.
         applies: list[int] = []
 
         class NeverSettles(Step):
-            def apply(self) -> None:
+            def apply(self, inputs):
                 applies.append(1)
 
-            def assess(self) -> list:
-                return Assessment(deviation=[DriftItem("n", f"pass {len(applies)}")])   # a fresh message each pass, so it never settles
+                return None, {}
+            def assess(self, inputs):
+                return Assessment(deviation=[DriftItem("n", f"pass {len(applies)}")]), {}   # a fresh message each pass, so it never settles
 
         asyncio.run(Reconciler((NeverSettles(),), convergence=Fixpoint(max_passes=max_passes)).converge())
         self.assertEqual(len(applies), max_passes)
+

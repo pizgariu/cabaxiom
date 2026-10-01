@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.26"]
 build-backend = "hatchling.build"
 
 [project]
@@ -25,7 +25,7 @@ classifiers = [
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.6", "hypothesis>=6", "mutmut>=3", "mypy>=1"]
+dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.16", "hypothesis>=6", "mutmut>=3", "mypy>=1", "basedpyright>=1.21"]
 
 [project.urls]
 Homepage = "https://github.com/pizgariu/cabaxiom"
@@ -33,21 +33,23 @@ Repository = "https://github.com/pizgariu/cabaxiom"
 Changelog = "https://github.com/pizgariu/cabaxiom/blob/master/CHANGELOG.md"
 Issues = "https://github.com/pizgariu/cabaxiom/issues"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/cabaxiom"]
+
 [tool.hatch.build.targets.sdist]
-# An explicit list, because the default sweeps in whatever the working tree happens to hold: a build
+# An explicit list, because the default sweeps in whatever the working tree happens to hold. A build
 # run from a developer's checkout would otherwise ship editor settings, local caches and untracked
 # notes alongside the source. Naming what belongs makes the artifact the same whoever builds it.
 include = [
   "/src",
   "/tests",
   "/examples",
+  "/bench",
+  "/docs/architecture.md",
   "/README.md",
   "/CHANGELOG.md",
   "/LICENSE",
 ]
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/cabaxiom"]
 
 [tool.ruff]
 line-length = 120
@@ -57,6 +59,57 @@ src = ["src", "tests"]
 select = ["E", "F", "I"]
 # E501: dense explanatory comments run long by design, line width is left to a formatter not the linter
 ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src"]
+
+# A SECOND OPINION, not a second gate. mypy --strict is what CI enforces and it stays that way, but
+# two checkers disagree in useful places: this one found eighteen methods overriding a base without
+# saying so, including twelve implementations of Addressing, which is a contract this repository does
+# rename. What is switched off below is switched off for a stated reason, and every rule that can
+# catch a real defect is left on - including the three it still reports, which are known and argued
+# in partition.py: an abstract property satisfied by a class constant, which is correct Python, keeps
+# the ABC's refusal to construct an incomplete shape, and is a pattern this checker dislikes.
+[tool.basedpyright]
+include = ["src/cabaxiom"]
+typeCheckingMode = "recommended"
+# The kernel is domain agnostic. A user's Step arrives through the seam as an unknown callable and an
+# unknown payload BY DESIGN, so demanding a named type at that boundary would mean deleting the
+# genericity rather than typing it.
+reportAny = false
+reportExplicitAny = false
+reportUnknownArgumentType = false
+reportUnknownMemberType = false
+reportUnknownVariableType = false
+reportUnknownLambdaType = false
+# Constructor parameters are annotated already. Repeating the annotation on the attribute they are
+# assigned to is duplication, and duplication is the defect this repository keeps a changelog of.
+reportUnannotatedClassAttribute = false
+# A no-op hook on a base Observer or Scope declares its parameters because the SIGNATURE is the
+# contract. Not touching them is what a default implementation is.
+reportUnusedParameter = false
+# Underscore names are how this package marks its own internals, on the class rather than on every
+# method. Modules inside one package reading each other's is the convention, not a leak.
+reportPrivateUsage = false
+# Long messages are written as adjacent literals so a sentence can wrap where it reads best.
+reportImplicitStringConcatenation = false
+# Priming a generator with next() throws its first yield away on purpose.
+reportUnusedCallResult = false
+# The only cycles here are under TYPE_CHECKING, which is the documented way to type a back reference
+# without importing one at runtime.
+reportImportCycles = false
+# `object` gets twenty of these for __repr__ and __eq__. Nobody is renaming those, and marking them
+# buys noise. The overrides that a rename COULD break are marked in the source.
+reportImplicitOverride = false
+# A Step subclass's __init__ does not call super().__init__(): Step is an ABC that declares no __init__
+# of its own and seals the instance through its metaclass after construction, so chaining to it would be
+# a ceremonial call to object.__init__. The freeze is what enforces the contract, not a base constructor.
+reportMissingSuperCall = false
+# Two of these sit on `flat is latest`, where the assignment happens inside a closure the analyser
+# does not follow. The identity check is real and covered by a live test.
+reportUnnecessaryComparison = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -68,12 +121,7 @@ branch = true
 
 [tool.coverage.report]
 show_missing = true
-exclude_lines = ["pragma: no cover", "raise NotImplementedError", "if TYPE_CHECKING:", "@(abc\\.)?abstractmethod", "@(typing\\.)?overload"]
-
-[tool.mypy]
-python_version = "3.12"
-strict = true
-files = ["src"]
+exclude_lines = ["pragma: no cover", "raise NotImplementedError", "if TYPE_CHECKING:", "@(abc\\.)?abstractmethod", "@(typing\\.)?overload", "class .*\\(Protocol\\):"]
 
 [tool.mutmut]
 source_paths = ["src/cabaxiom"]

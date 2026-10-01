@@ -1,24 +1,24 @@
-"""Provision a small dependency graph with the Parallel dispatcher and settle it with Fixpoint.
+"""Provision a small dependency graph with ThreadDispatcher and settle it with Fixpoint.
 
 The graph models bringing up a tiny service stack:
 
     Network
       |-- Database
       |-- Cache
-             \\-- AppServers   (expects Database and Cache)
+             \\-- AppServers   (after Database and Cache)
 
 Kahn resolves that into three waves:
 
     wave 0: Network
-    wave 1: Database, Cache      <- mutually independent, so Parallel fans them concurrently
+    wave 1: Database, Cache      <- mutually independent, so ThreadDispatcher fans them across threads
     wave 2: AppServers
 
 Two behaviours are on show at once:
 
-  Parallel dispatcher  gathers the steps inside a wave on the event loop, with a barrier between
+  ThreadDispatcher   runs the steps inside a wave on worker threads, with a barrier between
                      waves so Network is fully up before Database and Cache start and both of
-                     those are up before AppServers. The example records which thread ran each
-                     provision to show the whole fan-out stays on the caller's thread.
+                     those are up before AppServers. The example records which worker thread
+                     handled each resource to make the fan-out visible.
 
   Fixpoint convergence  repeats the apply -> re-probe cycle until the residual stops changing.
                      AppServers brings up one replica per pass (a stand-in for a controller that
@@ -27,16 +27,17 @@ Two behaviours are on show at once:
                      re-probe comes back clean.
 
 An empty residual at the end is the proof the whole stack reached desired state, checked by
-re-probing, while `applied` is the running record of every change made across all passes.
+re-probing and `applied` is the running record of every change made across all passes.
 
 Run it:
 
     python examples/parallel_fixpoint.py
 
-Expected stdout - the resolved waves, evidence that every provision stayed on the caller's
-thread while the wave fanned on the event loop, a converge that took several Fixpoint passes
-with an empty residual and a clean idempotent second converge.
+Expected stdout - the resolved waves, evidence that Database and Cache ran on pool worker
+threads (not the main thread), a converge that took several Fixpoint passes with an empty
+residual and a clean idempotent second converge.
 """
+
 import asyncio
 import sys
 import threading
@@ -44,14 +45,14 @@ import time
 from pathlib import Path
 
 try:
-    from cabaxiom import DriftItem, Fixpoint, Graph, Kahn, Parallel, Reconciler, Step
+    from cabaxiom import Assessment, DriftItem, Fixpoint, Graph, Kahn, Reconciler, Step, ThreadDispatcher
 except ModuleNotFoundError:  # running from a source checkout without an install
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-    from cabaxiom import DriftItem, Fixpoint, Graph, Kahn, Parallel, Reconciler, Step
+    from cabaxiom import Assessment, DriftItem, Fixpoint, Graph, Kahn, Reconciler, Step, ThreadDispatcher
 
 
 class Cluster:
-    """The shared world the steps reconcile against. Guarded by a lock because Parallel runs
+    """The shared world the steps reconcile against. Guarded by a lock because ThreadDispatcher runs
     the steps within a wave on different threads at the same time."""
 
     def __init__(self):
@@ -84,17 +85,17 @@ class _Resource(Step):
     def __init__(self, cluster: Cluster):
         self.cluster = cluster
 
-    def drift(self) -> list[DriftItem]:
+    def assess(self, inputs):
         if self.cluster.is_ready(self.name):
-            return []
-        return [DriftItem(self.name, "resource is not provisioned")]
+            return Assessment(deviation=[]), {}
+        return Assessment(deviation=[DriftItem(self.name, "resource is not provisioned")]), {}
 
-    def apply(self) -> list[DriftItem] | None:
+    def apply(self, inputs):
         if self.cluster.is_ready(self.name):
-            return None
+            return None, {}
         time.sleep(0.05)  # stand in for real provisioning latency, so the fan-out overlaps
         self.cluster.bring_up(self.name)
-        return [DriftItem(self.name, "provisioned")]
+        return [DriftItem(self.name, "provisioned")], {}
 
 
 class Network(_Resource):
@@ -122,17 +123,17 @@ class AppServers(Step):
         self.cluster = cluster
         self.desired = desired_replicas
 
-    def drift(self) -> list[DriftItem]:
+    def assess(self, inputs):
         have = self.cluster.replicas
         if have < self.desired:
-            return [DriftItem("AppServers", f"{have}/{self.desired} replicas up")]
-        return []
+            return Assessment(deviation=[DriftItem("AppServers", f"{have}/{self.desired} replicas up")]), {}
+        return Assessment(deviation=[]), {}
 
-    def apply(self) -> list[DriftItem] | None:
+    def apply(self, inputs):
         if self.cluster.replicas >= self.desired:
-            return None
+            return None, {}
         now = self.cluster.scale_once()
-        return [DriftItem("AppServers", f"scaled up to {now} replica(s)")]
+        return [DriftItem("AppServers", f"scaled up to {now} replica(s)")], {}
 
 
 def report(residual) -> None:
@@ -147,7 +148,7 @@ def report(residual) -> None:
         print("  residual: empty -> whole stack verified by re-probe")
 
 
-def main() -> None:
+async def main() -> None:
     cluster = Cluster()
     desired_replicas = 3
 
@@ -160,33 +161,46 @@ def main() -> None:
     ]
 
     print("Resolved waves (Kahn):")
-    for index, wave in enumerate(Kahn().levels(Graph(tuple(steps)))):
-        names = ", ".join(type(step).__name__ for step in wave)
-        print(f"    wave {index}: {names}")
+    supplied = tuple(steps)
+    waves = [tuple(step.__class__.__name__ for step in wave) for wave in Kahn().waves(Graph(supplied))]
+    for index, names in enumerate(waves):
+        print(f"    wave {index}: {', '.join(names)}")
+    # Three waves out of a scrambled list. Database and Cache share one because neither declared the
+    # other and that shared wave is the only thing ThreadDispatcher is allowed to fan.
+    assert waves[0] == ("Network",)
+    assert set(waves[1]) == {"Database", "Cache"}
+    assert waves[2] == ("AppServers",)
     print()
 
-    # Parallel gathers each dependency wave on the event loop and bars between waves, so Step.expects
-    # still holds under concurrency. Fixpoint loops apply -> re-probe until the residual settles or the
-    # ceiling is hit.
-    dispatcher = Parallel()
+    # ThreadDispatcher fans each wave across worker threads via asyncio.to_thread, so a blocking
+    # provisioning step rides the async engine without pinning the event loop - the 4.0 bridge for a
+    # synchronous domain. Fixpoint loops apply -> re-probe until the residual settles or the ceiling is hit.
     reconciler = Reconciler(
         steps,
         Kahn(),
-        dispatcher=dispatcher,
+        mode=ThreadDispatcher(),
         convergence=Fixpoint(max_passes=10),
     )
 
-    print("Initial plan:")
-    for item in asyncio.run(reconciler.plan()):
+    print("Initial drift:")
+    for item in await reconciler.assess():
         print(f"    - {item}")
     print()
 
-    print("Converge (Parallel dispatcher, Fixpoint convergence):")
-    report(asyncio.run(reconciler.converge()))
+    print("Converge (ThreadDispatcher, Fixpoint convergence):")
+    first = await reconciler.converge()
+    report(first)
+    # AppServers moves one replica per apply(), so a single pass CANNOT reach the desired count.
+    # An empty residual here is Fixpoint having looped apply -> re-probe until the world caught up.
+    assert not first
+    assert cluster.replicas == desired_replicas
     print()
 
     print("Second converge (should be a clean no-op):")
-    report(asyncio.run(reconciler.converge()))
+    again = await reconciler.converge()
+    report(again)
+    assert not again.applied            # a settled stack is not re-provisioned and not over-scaled
+    assert cluster.replicas == desired_replicas
     print()
 
     main_thread = threading.current_thread().name
@@ -196,6 +210,11 @@ def main() -> None:
         off_main = "off the main thread" if worker != main_thread else "on the main thread"
         print(f"    {name:<9} -> {worker} ({off_main})")
 
+    # Fanned, not merely permitted to fan. Both wave-1 resources were provisioned by pool workers, so the
+    # concurrency is a fact about this run and not a promise made by the executor's docstring.
+    assert cluster.worker["Database"] != main_thread
+    assert cluster.worker["Cache"] != main_thread
+
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

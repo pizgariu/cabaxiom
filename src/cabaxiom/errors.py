@@ -1,65 +1,102 @@
-"""The refusals this kernel raises, named by what went wrong rather than by what it happened to hit.
+"""The refusals, in one place - what the kernel raises when it will not proceed and who each one is for.
 
-THREE UNRELATED BASES AND NO SHARED ROOT ABOVE THEM, which is the decision worth arguing for. A caller
-who wants to hear about a malformed declaration has no business being handed a misconfigured axis, so a
-common ancestor would let one `except` swallow both. The three answer to different people - a Malformed
-is the author of a Step, an Unresolvable is whoever assembled the run, a Misconfigured is whoever wired
-the strategies - and giving them one parent would be modelling the fact that they are all errors, which
-is the least interesting thing about them.
+THREE BASES, DELIBERATELY UNRELATED. There is no shared root here and that absence is the design. A caller
+who wants to hear about one of these has no business being handed the other two. Each base answers a
+different question about who is at fault and what they would change to fix it.
 
-EVERY ONE SUBCLASSES THE BUILT-IN IT REPLACES, so nothing written against the previous release breaks. An
-`except ValueError` still catches a cycle, an `assertRaises(TypeError)` still catches a bad slot and a
-caller who wants the finer answer opts into it by naming the finer type."""
+- `Malformed` is a TypeError. The declaration has the wrong SHAPE - a string where a set of labels belongs,
+  a bare class where a one-tuple does. Caught at class definition or at construction, before any world is
+  read. You fix it by editing the declaration.
+- `Unresolvable` is a ValueError. The declaration is well FORMED and still cannot become a run - a cycle,
+  a prerequisite nobody supplied, a shape the chosen worker may not walk. You fix it by changing what you
+  declared or what you handed the reconciler.
+- `Misconfigured` is a ValueError. An AXIS was handed a value it cannot work with - a negative delay, a
+  zero poll. Nothing about your steps is wrong. You fix the argument you passed to one small object.
+
+EVERY ONE SUBCLASSES A BUILT-IN. That is what makes this change free to adopt. The kernel raised bare
+ValueError and TypeError from these sites for its whole life, so `except ValueError` and every
+`assertRaises(ValueError)` written against it keeps working unchanged. The names are additive. They let a
+caller who WANTS to tell a cycle from a bad backoff do it by type instead of by matching message text,
+which is the alternative this kernel already named as the wrong one (see `Unpublished`).
+
+WHAT IS NOT HERE and why. `Cancelled`, `Deferred` and `Skew` live with the cancellation axis. They are
+BaseExceptions because they are SIGNALS a run sends itself rather than refusals, so they must escape a domain's
+own `except Exception`. `Unpublished` lives with the enclave. It is raised from a running hook rather than
+while resolving, so the Retry axis dispatches on it and it belongs to that story. A refusal, by contrast,
+never reaches a retry - nothing here is raised once a run is under way."""
 
 
 class Malformed(TypeError):
-    """The declaration has the wrong SHAPE - a bare class where a one-tuple belongs, a string where a set
-    of labels belongs, an instance where a type does.
+    """A declaration whose SHAPE is wrong, refused before it can mean anything.
 
-    A TypeError, because that is what it is. The classic case is the forgotten comma, `expects = (Reactor)`
-    is the class Reactor and not a one-tuple, which would otherwise surface deep inside the derivation as
-    something unrecognisable. Raised at class definition where it can be and at construction where the
-    value is only known then."""
+    The container is not what the slot takes (a class where a one-tuple belongs, the classic forgotten
+    comma) or a label set is a bare string, which is the silent one - a string iterates into single
+    characters, so `provides = "database"` would offer six capabilities named d, a, t, b, s and e and every
+    match would miss without a word. Raised by `Step.__init_subclass__` at class definition where it can be,
+    and by the Graph's construction guard for the per-instance slots no class hook can see."""
 
 
 class Unresolvable(ValueError):
-    """The declaration is well formed and still cannot become a run.
+    """A well-formed declaration the kernel cannot turn into a run, refused at construction.
 
-    A ValueError, because the shapes are all right and the VALUES cannot be reconciled. Everything under
-    it is a distinct reason, so a caller can tell a cycle from a missing prerequisite without reading a
-    message, since a message can change without breaking anybody's handling."""
+    Everything under this base is caught before a single step is touched, which is the whole point - the
+    kernel would rather refuse a run than start one it cannot finish honestly. The leaves name the specific
+    fault for a caller who wants to tell them apart, while catching the base catches every one."""
 
 
 class Cycle(Unresolvable):
-    """The edges close a loop, so no order exists. Names the steps that could not be laid out."""
+    """The dependency edges close a loop, so no order exists. Names the steps that could not be laid out."""
 
 
 class Coverage(Unresolvable):
-    """An Ordering did not hand back every supplied step exactly once.
+    """An Ordering did not return every supplied step exactly once - it dropped one or doubled one.
 
-    The strategy is the kernel's own extension point, so a custom one that drops or duplicates a step is
-    caught the moment it answers rather than showing up later as a step that silently never ran."""
+    Refused because the alternative is worse than a crash. A dropped step converges a SMALLER world with no
+    error anywhere, so the run reports clean about a declaration it never fully read."""
+
+
+class Seating(Unresolvable):
+    """A partition seats a step where its own shape's rule forbids - a dependency sharing a group with its
+    dependent under a shape that fans that group, so the two would run at once and the edge would be
+    ignored while the run still reported clean."""
+
+
+class Pairing(Unresolvable):
+    """A worker and a shape that must not be composed - the worker overlaps where the shape's rule allows a
+    dependency to sit, so a step could run beside its own prerequisite. Raised by `RunMode.resolve`, which
+    asks the PAIR rather than the worker's own class, so a decorator cannot launder the mismatch."""
 
 
 class Presence(Unresolvable):
-    """Something named is not in the run - a hard edge pointing at an absent step, a scope naming a type
-    nothing supplied, a forecast asked about a step the run does not contain.
+    """A hard edge names something the run does not contain - `requires` or `mandates` naming an absent
+    class, `demands` a capability nobody provides, `needs` an instance that was never supplied.
 
-    The one refusal a soft edge deliberately does not raise. Soft means trust the world if it is absent,
-    hard means say so. This is the word for hard."""
+    The soft counterparts trust an absent name and derive a dead end instead, which is why this is its own
+    refusal rather than a fact about the derivation. It fires the moment membership is final."""
+
+
+class DataFlow(Unresolvable):
+    """A step consumes an artifact key no prerequisite of it produces.
+
+    The DATA plane's own refusal, deliberately not an edge kind - declaring a key creates no order. The
+    payload is mounted from a step's DIRECT prerequisites, so a key nothing upstream produces arrives as an
+    absent entry the hook cannot tell from a real one, so the run reports clean against a world nobody
+    supplied. A producer sitting two hops up or beside rather than above is exactly as absent."""
 
 
 class Identity(Unresolvable):
-    """Two steps in one run that identity cannot tell apart.
+    """Two steps in one run that are not distinguishable by identity - the same instance handed twice or a
+    decorator like `dataclass(eq=True)` making two of them compare equal.
 
-    IDENTITY IS THE DEPENDENCY CURRENCY. Every structure the kernel derives is keyed by step, so two steps
-    that compare equal collapse into ONE node and the run silently reconciles a smaller world than it was
-    handed."""
+    Identity IS the kernel's dependency addressing. Every derived structure is keyed by instance, so two
+    equal steps collapse into ONE graph node and the run would be refused blaming an Ordering that did
+    nothing wrong."""
 
 
 class Misconfigured(ValueError):
-    """An AXIS was handed a value it cannot work with - a retry budget below one, a deadline in the past,
-    a pass ceiling of zero.
+    """An axis handed a value it cannot work with - a negative delay, a zero poll, a byte ceiling below one.
 
-    Nothing about the steps is wrong here, which is exactly why it is not an Unresolvable. The declaration
-    would resolve fine while the strategy wired around it will not."""
+    Nothing about the steps is wrong here, which is why this is not an `Unresolvable`. The declaration was
+    never reached. One small object was constructed with an argument outside its own domain and says so
+    where it is built rather than misbehaving quietly at the moment it is finally used."""
+

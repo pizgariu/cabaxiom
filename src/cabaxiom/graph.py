@@ -1,33 +1,34 @@
-"""The Graph - one home for every edge a declaration draws and every question asked about them.
-
-Before this, seven places walked the declaration by hand and four of them read the slot off the type
-while three read it off the instance. Seven copies of one fact is how a guard ends up honouring an edge
-kind in one place and missing it in another, which the class-versus-instance split was already
-happening. One derivation, read by every consumer, so a kind added to the vocabulary tomorrow is honoured
-everywhere without any of them learning it exists.
-
-IMMUTABLE IN CONTRACT AND LAZY IN COMPUTATION. The edges are derived once at construction, since every
-consumer needs them. The inversion is built on the first ask and kept, since a run that never asks for
-dependents never pays for them."""
+"""The Graph - the kernel-owned home of the dependency structure. Every edge kind derived once. Every
+question the kernel asks of that structure (invert it, close over it, split it) answered in one place."""
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Sequence
 from typing import final
 
-from .errors import Identity, Malformed, Presence
+from .errors import DataFlow, Identity, Malformed, Presence
 from .step import Step
 from .vocabulary import MODES, EdgeKind, Roster, Vocabulary
 
-# What a slot may hold. A plain alias rather than a `type` statement, since the floor is still 3.10.
-Declared = type[Step] | str | Step
-
+# The three shapes a declared name takes. A step CLASS (`expects`, `requires`, `prepares`, `mandates`), a
+# capability LABEL (`wants`, `demands`) or a step INSTANCE (`uses`, `needs`). One alias, because every per-name read carries it.
+type Declared = type[Step] | str | Step
 
 @final
 class Match:
-    """One NAME in one slot plus every step in the run it pointed at - including none.
+    """One declared name and the present steps it resolved to - the derivation's per-NAME view, misses
+    included.
 
-    The per-name view of an edge, where dependencies() is the per-step one. It carries the ROW rather
-    than the slot's name, so a consumer that needs the hardness or the addressing reads the vocabulary
-    instead of re-learning it from a list of slot names somebody has to keep in step."""
+    dependencies() answers what a step comes AFTER. The resolved edges, deduplicated across every name that
+    reached them. A name that matched NOTHING contributes no edge, so it is invisible there - and a miss is
+    real structure, not the absence of it. It is a soft name trusting the world to have done the work
+    already, a prerequisite a narrowing scope just dropped or an edge a transition is about to take
+    away. This record is the shape that can say so. The slot the name was declared in, the name itself and
+    the match set the same lookups the derivation runs found for it, empty or not.
+
+    `soft` reads the slot. `expects`, `prepares`, `wants` and `uses` trust an absent name, while `requires`,
+    `mandates`, `demands` and `needs` do not (demand() raises on their misses once membership is final), so only a soft miss is silent.
+
+    A RECORD, like every value the kernel mints. The match set is captured as a tuple behind read-only
+    properties, so a caller cannot rewrite what a derivation found."""
 
     __slots__ = ("__step", "__kind", "__name", "__matched")
 
@@ -43,6 +44,8 @@ class Match:
 
     @property
     def kind(self) -> EdgeKind:
+        # The kind RECORD itself, so a consumer that needs more than the slot name (the addressing, the
+        # hardness, the counterpart) reads the vocabulary's own row instead of re-learning it.
         return self.__kind
 
     @property
@@ -59,217 +62,316 @@ class Match:
 
     @property
     def soft(self) -> bool:
-        # Read off the ROW, never off a hardcoded list of slot names. A kind grown tomorrow answers this
-        # correctly on the day it is added.
+        # Read off the kind's own record, never a hardcoded name list. This used to spell the three soft
+        # slots as a literal tuple, so a NEW soft kind would have answered False here - the flag a Rift's
+        # quieted channel votes on, wrong without a sound. The vocabulary is the one place that knows.
         return not self.__kind.hard
 
     @property
     def label(self) -> str:
+        # The declared name in words - the addressing's dispatch, not an if-chain here. A capability quoted
+        # so it cannot be read as a class, a step class by its own name, a step instance by its class name.
         return self.__kind.addressing.spoken(self.__name)
 
     def __repr__(self) -> str:
-        found = ", ".join(Step.named(step) for step in self.__matched) or "nothing"
-        return f"Match({Step.named(self.__step)}.{self.slot} {self.label} -> {found})"
+        matched = ", ".join(Step.named(step) for step in self.__matched) or "nothing"
+        return f"Match({Step.named(self.__step)}.{self.__kind.slot} {self.label} -> {matched})"
 
 
 @final
 class Graph:
-    """Every edge one declaration draws, derived once, over one membership."""
+    """The dependency structure of ONE step set, derived once and asked many ways - the Ledger's twin on
+    the dependency axis. Where the Ledger owns what a run RECORDED, the Graph owns what a run is MADE OF:
+    which step comes after which, resolved from every edge kind the vocabulary declares - `expects` and
+    `requires` on kinds, fanned to every present instance of the named class (`prepares` and `mandates`
+    writing the same edge the other way around), `wants` and `demands` on capabilities, fanned to every
+    present provider. And `uses` and `needs` on instances - keyed by instance, scoped to the supplied
+    set, duplicates collapsed in first-seen order.
+
+    Derivation is TOTAL. An edge naming something absent is a dead end, never an error, so every consumer
+    reads the same structure - a targeted scope growing its closure mid-narrowing, a partition checking
+    placements, a ledger blocking a failure's dependents. The one presence rule lives apart as demand(),
+    the guard the arranger fires on the post-scope set before any Ordering verb runs - `requires` or
+    `mandates` naming an absent class, `demands` naming an unprovided capability or `needs` naming a
+    missing instance, raises THERE - absence is only an
+    error once the run's final membership is known.
+
+    Construction VETS the declarations first. A value in the wrong slot (a label in `expects`, a class in
+    `uses`) is a programming error rather than an absence. It raises a TypeError naming the slot the stray
+    belongs in - so an untyped domain hears at build time what a typed one hears from mypy, instead of a
+    wrong-shaped key silently matching nothing.
+
+    Immutable in contract, lazy in computation. The forward edges are derived at construction. The
+    inversion is built on the first dependents() ask and cached - a run that never asks pays nothing. The
+    per-name read matching() is lazier still and keeps nothing at all, since the tables it consults outlive
+    the derivation for demand() anyway."""
 
     def __init__(self, steps: Iterable[Step], vocabulary: Vocabulary | None = None):
-        self.__vocabulary = vocabulary if vocabulary is not None else Vocabulary.shipped()
+        # The language this derivation speaks, injected like every axis and defaulting to the shipped
+        # table - resolved via None so no shared default leaks, the kernel's rule for injected defaults.
+        # Against None and not for truthiness, though a Vocabulary is never empty. `or` would work only
+        # because the Vocabulary constructor refuses an empty language. A default that quietly leans
+        # on a guard three modules away is a default that changes meaning when that guard moves.
+        self.__vocabulary = Vocabulary.shipped() if vocabulary is None else vocabulary
         self.__steps = tuple(steps)
         for step in self.__steps:
             self.__vet(step, self.__vocabulary)
-        self.__addressable()
-
-        instances: defaultdict[type[Step], list[Step]] = defaultdict(list)
+        present = set(self.__steps)
+        # The identity guard's second half, for what the class-definition hook cannot see. A decorator
+        # like dataclass(eq=True) rewrites __eq__ AFTER Step.__init_subclass__ ran. Two value-equal steps
+        # collapse into one hash key here and every table below would quietly derive a smaller world -
+        # the failure used to surface as a coverage error blaming the Ordering. The same instance handed
+        # twice is the OTHER way the counts diverge, so the two get their own sentences.
+        if len(present) != len(self.__steps):
+            identities = {id(step) for step in self.__steps}
+            if len(identities) < len(self.__steps):
+                twice = next(step for index, step in enumerate(self.__steps) if step in self.__steps[:index])
+                raise Identity(
+                    f"{Step.named(twice)} was handed to this run twice. A step is one concern with one "
+                    f"identity, so declare a second instance instead of repeating the first."
+                )
+            collapsed = next(step for index, step in enumerate(self.__steps) if step in set(self.__steps[:index]))
+            raise Identity(
+                f"Two distinct {collapsed.__class__.__name__} instances compare EQUAL, so they would collapse "
+                f"into one graph node and the run would derive a smaller world. A Step's identity is the "
+                f"kernel's dependency addressing. Drop the __eq__ (a dataclass takes eq=False) and keep "
+                f"value semantics on a field object instead."
+            )
+        gathered_by_class: defaultdict[type[Step], list[Step]] = defaultdict(list)
         providers: defaultdict[str, list[Step]] = defaultdict(list)
         for step in self.__steps:
-            instances[type(step)].append(step)
-            for capability in step.provides:            # off the INSTANCE, so one may provide and its twin not
+            gathered_by_class[type(step)].append(step)
+            for capability in step.provides:   # instance-read, like tags: a step may provide per instance
                 providers[capability].append(step)
-        self.__instances: dict[type[Step], Sequence[Step]] = {kind: Roster(held) for kind, held in instances.items()}
-        self.__providers: dict[str, Sequence[Step]] = dict(providers)
-
-        # ONE loop over the vocabulary. That is the whole point of the table. There is no branch here
-        # naming a slot, so a row added tomorrow is derived by this same loop on the day it is added.
-        drawn: defaultdict[Step, list[Step]] = defaultdict(list)
+        self.__instances = {kind: Roster(held) for kind, held in gathered_by_class.items()}
+        self.__providers = providers
+        # ONE loop over the vocabulary, not one hand-written loop per slot. A kind edge fans to every
+        # present instance, a capability edge to every present provider, an instance edge to its own
+        # presence - and WHICH of those a slot means is the record's addressing, so the next edge kind is
+        # a row in the vocabulary and not an edit here. Row order is derivation order, then the dedup
+        # keeps first-seen. A PRECEDES kind writes the edge the other way around - the match comes after
+        # the declaring step - and those contributions land after a step's own declarations, in supplied
+        # order of whoever declared them, so the outcome stays deterministic.
+        gathered: dict[Step, list[Step]] = {step: [] for step in self.__steps}
         for step in self.__steps:
             for kind in self.__vocabulary:
                 for name in getattr(step, kind.slot, ()):
                     for found in self.__found(kind, name):
                         if kind.precedes:
-                            drawn[found].append(step)   # this step runs BEFORE the match
+                            gathered[found].append(step)
                         else:
-                            drawn[step].append(found)
-        self.__edges = {step: tuple(dict.fromkeys(drawn.get(step, ()))) for step in self.__steps}
-        self.__inverted: dict[Step, tuple[Step, ...]] | None = None
+                            gathered[step].append(found)
+        self.__edges = {step: tuple(dict.fromkeys(mine)) for step, mine in gathered.items()}
+        self.__inverted: dict[Step, tuple[Step, ...]] | None = None   # built on the first dependents() ask
 
     def __found(self, kind: EdgeKind, name: Declared) -> tuple[Step, ...]:
-        # Shared by the derivation and by matching(), so the two views of one edge cannot disagree.
+        # THE lookup, answered by the kind's own addressing - a strategy, not a string compared three
+        # times. Total by construction (an absent name is an empty match, never an error) and shared by
+        # the derivation and by matching(), so the two views cannot disagree about what a name found.
         return kind.addressing.found(name, self.__instances, self.__providers)
-
-    def __addressable(self) -> None:
-        # IDENTITY IS THE DEPENDENCY CURRENCY. Two steps a dict cannot tell apart become one node, so the
-        # run would reconcile a smaller world than it was handed and say nothing. Identity is the ONLY
-        # equality a Step has, refused once at class definition and once at first construction, so walking
-        # the ids is the whole check rather than a fast path in front of a subtler one.
-        seen: set[int] = set()
-        for step in self.__steps:
-            if id(step) in seen:
-                raise Identity(
-                    f"{Step.named(step)} was handed to this run twice. One instance is one node of the "
-                    f"derivation, so the second is not a second step - build two."
-                )
-            seen.add(id(step))
 
     @staticmethod
     def __vet(step: Step, vocabulary: Vocabulary) -> None:
-        # The shape of every slot, checked per INSTANCE because that is where a slot is read from. The
-        # classic catch is the forgotten comma - `expects = (Reactor)` is the class and not a one-tuple -
-        # and the second is a bare string in a set-of-labels slot, which iterates into single characters.
+        # The declaration guard. Every slot takes exactly one shape. A value in the wrong slot is a
+        # programming error, never a dead end - the silent kind of wrong the one home exists to refuse.
+        # Driven by the registry, so a new edge kind arrives already vetted. The addressing says what an
+        # element must BE. The belongs-elsewhere hint is composed from the OTHER currencies' slots,
+        # which is exactly the sentence that used to be spelled by hand three times. Vetted here per
+        # INSTANCE (the class-definition guard cannot see an instance assignment), the identity
+        # contract's own two-gate doctrine.
         for kind in vocabulary:
             declared = getattr(step, kind.slot, ())
-            if isinstance(declared, str) or not isinstance(declared, tuple):
-                raise Malformed(
+            if not isinstance(declared, tuple):
+                raise TypeError(
                     f"{Step.named(step)}.{kind.slot} must be a tuple of {kind.addressing.takes}, got "
-                    f"{type(declared).__name__}. A single entry needs its trailing comma."
+                    f"{declared.__class__.__name__}. A single entry still needs a trailing comma - "
+                    f"write {kind.slot} = (entry,)."
                 )
             for name in declared:
-                if kind.addressing.admits(name):
-                    continue
-                elsewhere = next((mode for mode in MODES if mode.admits(name)), None)
-                hint = f" {elsewhere.stray} belongs in a slot addressed that way." if elsewhere else ""
+                if not kind.addressing.admits(name):
+                    first, second = (other for other in MODES if other is not kind.addressing)
+                    raise Malformed(
+                        f"{Step.named(step)} names {name!r} in `{kind.slot}`, which takes "
+                        f"{kind.addressing.takes}. {first.stray} belongs in {vocabulary.slots_for(first)} and "
+                        f"{second.stray.lower()} in {vocabulary.slots_for(second)}."
+                    )
+        # The label SETS, vetted the same way for the same reason. A bare string is the silent one - it
+        # iterates into single characters, so `provides = "database"` would offer six capabilities named
+        # d, a, t, b, s and e. Every match would miss without a word.
+        for slot, noun in (("provides", "capability labels"), ("produces", "artifact keys"),
+                           ("consumes", "artifact keys")):
+            declared = getattr(step, slot)
+            if isinstance(declared, str):
                 raise Malformed(
-                    f"{Step.named(step)}.{kind.slot} takes {kind.addressing.takes}, yet it holds "
-                    f"{name!r}.{hint}"
+                    f"{Step.named(step)}.{slot} must be a set of {noun}, got the string {declared!r}. "
+                    f"Wrap it - {slot} = frozenset({{{declared!r}}})."
                 )
-        for labels in ("provides", "contends"):
-            held: object = getattr(step, labels, frozenset())
-            if isinstance(held, str) or not isinstance(held, (frozenset, set)):
-                raise Malformed(
-                    f"{Step.named(step)}.{labels} must be a set of labels, got {type(held).__name__}. A "
-                    f"bare string iterates into single characters, which is the silent kind of wrong."
-                )
+            for label in declared:
+                if not isinstance(label, str):
+                    raise Malformed(
+                        f"{Step.named(step)} names {label!r} in `{slot}`, which takes {noun}."
+                    )
 
     @property
     def vocabulary(self) -> Vocabulary:
+        # The language this derivation spoke, published for the same reason as `steps`. explain() renders
+        # the declarations and the drawing styles the arrows BY the run's own kinds, so handing either a
+        # different vocabulary than the derivation used would be the two-arguments disease again.
         return self.__vocabulary
 
     @property
     def steps(self) -> tuple[Step, ...]:
-        # PUBLISHED, so a consumer cannot be handed a derivation of one world beside the steps of another.
-        # Every verb along the spine takes the Graph alone for exactly this reason.
+        # The membership this derivation was built over, in supplied order - the run's final set, since a
+        # Graph is only ever derived once the scope has spoken. PUBLISHED because every consumer needs both
+        # the set and the edges over it. Handing those down as two arguments made their correspondence
+        # the caller's discipline. A graph of one world passed alongside the steps of another surfaced as a
+        # raw KeyError inside a placement check or as a coverage error blaming the Ordering for a fault
+        # that was never its own. Read from here they cannot disagree.
         return self.__steps
 
     def dependencies(self, step: Step) -> tuple[Step, ...]:
-        # What must settle before this step, deduplicated, first-seen order kept.
-        return self.__edges.get(step, ())
+        # Everything this step declared it comes after, resolved to present instances in first-seen order.
+        # The read every consumer shares. An Ordering feeds it to its sorter, a partition checks each entry's
+        # placement, a closure walks it - so a new edge kind lands in the derivation above and nowhere else.
+        return self.__edges[step]
 
     def matching(self, step: Step) -> tuple[Match, ...]:
-        # The per-NAME twin of dependencies(), MISSES INCLUDED and deliberately not deduplicated. A hard
-        # edge that matched nothing is invisible in dependencies() and is precisely what demand() is
-        # looking for, so the two cannot be the same view.
-        return tuple(Match(step, kind, name, self.__found(kind, name))
-                     for kind in self.__vocabulary
-                     for name in getattr(step, kind.slot, ()))
+        # The per-NAME twin of dependencies(). Every name this step declares, paired with what it matched -
+        # the names that matched NOTHING included, which the edge view above cannot show, since a miss
+        # contributes no edge and leaves no trace. The misses are the whole reason this read exists. A soft
+        # name gone quiet, a leaning on the world, a fan-in that thinned are all invisible in the resolved
+        # edges, since only this one home knows the lookups that produced them.
+        #
+        # It KEEPS NOTHING. It re-runs the same lookups against the same tables the derivation used, which
+        # outlive it for demand() anyway - so the misses were never lost, only never surfaced. A run
+        # that never asks pays nothing. The inversion's discipline, one step further.
+        #
+        # Deliberately NOT deduplicated, unlike the edge view. A provider reached by both `expects` and
+        # `wants` is TWO declarations that both landed, so collapsing them would hide one.
+        return tuple(
+            Match(step, kind, name, self.__found(kind, name))
+            for kind in self.__vocabulary
+            for name in getattr(step, kind.slot, ())
+        )
 
     def dependents(self, step: Step) -> tuple[Step, ...]:
-        # The inversion, built on the first ask and kept. A run that never asks never pays.
-        if self.__inverted is None:
-            building: defaultdict[Step, list[Step]] = defaultdict(list)
+        # The inversion. Every step that declared THIS one (directly or through its kind) as a prerequisite.
+        # Built lazily on the first ask and cached - the Ledger only ever asks after a failure, so a clean
+        # run never pays for the inversion at all.
+        inverted = self.__inverted
+        if inverted is None:
+            gathered: defaultdict[Step, list[Step]] = defaultdict(list)
             for dependent, prerequisites in self.__edges.items():
                 for prerequisite in prerequisites:
-                    building[prerequisite].append(dependent)
-            self.__inverted = {held: tuple(building.get(held, ())) for held in self.__steps}
-        return self.__inverted.get(step, ())
+                    gathered[prerequisite].append(dependent)
+            inverted = {prerequisite: tuple(dependents) for prerequisite, dependents in gathered.items()}
+            self.__inverted = inverted
+        return inverted.get(step, ())
 
     def closure(self, seeds: Iterable[Step]) -> frozenset[Step]:
-        # The seeds plus everything they transitively need. What a targeted run must keep.
+        # The seeds plus every transitive PREREQUISITE - the walk a targeted scope needs, so a target never
+        # converges before what it declared. Edges only lead to present steps (derivation is total), so the
+        # closure stays inside this graph.
         return self.__reached(seeds, self.dependencies)
 
     def fallout(self, seeds: Iterable[Step]) -> frozenset[Step]:
-        # The seeds plus everything that transitively needs them. What one failure costs.
+        # The seeds plus every transitive DEPENDENT, closure() read the other way. Where closure() answers
+        # what must converge BEFORE these, this answers what stands ON them and would be left holding
+        # nothing if they failed. It grows along the inversion, so it pays for the inversion exactly as
+        # every dependents() caller does, while a clean run never asks.
+        #
+        # ONE home, because its two callers must agree. The Ledger blames a failure's fallout under
+        # BestEffort and the counterfactual read forecasts it. Written twice they could drift. The
+        # forecast would quietly stop describing the handling.
         return self.__reached(seeds, self.dependents)
 
     @staticmethod
     def __reached(seeds: Iterable[Step], along: Callable[[Step], tuple[Step, ...]]) -> frozenset[Step]:
-        # ONE frontier walk and the direction is a parameter, so closure and fallout cannot drift apart in
-        # their handling of a cycle, a repeat or an isolated seed.
-        reached: set[Step] = set()
-        frontier = list(seeds)
+        # The seeds plus everything reachable from them, grown until nothing new joins. ONE walk, because
+        # the two directions differ in nothing but the neighbours they follow. Closure() goes up the edges
+        # and fallout() down the inversion. Written twice they would be two chances to get a frontier walk
+        # subtly wrong, so the direction is the parameter and the walk is written once.
+        reached = set(seeds)
+        frontier = list(reached)
         while frontier:
-            step = frontier.pop()
-            if step in reached:
-                continue
-            reached.add(step)
-            frontier.extend(along(step))
+            for neighbour in along(frontier.pop()):
+                if neighbour not in reached:
+                    reached.add(neighbour)
+                    frontier.append(neighbour)
         return frozenset(reached)
 
-    def contention(self) -> dict[str, tuple[Step, ...]]:
-        # Which steps compete for each contended label, in supplied order. A label only one step names is
-        # dropped, because contention is a relation between two steps and a lone claimant has no rival.
-        claimed: defaultdict[str, list[Step]] = defaultdict(list)
-        for step in self.__steps:
-            for label in sorted(step.contends):
-                claimed[label].append(step)
-        return {label: tuple(steps) for label, steps in claimed.items() if len(steps) > 1}
-
     def components(self) -> tuple[tuple[Step, ...], ...]:
-        # The weakly-connected split, over the DERIVED edges rather than over one slot. Groups and members
-        # both come out in supplied order, so a component split is reproducible.
-        #
-        # CONTENTION JOINS TOO, even though it is not an edge. A chain shape runs whole chains beside each
-        # other, so two steps that may never run at the same time have to land in the SAME chain, where the
-        # chain's own serial order keeps them apart. Splitting them into two chains is the one arrangement
-        # that breaks the declaration, exactly what the edge walk alone would produce.
-        parent: dict[Step, Step] = {step: step for step in self.__steps}
+        # The weakly-connected split. Maximal groups with no edge crossing between them, the groups and the
+        # steps within each in supplied order. Union-find with path halving over the derived edges - kept
+        # HERE so the split and the edges it follows can never disagree, which is what lets a chain-fanning
+        # consumer treat every component as edge-closed by construction.
+        parent = {step: step for step in self.__steps}
 
-        def root(step: Step) -> Step:
-            while parent[step] is not step:
-                parent[step] = parent[parent[step]]      # path halving
-                step = parent[step]
-            return step
+        def root(node: Step) -> Step:
+            while parent[node] is not node:
+                parent[node] = parent[parent[node]]   # path halving
+                node = parent[node]
+            return node
 
         for step in self.__steps:
-            for prerequisite in self.dependencies(step):
+            for prerequisite in self.__edges[step]:
                 parent[root(step)] = root(prerequisite)
-        for rivals in self.contention().values():
-            first = rivals[0]
-            for rival in rivals[1:]:
-                parent[root(rival)] = root(first)
-        grouped: defaultdict[Step, list[Step]] = defaultdict(list)
-        for step in self.__steps:
-            grouped[root(step)].append(step)
-        return tuple(tuple(grouped[held]) for held in dict.fromkeys(root(step) for step in self.__steps))
 
-    def demand(self, whole: "Graph | None" = None) -> None:
-        # THE HARD-PRESENCE RULE, nothing else. A hard edge that matched nothing is a refusal, a soft
-        # one that matched nothing is a shrug. Which it is comes off the ROW rather than off a list of
-        # slot names this method would otherwise have to keep in step with the vocabulary.
-        #
-        # `whole` is the derivation this one was NARROWED FROM, when it was. A narrowed run is checked
-        # against the same rule, yet the diagnosis differs and only the wider graph can tell them apart -
-        # a declaration nothing ever satisfied is the caller's to fix, while one a scope carried off is
-        # the scope's. They are opposite fixes, where the second one sent people to loosen a slot that was
-        # right all along.
+        members: defaultdict[Step, list[Step]] = defaultdict(list)
         for step in self.__steps:
-            for match in self.matching(step):
-                if match.soft or match.matched:
+            members[root(step)].append(step)
+        return tuple(tuple(members[component]) for component in dict.fromkeys(root(step) for step in self.__steps))
+
+    def demand(self) -> None:
+        # The hard-edge presence guard, deliberately apart from the (total) derivation. `requires` orders
+        # exactly like `expects` and is already derived above, yet it additionally DEMANDS an instance of the
+        # named class be present. The arranger fires this on the post-scope set - the moment membership is
+        # final and before any Ordering verb runs, so no strategy can forget it - while consumers that
+        # legitimately face absence (a scope mid-narrowing) read the derivation without tripping it.
+        # The registry's HARD kinds, nothing named by hand. A new hard kind is a row in the
+        # vocabulary and this guard enforces it unedited. The wording is composed from the record - the
+        # counterpart is what the refusal contrasts against, the addressing picks the nouns.
+        for step in self.__steps:
+            for kind in self.__vocabulary:
+                if not kind.hard:
                     continue
-                carried = () if whole is None else whole.matching(step)
-                lost = next((found.matched for found in carried
-                             if found.slot == match.slot and found.name == match.name and found.matched), ())
-                if lost:
+                for name in getattr(step, kind.slot, ()):
+                    if self.__found(kind, name):
+                        continue
+                    named = kind.addressing.spoken(name)
                     raise Presence(
-                        f"{Step.named(step)}.{match.slot} names {match.label}, yet the scope of this run "
-                        f"dropped the only {match.kind.addressing.noun} that answered it "
-                        f"({', '.join(dict.fromkeys(Step.named(gone) for gone in lost))}). A hard edge says "
-                        f"the world must contain it, so the scope has to keep it or leave out what needs it."
+                        f"{Step.named(step)} {kind.slot} {named} {kind.addressing.absent(named)}. "
+                        f"Unlike `{kind.counterpart}`, which trusts an absent {kind.addressing.noun}, "
+                        f"`{kind.slot}` {kind.addressing.vow}."
                     )
-                raise Presence(
-                    f"{Step.named(step)}.{match.slot} names {match.label} and this run has no such "
-                    f"{match.kind.addressing.noun}. A hard edge says the world must contain it. The "
-                    f"soft companion {match.kind.counterpart!r} is the slot that trusts the world instead."
-                )
+            self.__supplied(step)
+
+    def __supplied(self, step: Step) -> None:
+        # THE DATA-PLANE RULE, the twin of the hard-edge one above and deliberately NOT an edge kind. A
+        # declared key changes no order - the dependency plane says WHEN a step runs, this says only that
+        # what it reads will actually be there - so the two planes stay separable and a step may still come
+        # after another for reasons that carry no payload.
+        #
+        # It asks the DIRECT prerequisites and nothing wider, because that is exactly what the payload is
+        # mounted from (Ledger.mounted merges the direct set). A producer sitting two hops upstream never
+        # reaches this step's `inputs`, so counting it here would bless the very hole this refuses.
+        consumed: frozenset[str] = getattr(step, "consumes", frozenset())
+        if not consumed:
+            return   # the common case pays one attribute read and stops
+        upstream = self.dependencies(step)
+        for key in sorted(consumed):
+            if any(key in getattr(prerequisite, "produces", frozenset()) for prerequisite in upstream):
+                continue
+            elsewhere = [other for other in self.__steps if key in getattr(other, "produces", frozenset())]
+            misplaced = (
+                f" {Step.named(elsewhere[0])} produces it but is not a prerequisite of this step, so its "
+                f"payload never reaches here - declare the edge that carries it."
+                if elsewhere else
+                " Nothing in this run produces it."
+            )
+            raise DataFlow(
+                f"{Step.named(step)} consumes {key!r} and no prerequisite of it produces that key."
+                f"{misplaced} A payload assembled from an absent key arrives as a default the hook cannot "
+                f"tell from a real one, so the run would report clean against a world nobody supplied."
+            )
+

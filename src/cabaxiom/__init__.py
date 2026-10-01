@@ -1,11 +1,11 @@
-"""A domain-agnostic reconciliation kernel. Steps own desired state, a Reconciler resolves their
+"""A domain-agnostic reconciliation kernel: Steps own desired state, a Reconciler resolves their
 order and converges actual -> desired, self-verifying by re-probing for residual drift.
 
 No domain vocabulary lives here. A drift item is read ONLY through the Drift protocol's two
 fields (name + message). Everything richer is the domain's own payload. Two reusable behaviours
-live here once and are inherited by every caller - sequencing steps by Step.expects (dependencies
-declared explicitly, resolved by a pluggable Ordering strategy, graphlib Kahn by default) and
-the self-verifying converge (apply -> re-probe -> residual).
+live here once and are inherited by every caller. One is sequencing steps by the dependencies they
+declare - `expects` and its siblings, resolved by a pluggable Ordering strategy with graphlib's Kahn
+by default. The other is the self-verifying converge (apply -> re-probe -> residual).
 
 The re-probe is only as strong as a step's drift(). A step that mutates but reports no drift is
 trusted to have worked, not verified, so a step guarding a real invariant must expose it through
@@ -14,57 +14,135 @@ completely and cheaply enough for skip-when-clean to stay correct is no fit, how
 resembles desired-state work.
 """
 
+from importlib import metadata as _metadata
+
+from .arranger import Arranger, BaseFan, Chains, Walk, Waves
 from .cancellation import (
     AllOf,
     AnyOf,
     Cancellation,
     Cancelled,
     Deadline,
+    Deferred,
     Every,
+    Fault,
     Flag,
     Majority,
     Most,
     Quorum,
     Rule,
+    Skew,
     Some,
 )
-from .convergence import Backoff, Convergence, Exponential, Fixed, Fixpoint, Jitter, Once
-from .diagram import Diagram, Dot, Mermaid
-from .dispatcher import BaseDispatcher, Dispatcher, OnError, Parallel, Pipeline, Serial, ThreadDispatcher, Write
-from .drift import Assessment, Changes, Drift, DriftItem, Outcome
+from .convergence import (
+    Backoff,
+    BaseLooping,
+    Budget,
+    Convergence,
+    Exponential,
+    Fibonacci,
+    Fixed,
+    Fixpoint,
+    Jitter,
+    Linear,
+    Once,
+    Shrinking,
+)
+from .diagram import Diagram, Dot, Mermaid, Tone
+from .dispatcher import (
+    BaseDispatcher,
+    Crossing,
+    Dispatcher,
+    Flow,
+    Parallel,
+    RemoteDispatcher,
+    RunMode,
+    Serial,
+    Settled,
+    Supervised,
+    ThreadDispatcher,
+    WavesDispatcher,
+    Write,
+)
+from .drift import Artifacts, Assessment, Changes, Drift, DriftItem
 from .errors import (
     Coverage,
     Cycle,
+    DataFlow,
     Identity,
     Malformed,
     Misconfigured,
+    Pairing,
     Presence,
+    Seating,
     Unresolvable,
 )
-from .graph import Graph, Match
-from .observer import Chorus, Observer
+from .graph import Declared, Graph, Match
+from .lease import Authority, Local, Permit
+from .ledger import Ledger, OnError, Reading, Statement
+from .observer import Chorus, Journal, Logging, Observer, Pass, Span, Stamp, Timing
 from .ordering import DFS, Components, Kahn, Ordering, Priority
-from .partition import Chains, Levels, Partition, Placement
+from .partition import ChainsPartition, Overlap, Partition, Placement, Seat, WalkPartition, WavesPartition
 from .reconciler import Reconciler
-from .records import Casualty, Explanation, Reason, Residual
-from .retry import Retry
-from .scope import Only, Scope, Skip
+from .records import Casualty, Explanation, Residual
+from .retry import BaseRetry, Retry
+from .scope import BaseNamed, BaseTagged, Only, Scope, Skip, WithEveryTag, WithoutTag, WithTag
 from .settle import Clean, Settle, Stable
 from .step import Step
-from .vocabulary import BY_CLASS, BY_INSTANCE, BY_LABEL, Addressing, EdgeKind, Vocabulary
+from .vocabulary import (
+    BY_CLASS,
+    BY_INSTANCE,
+    BY_LABEL,
+    Addressing,
+    EdgeKind,
+    Vocabulary,
+)
+from .warrant import Ceiling, Charter, Warrant
 
+# The installed distribution's version, the single source of truth (pyproject.toml), read back through
+# packaging metadata so the two can never drift.
+__version__ = _metadata.version("cabaxiom")
+
+# One canonical order, twice. Groups mirror the import block above (alphabetical by module, the order
+# isort enforces there) and each group mirrors its module's own definition order - protocols and Base*
+# parents before the implementations that stand on them. Reading either list reads the other.
 __all__ = [
-    "Graph", "Match", "Vocabulary", "EdgeKind", "Addressing",
-    "BY_CLASS", "BY_LABEL", "BY_INSTANCE",
-    "Malformed", "Unresolvable", "Cycle", "Coverage", "Presence", "Identity", "Misconfigured",
-    "Drift", "DriftItem", "Assessment", "Changes", "Outcome", "Step",
-    "Scope", "Only", "Skip",
+    # arranger
+    "Arranger", "BaseFan", "Waves", "Chains", "Walk",
+    # cancellation
+    "Cancelled", "Skew", "Deferred", "Fault", "Cancellation", "Deadline", "Flag",
+    "Rule", "Some", "Every", "Most",
+    "Quorum", "AnyOf", "AllOf", "Majority",
+    # convergence
+    "Convergence", "Once", "Backoff", "Fixed", "Exponential", "Linear", "Fibonacci", "Jitter",
+    "BaseLooping", "Fixpoint", "Shrinking", "Budget",
+    # drift
+    "Drift", "DriftItem", "Assessment", "Artifacts", "Changes",
+    # errors - three unrelated bases, each for a different audience
+    "Malformed", "Unresolvable", "Misconfigured",
+    "Cycle", "Coverage", "Seating", "Pairing", "Presence", "DataFlow", "Identity",
+    # dispatcher
+    "OnError", "Overlap", "Ledger", "Statement", "Reading", "Settled", "Write", "Crossing", "Permit", "Authority", "Local", "Warrant", "Charter", "Ceiling", "BaseDispatcher",
+    "Dispatcher", "WavesDispatcher", "RunMode", "Parallel", "Supervised", "Serial", "Flow", "ThreadDispatcher", "RemoteDispatcher",
+    # graph
+    "Declared", "Match", "Graph",
+    "Addressing", "BY_CLASS", "BY_LABEL", "BY_INSTANCE", "EdgeKind", "Vocabulary",
+    "Diagram", "Dot", "Mermaid", "Tone",
+    # observer
+    "Observer", "Chorus", "Pass", "Journal", "Logging", "Stamp", "Span", "Timing",
+    # ordering
     "Ordering", "Kahn", "DFS", "Priority", "Components",
-    "Placement", "Partition", "Levels", "Chains",
+    # partition
+    "Seat", "Placement", "Partition", "WavesPartition", "ChainsPartition", "WalkPartition",
+    # reconciler
+    "Residual", "Explanation", "Casualty", "Reconciler",
+    # retry
+    "Retry", "BaseRetry",
+    # scope
+    "Scope", "BaseNamed", "Only", "Skip", "BaseTagged", "WithTag", "WithEveryTag", "WithoutTag",
+    # settle
     "Settle", "Clean", "Stable",
-    "OnError", "Dispatcher", "BaseDispatcher", "Serial", "Parallel", "Pipeline", "ThreadDispatcher", "Write", "Cancelled", "Cancellation", "Deadline", "Flag", "Rule", "Some", "Every", "Most", "Quorum", "AnyOf", "AllOf", "Majority",
-    "Convergence", "Once", "Fixpoint", "Backoff", "Fixed", "Exponential", "Jitter",
-    "Retry",
-    "Residual", "Reconciler", "Explanation", "Reason", "Casualty", "Diagram", "Mermaid", "Dot",
-    "Observer", "Chorus",
+    # step
+    "Step",
 ]
+

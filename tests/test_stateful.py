@@ -16,11 +16,12 @@ class _Managed(Step):
         self._world = world
         self._key = key
 
-    def assess(self) -> list:
-        return Assessment(deviation=[] if self._world.get(self._key) == _DESIRED else [DriftItem(str(self._key), "stale")])
+    def assess(self, inputs):
+        return Assessment(deviation=[] if self._world.get(self._key) == _DESIRED else [DriftItem(str(self._key), "stale")]), {}
 
-    def apply(self) -> None:
+    def apply(self, inputs):
         self._world[self._key] = _DESIRED
+        return None, {}
 
 
 class ReconcilerMachine(RuleBasedStateMachine):
@@ -47,10 +48,12 @@ class ReconcilerMachine(RuleBasedStateMachine):
     @precondition(lambda self: self._steps)
     @rule()
     def reconcile(self):
+        # Hypothesis drives its rules synchronously with no event loop of its own, so each converge -
+        # a coroutine now - runs to completion under asyncio.run inside the rule.
         steps = tuple(self._steps.values())
         asyncio.run(Reconciler(steps, convergence=Fixpoint()).converge())
         for step in steps:
-            assert list(step.assess().deviation) == [], "converge left a managed key off desired"
+            assert step.assess({})[0].deviation == [], "converge left a managed key off desired"
         settled = dict(self._world)
         asyncio.run(Reconciler(steps, convergence=Fixpoint()).converge())
         assert self._world == settled, "a second converge changed a settled world"
@@ -61,3 +64,4 @@ TestReconcilerMachine.settings = settings(
     max_examples=50, stateful_step_count=15, deadline=None,
     suppress_health_check=[HealthCheck.differing_executors],
 )
+

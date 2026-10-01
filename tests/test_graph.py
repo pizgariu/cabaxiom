@@ -1,447 +1,564 @@
-"""The Graph - one derivation, read by everything, over one membership."""
+"""The Graph, one home for the dependency structure - derivation, the demand guard, inversion, closure,
+and the component split."""
 import unittest
+from dataclasses import dataclass
 
-from cabaxiom import Identity, Malformed, Misconfigured, Presence, Step
-from cabaxiom.graph import Graph
-from cabaxiom.vocabulary import BY_CLASS, BY_INSTANCE, EdgeKind, Roster, Vocabulary
-
-
-class Db(Step):
-    provides = frozenset({"database"})
+from cabaxiom import Graph, Step
+from cabaxiom.vocabulary import Roster
+from support import A, B, C, X, Y
 
 
-class Api(Step):
-    wants = ("database",)
+class GraphDerivationTests(unittest.IsolatedAsyncioTestCase):
+    """Derivation is total and instance-keyed: KIND edges fan to every present instance, the INSTANCE edge
+    is scoped to the set, duplicates collapse in first-seen order, where absence is a dead end, not an error."""
+
+    def test_a_kind_edge_fans_to_every_present_instance(self):
+        first_a, second_a, b = A([]), A([]), B([])
+        graph = Graph((first_a, second_a, b))
+        self.assertEqual(graph.dependencies(b), (first_a, second_a))
+        self.assertEqual(graph.dependencies(first_a), ())
+
+    def test_requires_derives_exactly_like_after(self):
+        class Needy(Step):
+            requires = (A,)
+
+        a, needy = A([]), Needy()
+        graph = Graph((a, needy))
+        self.assertEqual(graph.dependencies(needy), (a,))
+
+    def test_needs_is_instance_scoped_and_an_absent_needs_is_a_dead_end(self):
+        class Node(Step):
+            pass
+
+        first, second, stranger = Node(), Node(), Node()
+        second.needs = (first, stranger)   # stranger is never supplied to the graph
+        graph = Graph((first, second))
+        self.assertEqual(graph.dependencies(second), (first,))
+
+    def test_a_prerequisite_reached_twice_collapses_keeping_first_seen_order(self):
+        class Dual(Step):
+            expects = (A,)
+
+        a, dual = A([]), Dual()
+        dual.needs = (a,)   # the same instance arrives via its kind AND via the instance edge
+        graph = Graph((a, dual))
+        self.assertEqual(graph.dependencies(dual), (a,))
+
+    def test_an_absent_soft_kind_is_a_dead_end_not_an_error(self):
+        b = B([])   # B declares expects = (A,), with no A supplied
+        graph = Graph((b,))
+        self.assertEqual(graph.dependencies(b), ())
 
 
-class Web(Step):
-    expects = (Api,)
+class GraphDemandTests(unittest.IsolatedAsyncioTestCase):
+    """demand() is the hard-edge presence guard, apart from the total derivation on purpose."""
+
+    def test_demand_raises_for_a_requires_with_no_instance(self):
+        class Needy(Step):
+            requires = (A,)
+
+        graph = Graph((Needy(),))   # derivation itself stays total: constructing never raises
+        with self.assertRaises(ValueError) as ctx:
+            graph.demand()
+        self.assertIn("Needy requires A", str(ctx.exception))
+        self.assertIn("demands its presence", str(ctx.exception))
+
+    def test_demand_passes_when_every_hard_edge_is_met(self):
+        class Needy(Step):
+            requires = (A,)
+
+        Graph((A([]), Needy())).demand()   # no raise: the required kind has an instance present
 
 
-class OneDerivationTests(unittest.TestCase):
+class GraphDependentsTests(unittest.IsolatedAsyncioTestCase):
+    """dependents() is the exact inversion of dependencies(), built lazily and cached."""
 
-    def test_a_class_edge_and_a_capability_edge_are_the_same_kind_of_answer(self):
-        # The point of the table. Two different addressings, one derivation, so dependencies() cannot
-        # tell you which slot an edge came from because that is not its question.
-        db, api, web = Db(), Api(), Web()
-        graph = Graph((web, api, db))
+    def test_dependents_is_the_exact_inversion(self):
+        a, b, c = A([]), B([]), C([])   # the support chain: B after A, C after B
+        graph = Graph((a, b, c))
+        self.assertEqual(graph.dependents(a), (b,))
+        self.assertEqual(graph.dependents(b), (c,))
+        self.assertEqual(graph.dependents(c), ())
+
+    def test_the_inversion_is_built_once_and_reused(self):
+        a, b = A([]), B([])
+        graph = Graph((a, b))
+        first_ask = graph.dependents(a)
+        self.assertEqual(first_ask, (b,))
+        self.assertEqual(graph.dependents(a), first_ask)   # the second ask reads the cache, same answer
+
+
+class GraphClosureTests(unittest.IsolatedAsyncioTestCase):
+    """closure() grows the seeds along every edge kind until nothing new joins."""
+
+    def test_closure_grows_over_every_edge_kind_until_it_closes(self):
+        class Root(Step):
+            pass
+
+        class Mid(Step):
+            requires = (Root,)
+
+        class Top(Step):
+            pass
+
+        class Bystander(Step):
+            pass
+
+        root, mid, top, bystander = Root(), Mid(), Top(), Bystander()
+        top.needs = (mid,)   # instance edge into a requires edge: the walk crosses both kinds
+        graph = Graph((root, mid, top, bystander))
+        self.assertEqual(graph.closure((top,)), frozenset({top, mid, root}))   # bystander stays out
+
+    def test_the_closure_of_no_seeds_is_empty(self):
+        self.assertEqual(Graph((A([]),)).closure(()), frozenset())
+
+    def test_a_prerequisite_already_closed_is_not_walked_twice(self):
+        # Two seeds whose walks meet: C leads back to B, which is already a seed, so the walk skips it
+        # instead of re-frontiering it - the closure terminates on convergent paths, not just on chains.
+        a, b, c = A([]), B([]), C([])
+        graph = Graph((a, b, c))
+        self.assertEqual(graph.closure((b, c)), frozenset({a, b, c}))
+
+
+class GraphComponentsTests(unittest.IsolatedAsyncioTestCase):
+    """components() splits where no edge crosses, groups and members in supplied order."""
+
+    def test_components_split_where_no_edge_crosses(self):
+        a, b, c, x, y = A([]), B([]), C([]), X([]), Y([])
+        graph = Graph((c, a, x, b, y))   # supplied scrambled: membership must not care
+        names = [tuple(step.__class__.__name__ for step in component) for component in graph.components()]
+        self.assertEqual(names, [("C", "A", "B"), ("X",), ("Y",)])   # chain joined, singletons apart, supplied order
+
+    def test_a_needs_edge_joins_components_too(self):
+        class Node(Step):
+            pass
+
+        first, second = Node(), Node()
+        second.needs = (first,)
+        self.assertEqual(Graph((first, second)).components(), ((first, second),))
+
+
+class GraphCapabilityTests(unittest.IsolatedAsyncioTestCase):
+    """The fourth edge kind. wants and demands fan to every present provider, landing in the same one
+    derivation every guard reads - which is the entire point of the Graph."""
+
+    def test_wants_fans_to_every_present_provider(self):
+        class Db(Step):
+            provides = frozenset({"database"})
+
+        class Api(Step):
+            wants = ("database",)
+
+        primary, replica, api = Db(), Db(), Api()
+        graph = Graph((primary, replica, api))
+        self.assertEqual(graph.dependencies(api), (primary, replica))   # fan-in, supplied order
+
+    def test_an_unprovided_want_is_a_dead_end_not_an_error(self):
+        class Api(Step):
+            wants = ("database",)
+
+        api = Api()
+        graph = Graph((api,))
+        self.assertEqual(graph.dependencies(api), ())
+        graph.demand()   # soft: nothing to insist on
+
+    def test_demands_orders_exactly_like_wants_when_provided(self):
+        class Db(Step):
+            provides = frozenset({"database"})
+
+        class Api(Step):
+            demands = ("database",)
+
+        db, api = Db(), Api()
+        graph = Graph((db, api))
         self.assertEqual(graph.dependencies(api), (db,))
-        self.assertEqual(graph.dependencies(web), (api,))
+        graph.demand()   # the insistence is met
 
-    def test_a_capability_fans_in_across_every_provider(self):
-        class Spare(Step):
+    def test_demand_raises_for_a_demand_nothing_provides(self):
+        class Api(Step):
+            demands = ("database",)
+
+        graph = Graph((Api(),))   # derivation stays total, constructing never raises
+        with self.assertRaises(ValueError) as ctx:
+            graph.demand()
+        self.assertIn("Api demands 'database'", str(ctx.exception))
+        self.assertIn("insists on a provider", str(ctx.exception))
+
+    def test_provides_is_overridable_per_instance_like_tags(self):
+        class Node(Step):
+            pass
+
+        class Api(Step):
+            wants = ("cache",)
+
+        node, api = Node(), Api()
+        node.provides = frozenset({"cache"})
+        self.assertEqual(Graph((node, api)).dependencies(api), (node,))
+
+    def test_a_provider_reached_by_kind_and_capability_collapses_once(self):
+        class Db(Step):
             provides = frozenset({"database"})
 
-        db, spare, api = Db(), Spare(), Api()
-        self.assertEqual(set(Graph((api, db, spare)).dependencies(api)), {db, spare})
+        class Api(Step):
+            expects = (Db,)
+            wants = ("database",)
 
-    def test_an_edge_is_deduplicated_and_keeps_first_seen_order(self):
-        class Twice(Step):
+        db, api = Db(), Api()
+        self.assertEqual(Graph((db, api)).dependencies(api), (db,))
+
+    def test_capability_edges_join_closure_dependents_and_components(self):
+        class Db(Step):
             provides = frozenset({"database"})
+
+        class Api(Step):
+            wants = ("database",)
+
+        db, api = Db(), Api()
+        graph = Graph((db, api))
+        self.assertEqual(graph.closure((api,)), frozenset({api, db}))
+        self.assertEqual(graph.dependents(db), (api,))
+        self.assertEqual(graph.components(), ((db, api),))
+
+
+class GraphDeclarationGuardTests(unittest.IsolatedAsyncioTestCase):
+    """A declaration in the wrong slot is a loud TypeError at construction, never a silent dead end - and
+    the error names the slot the stray belongs in, so the fix ships inside the message."""
+
+    def test_a_label_in_expects_is_refused_pointing_at_the_right_slots(self):
+        class Api(Step):
+            expects = ("database",)   # a capability label where a step class belongs
+
+        with self.assertRaises(TypeError) as ctx:
+            Graph((Api(),))
+        self.assertIn("names 'database' in `expects`, which takes step CLASSES", str(ctx.exception))   # the actual slot, not the pair
+        self.assertIn("A capability label belongs in `wants` or `demands` and a step instance in `uses` or `needs`", str(ctx.exception))
+
+    def test_a_class_in_wants_is_refused_pointing_at_expects(self):
+        class Db(Step):
+            pass
+
+        class Api(Step):
+            wants = (Db,)   # a step class where a capability label belongs
+
+        with self.assertRaises(TypeError) as ctx:
+            Graph((Api(),))
+        self.assertIn("in `wants`, which takes capability labels", str(ctx.exception))
+        self.assertIn("belongs in `expects` or `requires` or `prepares` or `mandates`", str(ctx.exception))
+
+    def test_a_class_in_needs_is_refused_pointing_at_after(self):
+        class Db(Step):
+            pass
+
+        class Api(Step):
+            pass
+
+        api = Api()
+        api.needs = (Db,)   # a step class where an instance belongs
+        with self.assertRaises(TypeError) as ctx:
+            Graph((api,))
+        self.assertIn("in `needs`, which takes step INSTANCES", str(ctx.exception))
+
+    def test_a_non_label_in_provides_is_refused(self):
+        class Db(Step):
             pass
 
         db = Db()
-        both = Api()
-        both.expects = (Db,)                      # the same target, named twice by two different slots
-        self.assertEqual(Graph((both, db)).dependencies(both), (db,))
+        db.provides = frozenset({3306})   # a port number is not a capability label
+        with self.assertRaises(TypeError) as ctx:
+            Graph((db,))
+        self.assertIn("names 3306 in `provides`", str(ctx.exception))
 
-    def test_the_membership_is_published_beside_the_derivation(self):
-        # So a consumer cannot be handed a graph of one world beside the steps of another.
-        db, api = Db(), Api()
-        self.assertEqual(Graph((api, db)).steps, (api, db))
-
-
-class TheInversionTests(unittest.TestCase):
-
-    def test_dependents_is_the_other_direction_of_the_same_edges(self):
-        db, api = Db(), Api()
-        graph = Graph((api, db))
-        self.assertEqual(graph.dependents(db), (api,))
-        self.assertEqual(graph.dependents(api), ())
-
-    def test_closure_keeps_what_a_targeted_run_must_not_drop(self):
-        db, api, web = Db(), Api(), Web()
-        graph = Graph((web, api, db))
-        self.assertEqual(graph.closure([web]), frozenset({web, api, db}))
-
-    def test_fallout_is_what_one_failure_would_cost(self):
-        db, api, web = Db(), Api(), Web()
-        graph = Graph((web, api, db))
-        self.assertEqual(graph.fallout([db]), frozenset({db, api, web}))
-
-    def test_both_walks_survive_a_seed_that_reaches_nothing(self):
-        alone = Db()
-        graph = Graph((alone,))
-        self.assertEqual(graph.closure([alone]), frozenset({alone}))
-        self.assertEqual(graph.fallout([alone]), frozenset({alone}))
-
-
-class TheComponentsTests(unittest.TestCase):
-
-    def test_unconnected_steps_split_into_separate_components(self):
-        class Alone(Step):
+    def test_a_bare_instance_in_needs_is_refused_before_iterating_it(self):
+        class Db(Step):
             pass
 
-        db, api, alone = Db(), Api(), Alone()
-        components = Graph((db, api, alone)).components()
-        self.assertEqual([len(group) for group in components], [2, 1])
+        class Api(Step):
+            pass
 
-    def test_a_component_split_reads_the_derived_edges_and_not_one_slot(self):
-        # A capability edge connects two steps as surely as a class edge does, so a split that walked
-        # only `expects` would call these two components.
-        db, api = Db(), Api()
-        self.assertEqual(len(Graph((db, api)).components()), 1)
+        db = Db()
+        api = Api()
+        api.needs = db   # a forgotten trailing comma - the instance itself, not a one-tuple
+        with self.assertRaises(TypeError) as ctx:
+            Graph((api, db))
+        self.assertIn("needs must be a tuple of step INSTANCES", str(ctx.exception))
+        self.assertIn("write needs = (entry,)", str(ctx.exception))   # one wording for every slot, off the registry
 
+    def test_a_string_in_provides_is_refused_before_it_fans_into_characters(self):
+        class Db(Step):
+            pass
 
-class TheHardPresenceRuleTests(unittest.TestCase):
-
-    def test_a_hard_edge_that_matched_nothing_is_refused(self):
-        class Insists(Step):
-            demands = ("database",)
-
-        with self.assertRaises(Presence) as refused:
-            Graph((Insists(),)).demand()
-        self.assertIn("database", str(refused.exception))
-
-    def test_the_refusal_names_the_soft_companion_as_the_alternative(self):
-        class Insists(Step):
-            demands = ("database",)
-
-        with self.assertRaises(Presence) as refused:
-            Graph((Insists(),)).demand()
-        self.assertIn("wants", str(refused.exception))
-
-    def test_a_soft_edge_that_matched_nothing_is_a_shrug(self):
-        Graph((Api(),)).demand()          # wants a database, there is none, which is allowed
-
-    def test_hardness_is_read_off_the_row_and_not_off_a_list_of_names(self):
-        # A kind grown today answers the hard-presence question correctly today.
-        grown = Vocabulary.shipped().grown(
-            *EdgeKind.paired("follows", "insists_on", BY_CLASS))
-
-        class Insists(Step):
-            insists_on = (Db,)
-
-        with self.assertRaises(Presence):
-            Graph((Insists(),), grown).demand()
+        db = Db()
+        db.provides = "database"   # a string, not a set - would silently offer d, a, t, b, s, e
+        with self.assertRaises(TypeError) as ctx:
+            Graph((db,))
+        self.assertIn("provides must be a set of capability labels", str(ctx.exception))
+        self.assertIn("frozenset({'database'})", str(ctx.exception))
 
 
-class TheShapeGuardTests(unittest.TestCase):
+class StepDeclarationGuardTests(unittest.IsolatedAsyncioTestCase):
+    """The class-level edge slots are vetted at class-definition time, so the classic forgotten comma is
+    caught the moment the subclass is defined, not deep in the kernel with a cryptic message."""
 
-    def test_the_forgotten_comma_is_caught_by_name(self):
-        class Careless(Step):
-            expects = Db          # the class, not a one-tuple
+    def test_a_bare_class_in_after_is_refused_with_the_comma_fix(self):
+        class Db(Step):
+            pass
 
-        with self.assertRaises(Malformed) as refused:
-            Graph((Careless(),))
+        with self.assertRaises(TypeError) as ctx:
+            class Api(Step):
+                expects = (Db)   # a forgotten trailing comma - the class Db, not a one-tuple
+
+        self.assertIn("Api.expects must be a tuple", str(ctx.exception))
+        self.assertIn("write expects = (Db,)", str(ctx.exception))
+
+    def test_a_bare_label_in_wants_is_refused_with_the_comma_fix(self):
+        with self.assertRaises(TypeError) as ctx:
+            class Api(Step):
+                wants = ("database")   # a bare string, not a one-tuple
+
+        self.assertIn("Api.wants must be a tuple", str(ctx.exception))
+        self.assertIn("write wants = ('database',)", str(ctx.exception))
+
+    def test_a_list_in_requires_is_refused_without_a_comma_hint(self):
+        class Db(Step):
+            pass
+
+        with self.assertRaises(TypeError) as ctx:
+            class Api(Step):
+                requires = [Db]   # a list, not a tuple - no single-entry comma to suggest
+
+        self.assertIn("Api.requires must be a tuple, got list.", str(ctx.exception))
+
+    def test_a_class_level_string_in_provides_is_refused(self):
+        with self.assertRaises(TypeError) as ctx:
+            class Db(Step):
+                provides = "database"   # a string fans into single characters - the silent wrong
+
+        self.assertIn("Db.provides must be a set of capability labels", str(ctx.exception))
+        self.assertIn("frozenset({'database'})", str(ctx.exception))
+
+
+class IdentityIsTheCurrencyTests(unittest.IsolatedAsyncioTestCase):
+    """Every structure the kernel derives is keyed by step INSTANCE, so the identity contract is enforced
+    twice: a hand-written __eq__ or __hash__ is refused where it is written, while the Graph catches what no
+    class-definition hook can see - a decorator that rewrote equality after the class was created, which
+    used to collapse two steps into one node and blame an innocent Ordering for the shrunken world."""
+
+    def test_a_hand_written_eq_is_refused_at_class_definition(self):
+        with self.assertRaises(TypeError) as refused:
+            class ValueEqual(Step):
+                def __eq__(self, other: object) -> bool:
+                    return True
+        self.assertIn("identity IS the kernel's dependency addressing", str(refused.exception))
+
+    def test_a_hand_written_hash_is_refused_at_class_definition(self):
+        with self.assertRaises(TypeError):
+            class ValueHashed(Step):
+                def __hash__(self) -> int:
+                    return 7
+
+    def test_a_dataclass_that_rewrote_equality_is_caught_by_the_graph(self):
+        # dataclass(eq=True) rewrites __eq__ AFTER Step.__init_subclass__ ran, so the class hook cannot
+        # see it - and before this guard, two value-equal steps collapsed into one graphlib key and the
+        # run was refused with a coverage error naming the Ordering, which had done nothing wrong.
+        @dataclass(frozen=True)
+        class Payload(Step):
+            name: str = "same"
+
+        with self.assertRaises(ValueError) as refused:
+            Graph((Payload(), Payload()))
+        self.assertIn("compare EQUAL", str(refused.exception))
+        self.assertIn("eq=False", str(refused.exception))   # the fix rides in the message
+
+    def test_a_dataclass_step_with_eq_false_is_the_documented_form(self):
+        @dataclass(frozen=True, eq=False)
+        class Payload(Step):
+            name: str = "same"
+
+        first, second = Payload(), Payload()
+        graph = Graph((first, second))
+        self.assertEqual(len(graph.steps), 2)   # two concerns, two nodes, no collapse
+
+    def test_the_same_instance_handed_twice_gets_its_own_sentence(self):
+        class Solo(Step):
+            pass
+
+        one = Solo()
+        with self.assertRaises(ValueError) as refused:
+            Graph((one, one))
+        self.assertIn("handed to this run twice", str(refused.exception))
+
+
+class OnePlaneForEveryDeclarationTests(unittest.IsolatedAsyncioTestCase):
+    """The seven declaration slots speak ONE plane. The class value is the default, the instance may
+    override, where the kernel reads the instance - `b.wants = ('db',)` used to be swallowed in silence,
+    deriving no edge and leaving no trace, which is the worst kind of wrong this kernel knows."""
+
+    def test_an_instance_level_capability_edge_is_a_real_edge(self):
+        class Provider(Step):
+            provides = frozenset({"db"})
+
+        class Consumer(Step):
+            pass
+
+        provider, consumer = Provider(), Consumer()
+        consumer.wants = ("db",)
+        graph = Graph((provider, consumer))
+        self.assertEqual(graph.dependencies(consumer), (provider,))   # the edge EXISTS now
+        self.assertEqual([match.slot for match in graph.matching(consumer)], ["wants"])
+
+    def test_an_instance_level_after_orders_one_instance_apart_from_its_kind(self):
+        class Base(Step):
+            pass
+
+        class Worker(Step):
+            pass
+
+        base, eager, careful = Base(), Worker(), Worker()
+        careful.expects = (Base,)
+        graph = Graph((base, eager, careful))
+        self.assertEqual(graph.dependencies(careful), (base,))
+        self.assertEqual(graph.dependencies(eager), ())   # its twin keeps the class default
+
+    def test_a_malformed_instance_container_is_refused_where_the_class_guard_cannot_see(self):
+        class Provider(Step):
+            pass
+
+        lone = Provider()
+        lone.expects = (Provider)   # the classic forgotten comma, now on the INSTANCE plane
+        with self.assertRaises(TypeError) as refused:
+            Graph((lone,))
+        self.assertIn("must be a tuple", str(refused.exception))
         self.assertIn("trailing comma", str(refused.exception))
 
-    def test_a_wrongly_addressed_entry_is_told_where_it_belongs(self):
-        class Confused(Step):
-            expects = ("database",)      # a label in a by-class slot
 
-        with self.assertRaises(Malformed) as refused:
-            Graph((Confused(),))
-        self.assertIn("capability label", str(refused.exception))
-
-    def test_a_bare_string_in_a_label_set_is_refused(self):
-        # It would iterate into single characters, which is the silent kind of wrong.
-        class Careless(Step):
-            provides = "database"
-
-        with self.assertRaises(Malformed):
-            Graph((Careless(),))
-
-
-class TheIdentityGateTests(unittest.TestCase):
-
-    def test_the_same_instance_handed_in_twice_is_refused(self):
-        db = Db()
-        with self.assertRaises(Identity) as refused:
-            Graph((db, db))
-        self.assertIn("twice", str(refused.exception))
-
-
-class TheReversedKindTests(unittest.TestCase):
-    """`prepares` points the other way, because a domain often cannot edit the class it must run before."""
-
-    def test_a_reversed_edge_makes_the_declaring_step_the_prerequisite(self):
-        class Third(Step):
-            pass
-
-        class Bootstrap(Step):
-            prepares = (Third,)
-
-        boot, third = Bootstrap(), Third()
-        graph = Graph((third, boot))
-        self.assertEqual(graph.dependencies(third), (boot,))    # Third needs Bootstrap
-        self.assertEqual(graph.dependencies(boot), ())          # and Bootstrap needs nothing
-
-    def test_the_hard_flavour_still_demands_the_match_is_present(self):
-        class Absent(Step):
-            pass
-
-        class Bootstrap(Step):
-            mandates = (Absent,)
-
-        with self.assertRaises(Presence):
-            Graph((Bootstrap(),)).demand()
-
-
-class TheInstanceKindTests(unittest.TestCase):
-    """`uses` names ONE step where `expects` names a kind and reaches every instance of it."""
-
-    def test_an_instance_edge_reaches_exactly_the_named_one(self):
-        class Store(Step):
-            pass
-
-        class Reader(Step):
-            pass
-
-        wanted, other, reader = Store(), Store(), Reader()
-        reader.uses = (wanted,)
-        graph = Graph((reader, wanted, other))
-        self.assertEqual(graph.dependencies(reader), (wanted,))
-
-    def test_a_class_edge_beside_it_reaches_both(self):
-        # The distinction the two kinds exist for, in one assertion.
-        class Store(Step):
-            pass
-
-        class Reader(Step):
-            expects = (Store,)
-
-        first, second, reader = Store(), Store(), Reader()
-        self.assertEqual(set(Graph((reader, first, second)).dependencies(reader)), {first, second})
-
-    def test_a_named_instance_outside_the_run_is_absent_however_alike(self):
-        class Store(Step):
-            pass
-
-        class Reader(Step):
-            pass
-
-        outside, inside, reader = Store(), Store(), Reader()
-        reader.uses = (outside,)
-        self.assertEqual(Graph((reader, inside)).dependencies(reader), ())
-
-
-class TheRosterIndexTests(unittest.TestCase):
-    """Naming an instance costs a lookup, not a scan of the whole run."""
-
-    @staticmethod
-    def _chain(size):
-        steps = []
-        for index in range(size):
-            step = type(f"S{index}", (Step,), {})()
-            if steps:
-                step.uses = (steps[-1],)
-            steps.append(step)
-        return steps
-
-    def test_the_derivation_scales_linearly_in_the_number_of_steps(self):
-        # Asserted as a RATIO rather than as a wall-clock number, so it says something true on a slow
-        # machine and on a fast one. Before the index this was quadratic - a four-thousand step chain took
-        # 0.284 seconds and rose by three and a half on every doubling.
-        import time
-
-        timings = []
-        for size in (1000, 2000, 4000):
-            steps = self._chain(size)
-            # The best of five. A loaded machine adds noise on top of the cost and never takes any away,
-            # so the minimum is the one reading it cannot inflate.
-            fastest = float("inf")
-            for _ in range(5):
-                start = time.perf_counter()
-                Graph(steps)
-                fastest = min(fastest, time.perf_counter() - start)
-            timings.append(fastest)
-        # doubling the work roughly doubles the time. Three is generous headroom for a loaded machine and
-        # still nowhere near the four a quadratic would show.
-        self.assertLess(timings[2] / timings[1], 3.0)
-        self.assertLess(timings[1] / timings[0], 3.0)
-
-    def test_membership_is_answered_by_identity_and_in_constant_time(self):
-        from cabaxiom.vocabulary import Roster
-
-        class Store(Step):
-            pass
-
-        held, alike = Store(), Store()
-        roster = Roster([held])
-        self.assertIn(held, roster)
-        self.assertNotIn(alike, roster)
-
-    def test_the_roster_keeps_supplied_order_because_order_is_part_of_the_answer(self):
-        # A class edge reaches every instance of the class, in the order they were supplied, which is what
-        # makes a resolved run reproducible rather than merely correct.
-        from cabaxiom.vocabulary import Roster
-
-        class Store(Step):
-            pass
-
-        first, second = Store(), Store()
-        self.assertEqual(list(Roster([first, second])), [first, second])
-
-
-class TheMatchRowTests(unittest.TestCase):
-    """A Match is the answer to "what did this slot resolve to" and it has to be readable to be worth
-    returning. Every accessor here is on the public surface, so every one is asserted rather than assumed."""
-
-    def test_a_match_carries_its_step_its_name_and_reads_back(self):
-        class Left(Step):
-            pass
-
-        class Right(Step):
-            expects = (Left,)
-
-        left, right = Left(), Right()
-        graph = Graph((left, right))
-        found, = graph.matching(right)
-
-        self.assertIs(found.step, right)
-        self.assertIs(found.name, Left)          # the DECLARED name, not what it resolved to
-        self.assertEqual(found.slot, "expects")
-        self.assertEqual(found.matched, (left,))
-        self.assertTrue(found.soft)
-        self.assertEqual(repr(found), "Match(Right.expects Left -> Left)")
-
-    def test_a_miss_reads_back_as_nothing_rather_than_an_empty_list(self):
-        class Absent(Step):
-            pass
-
-        class Wanting(Step):
-            expects = (Absent,)
-
-        found, = Graph((Wanting(),)).matching(Wanting())
-        self.assertEqual(found.matched, ())
-        self.assertIn("-> nothing", repr(found))
-
-
-class TheVocabularyEdgesTests(unittest.TestCase):
-    """The rows themselves, which are data and so can be got wrong by a caller growing the vocabulary."""
-
-    def test_the_roster_slices_like_the_sequence_it_claims_to_be(self):
-        class One(Step):
-            pass
-
-        class Two(Step):
-            pass
-
-        one, two = One(), Two()
-        roster = Roster((one, two))
-        self.assertEqual(list(roster[0:1]), [one])
-        self.assertEqual(roster[-1], two)
-        self.assertIn(two, roster)
-
-    def test_an_instance_addressed_name_is_spoken_as_its_type(self):
-        class Named(Step):
-            pass
-
-        named = Named()
-        self.assertEqual(BY_INSTANCE.spoken(named), "Named")
-
-    def test_a_pair_of_two_hard_kinds_is_refused(self):
-        both, = EdgeKind("insists", BY_CLASS, hard=True, counterpart="demands"),
-        other = EdgeKind("demands", BY_CLASS, hard=True, counterpart="insists")
-        with self.assertRaises(Misconfigured) as ctx:
-            Vocabulary(both, other)
-        self.assertIn("both hard", str(ctx.exception))
-
-    def test_a_one_sided_pair_is_refused(self):
-        # `claims` points at `answers`, yet `answers` points somewhere else. A pair the two halves do not
-        # agree on is a declaration bug that silently halves the edges if it is let through.
-        with self.assertRaises(Misconfigured) as ctx:
-            Vocabulary(EdgeKind("claims", BY_CLASS, hard=False, counterpart="answers"),
-                       EdgeKind("answers", BY_CLASS, hard=True, counterpart="elsewhere"))
-        self.assertIn("disagree about being a pair", str(ctx.exception))
-
-
-class OneMatchSaysWhoAskedAndWhatAnsweredTests(unittest.TestCase):
-    """A Match is the per-name view of an edge, where dependencies() is the per-step one. It carries the
-    ROW rather than the slot's name, so a consumer reads hardness and addressing off the vocabulary."""
-
-    def setUp(self):
-        class Store(Step):
-            provides = frozenset({"shelf"})
-
-        class Clerk(Step):
-            wants = ("shelf",)
-
-        self.Store, self.Clerk = Store, Clerk
-
-    def test_a_match_names_the_step_that_asked_and_the_name_it_wrote(self):
-        clerk, store = self.Clerk(), self.Store()
-        asked, = Graph((store, clerk)).matching(clerk)
-        self.assertIs(asked.step, clerk)
-        self.assertEqual(asked.name, "shelf")
-        self.assertEqual(asked.matched, (store,))
-
-    def test_a_match_prints_the_declaration_and_what_answered_it(self):
-        clerk, store = self.Clerk(), self.Store()
-        asked, = Graph((store, clerk)).matching(clerk)
-        self.assertEqual(repr(asked), "Match(Clerk.wants 'shelf' -> Store)")
-
-    def test_a_match_that_answered_nothing_says_nothing_rather_than_an_empty_list(self):
-        clerk = self.Clerk()
-        asked, = Graph((clerk,)).matching(clerk)
-        self.assertEqual(repr(asked), "Match(Clerk.wants 'shelf' -> nothing)")
-
-    def test_the_vocabulary_is_published_beside_the_derivation_it_produced(self):
-        # So a consumer reading a Match's row reads the table THIS graph was derived through rather than
-        # whichever one happens to be shipped.
-        grown = Vocabulary.shipped().grown(EdgeKind("ahead", BY_CLASS, hard=False, counterpart=None, precedes=True))
-        self.assertIs(Graph((self.Store(),), grown).vocabulary, grown)
-
-
-class AReversedRowDrawsTheEdgeTheOtherWayTests(unittest.TestCase):
-    """`precedes` is the one direction flag the table carries, honoured by the same loop as every other
-    row. That is the whole claim of making the language data instead of a branch per slot."""
-
-    def test_a_step_that_declares_a_reversed_slot_runs_ahead_of_what_it_named(self):
-        class Late(Step):
-            pass
-
-        class Early(Step):
-            ahead = (Late,)
-
-        grown = Vocabulary.shipped().grown(EdgeKind("ahead", BY_CLASS, hard=False, counterpart=None, precedes=True))
-        early, late = Early(), Late()
-        graph = Graph((late, early), grown)
-        self.assertEqual(graph.dependencies(late), (early,))
-        self.assertEqual(graph.dependencies(early), ())
-
-
-class TheWalkVisitsAStepOnceTests(unittest.TestCase):
-    """A diamond reaches the same step down two paths. The walk keeps what it reached and drops the
-    second arrival rather than re-walking it, which is what stops a cycle spinning."""
-
-    def test_a_diamond_reaches_its_base_once(self):
-        class Base(Step):
-            provides = frozenset({"ground"})
-
-        class Left(Step):
-            wants = ("ground",)
-
-        class Right(Step):
-            wants = ("ground",)
-
-        base, left, right = Base(), Left(), Right()
-        self.assertEqual(Graph((base, left, right)).closure((left, right)), frozenset({base, left, right}))
-
-
-class ARosterIsIndexableAsWellAsSearchableTests(unittest.TestCase):
-    """The tuple sits beside the set rather than being replaced by it, so a Roster answers both questions
-    a class edge asks - is this one present and in what order are they all."""
-
-    def test_it_reads_by_position_and_by_slice_the_way_the_list_it_replaced_did(self):
-        from cabaxiom.vocabulary import Roster
-
-        class Store(Step):
-            pass
-
-        first, second = Store(), Store()
-        roster = Roster([first, second])
+class RosterTests(unittest.IsolatedAsyncioTestCase):
+    """The instance table's value type: a Sequence that can also be ASKED in constant time.
+
+    It exists because `step in instances[cls]` over a list is linear, which made the whole derivation
+    quadratic on any declaration addressing by instance - a 200000 step chain took a hundred seconds. The
+    order is what every class-addressed edge fans in, so it cannot become a set, which these tests hold the
+    Sequence contract the addressing signature still promises."""
+
+    def test_a_roster_reads_as_the_sequence_it_wraps(self):
+        first, second, third = A([]), A([]), A([])
+        roster = Roster((first, second, third))
+        self.assertEqual(len(roster), 3)
         self.assertIs(roster[0], first)
-        self.assertEqual(list(roster[0:2]), [first, second])
-        self.assertEqual(len(roster), 2)
+        self.assertIs(roster[-1], third)
+        self.assertEqual(tuple(roster[1:]), (second, third))
+        self.assertEqual(tuple(roster), (first, second, third))
+
+    def test_membership_answers_by_identity_and_ignores_a_stranger(self):
+        held, stranger = A([]), A([])
+        roster = Roster((held,))
+        self.assertIn(held, roster)
+        self.assertNotIn(stranger, roster)
+        self.assertNotIn("not a step", roster)
+
+    def test_supplied_order_survives_the_index(self):
+        # The order IS the fan order, so a Roster that reordered would reorder every class-addressed edge.
+        made = [A([]) for _ in range(6)]
+        graph = Graph((*made, B([])))
+        self.assertEqual(graph.dependencies(graph.steps[-1]), tuple(made))
+
+
+class DataFlowContractTests(unittest.IsolatedAsyncioTestCase):
+    """`produces` and `consumes` are the DATA plane, deliberately not a fifth edge kind. Declaring a key
+    creates no edge and moves no step - the dependency plane still says WHEN a step runs - so the two planes
+    stay separable. What the declaration buys is one guard. A key nothing upstream produces is refused at
+    resolution, where the dependency plane already refuses an absent `requires`, instead of arriving as an
+    absent entry the hook cannot tell from a real one."""
+
+    def _flow(self):
+        class Db(Step):
+            produces = frozenset({"dsn"})
+
+            def apply(self, inputs):
+                return None, {"dsn": "postgres://db"}
+
+        class Api(Step):
+            expects = (Db,)
+            consumes = frozenset({"dsn"})
+
+            def apply(self, inputs):
+                return None, {}
+
+        return Db, Api
+
+    def test_a_declared_key_carried_by_a_prerequisite_resolves(self):
+        Db, Api = self._flow()
+        Graph((Api(), Db())).demand()   # the producer IS a prerequisite, so the payload really arrives
+
+    def test_a_key_nothing_produces_is_refused_at_resolution(self):
+        _Db, Api = self._flow()
+        graph = Graph((Api(),))   # derivation stays total, so constructing never raises
+        with self.assertRaises(ValueError) as refused:
+            graph.demand()
+        spoken = str(refused.exception)
+        self.assertIn("consumes 'dsn'", spoken)
+        self.assertIn("Nothing in this run produces it", spoken)
+
+    def test_a_producer_that_is_not_a_prerequisite_is_named_as_the_fault(self):
+        # THE SHARP CASE. The key is produced, just not anywhere the payload can reach from - the Ledger
+        # mounts from the DIRECT prerequisites, so a sibling's artifacts never arrive. Counting it would
+        # bless the exact hole this refuses, so the message names the step and says what is missing.
+        class Sibling(Step):
+            produces = frozenset({"dsn"})
+
+        class Reader(Step):
+            consumes = frozenset({"dsn"})
+
+        with self.assertRaises(ValueError) as refused:
+            Graph((Reader(), Sibling())).demand()
+        spoken = str(refused.exception)
+        self.assertIn("Sibling produces it but is not a prerequisite", spoken)
+        self.assertIn("declare the edge that carries it", spoken)
+
+    def test_a_producer_two_hops_up_does_not_count_because_its_payload_never_arrives(self):
+        # The transitive case, pinned. Artifacts flow one hop, so a grandparent's key is exactly as absent
+        # as a stranger's. This is the rule that keeps the guard honest about what mounted() really merges.
+        class Root(Step):
+            produces = frozenset({"dsn"})
+
+        class Middle(Step):
+            expects = (Root,)
+
+        class Leaf(Step):
+            expects = (Middle,)
+            consumes = frozenset({"dsn"})
+
+        with self.assertRaises(ValueError):
+            Graph((Leaf(), Middle(), Root())).demand()
+
+    def test_declaring_nothing_costs_nothing_and_the_planes_stay_apart(self):
+        # The common case. No data declared, so the guard reads one attribute and stops - and a step that
+        # comes after another for reasons that carry no payload is still perfectly legal.
+        class First(Step):
+            pass
+
+        class Second(Step):
+            expects = (First,)
+
+        Graph((Second(), First())).demand()
+
+    def test_a_string_in_a_key_set_is_refused_at_class_definition(self):
+        # The silent one. A bare string iterates into single characters, so `produces = "dsn"` would offer
+        # three keys named d, s and n and every match would miss without a word.
+        with self.assertRaises(TypeError) as refused:
+            class Wrong(Step):
+                produces = "dsn"
+
+        self.assertIn("must be a set of artifact keys", str(refused.exception))
+        self.assertIn("frozenset({'dsn'})", str(refused.exception))
+
+    def test_a_non_key_in_consumes_is_refused_at_construction(self):
+        # The per-instance half, which no class hook can see.
+        class Reader(Step):
+            pass
+
+        reader = Reader()
+        reader.consumes = frozenset({3306})
+        with self.assertRaises(TypeError) as refused:
+            Graph((reader,))
+        self.assertIn("names 3306 in `consumes`", str(refused.exception))
+

@@ -1,56 +1,57 @@
-"""Settle - the outer loop's stop condition. How many converge() passes a watch() runs before it is done."""
+"""Settle - the outer-loop stop condition - how many converge() passes a watch() loop runs before it is done."""
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Generator, Sequence
+from typing import final, override
 
-from typing import override
 from .drift import Drift
 from .errors import Misconfigured
 
 
 class Settle(ABC):
-    """WHEN a standing run is finished, asked once per pass with that pass's residual.
+    """Strategy for when a watch() loop is done, decided across passes.
 
-    Distinct from Convergence, which is the INNER loop and decides how many apply-then-probe cycles make
-    up ONE converge. This is the outer one. It decides how many converges make a session. Keeping
-    them apart is what lets a caller pace the retries of a single reconciliation differently from the
-    patience of the loop watching for the world to move again.
-
-    An injected axis rather than a flag, because "done" is a domain judgement. A deploy is done at the
-    first clean pass. A soak wants several in a row before it believes the world settled. A monitor is
-    never done at all and says so by never returning True."""
-
+    Convergence governs how many apply -> re-probe passes run inside one converge(). Settle governs how many
+    converge() passes a caller drives a `Reconciler.watch()` loop through before stopping. The same "how long
+    do we keep going?" question at the loop's outer layer. It is a generator, fresh per loop so it carries no
+    state between runs. The caller primes it with next(), then feeds each pass's residual through send() and
+    the generator yields whether the loop should stop. It never returns - the caller breaks out of watch()
+    when the generator yields True.
+    """
     @abstractmethod
-    def settled(self, residual: Sequence[Drift]) -> bool:
-        # Asked once per pass, with what that pass could not fix. Returning True ends the loop.
+    def watch(self) -> Generator[bool, Sequence[Drift], None]:
         ...
 
 
+@final
 class Clean(Settle):
-    """Done at the first pass that leaves nothing behind. The default and the honest reading of
-    "empty means verified" - one clean pass IS the proof, so waiting for a second asks for more than
-    the kernel claims."""
-
+    """Stop on the first clean pass. An empty residual means desired state was reached. The default and the
+    behaviour a watch() loop takes when its caller applies no other stop condition."""
     @override
-    def settled(self, residual: Sequence[Drift]) -> bool:
-        return not residual
+    def watch(self) -> Generator[bool, Sequence[Drift], None]:
+        stop = False   # the priming yield, before any tick has run
+        while True:
+            residual = yield stop
+            stop = not residual   # a clean residual means desired state reached, so stop
 
 
+@final
 class Stable(Settle):
-    """Done after `passes` CONSECUTIVE clean passes, where the counter resets on any pass that is not.
-
-    For a world with slow external actors, where one clean reading can be a gap between two writes
-    somebody else is making rather than the end of them. Stable(1) is Clean with more ceremony, so it
-    refuses anything below 2 rather than quietly being a synonym."""
+    """Stop only after `passes` CONSECUTIVE clean passes - proof the world stayed converged, not that it was
+    clean once. In a flapping world a single clean re-probe is a false all-clear - external drift can reappear
+    on the next observation - so Stable(3) certifies three re-observations in a row found nothing, the real
+    difference between "converged once" and "stable". A dirty pass resets the streak, so Stable(1) is Clean."""
 
     def __init__(self, passes: int = 2):
-        if passes < 2:
-            raise Misconfigured(f"Stable passes must be >= 2, got {passes} - one clean pass is Clean()")
+        if passes < 1:
+            raise Misconfigured(f"Stable passes must be >= 1, got {passes}")
         self.__passes = passes
-        self.__clean = 0
 
     @override
-    def settled(self, residual: Sequence[Drift]) -> bool:
-        # The reset is the point. Consecutive means consecutive, so a dirty pass in the middle of a
-        # streak puts the count back to nothing rather than merely failing to advance it.
-        self.__clean = self.__clean + 1 if not residual else 0
-        return self.__clean >= self.__passes
+    def watch(self) -> Generator[bool, Sequence[Drift], None]:
+        clean_streak = 0
+        stop = False
+        while True:
+            residual = yield stop
+            clean_streak = clean_streak + 1 if not residual else 0   # a dirty tick breaks the streak
+            stop = clean_streak >= self.__passes
+

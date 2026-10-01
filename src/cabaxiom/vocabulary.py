@@ -1,80 +1,129 @@
-"""The edge language as DATA - what kinds of dependency a declaration may draw and how each is addressed.
+"""Vocabulary - the dependency edge kinds as DATA. One record per kind and every consumer reads it.
 
-Growing the language is adding a row here, not editing a derivation. Every consumer reads the table
-rather than a slot name, so a kind added tomorrow is honoured by the ordering, the seating guard, the
-scope closure and the drawing without any of them learning it exists."""
+The kernel used to spell its edge kinds into six different places - the Graph's derivation, its per-name
+matching(), the softness read on a Match, the presence rule in demand(), the drawing's styling table and
+the Explanation's declaration mappings each enumerated the slots by hand. Adding a hypothetical seventh
+kind broke all six. The worst of them did not fail - Match.soft answered FALSE for a soft slot, the
+flag a Rift's quieted channel votes on. Meanwhile the Graph promised "a new edge kind lands in the
+derivation and nowhere else". This module is what makes that sentence true. The next kind is ONE ROW HERE.
+"""
 from abc import ABC, abstractmethod
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, ClassVar, final, overload
+from typing import TYPE_CHECKING, Any, ClassVar, cast, final, overload, override
 
-from typing import override
-from .errors import Misconfigured
-
-if TYPE_CHECKING:                      # step.py imports THIS module while its own class body runs, so the
-    from .step import Step  # step type may only ever be quoted here, never imported for real.
+# Step is imported for TYPING ONLY and every annotation below quotes it, because step.py imports THIS module at
+# module level and calls Vocabulary.shipped() while its own class body runs. This module therefore has to finish
+# importing before step.py does and a module-level `from .step import Step` here would close that cycle.
+#
+# MIGRATION, when the floor rises to 3.14: PEP 649 evaluates annotations lazily, so the quotes around "Step" become
+# unnecessary and can come off in one sweep. This guard itself STAYS, since the name still must not be bound at
+# import time. What must NOT go with the quotes are the three function-local imports in Instance below (admits,
+# found and shown). Those need the CLASS OBJECT for isinstance, which no annotation rule can supply, so deleting
+# them turns a broken cycle back into a NameError at the first instance edge.
+if TYPE_CHECKING:
+    from .step import Step
 
 
 class Addressing(ABC):
-    """HOW a slot names what it points at - by class, by capability label or by instance.
+    """HOW a declared name addresses what it means - by class, by label or by instance - as a
+    strategy rather than a string tag. Everything that differs between
+    the three shapes a name can take - the lookup that resolves it, the words a refusal speaks about it,
+    the type an element must be and how a declared name reads on a page - differs BY CURRENCY and
+    nowhere else. Five consumers used to dispatch on a string for it, each with its own if-chain. The
+    dispatch is polymorphism now, so each singleton below is the whole answer for its shape.
 
-    Three axes of one question, kept apart because each answers differently at every point the kernel
-    touches an edge - what a slot legally holds, how a name is matched against the run and how a refusal
-    words itself. Bundling them into a flag would put three switch statements in three files."""
+    Not an Enum, deliberately: OnError is an Enum because its members are pure LABELS a policy branches
+    on, while an addressing's members each carry different BEHAVIOUR - an Enum with methods would put the
+    same if-chain back, just centralised. Three stateless singletons are the Strategy pattern's honest
+    form of that."""
 
     __slots__ = ()
 
-    takes: ClassVar[str]       # what a slot of this addressing legally holds, quoted in a refusal
-    stray: ClassVar[str]       # how a wrongly-addressed value is named when it turns up in a slot
-    noun: ClassVar[str]        # the noun a hard-presence refusal composes with
-    indirect: ClassVar[bool]   # whether the edge reaches its target THROUGH an intermediary
+    # The refusal vocabulary - what a slot of this addressing takes, how a stray of it is named in somebody
+    # else's slot, what an element must BE and the hard-kind nouns a demand() refusal composes with.
+    takes: ClassVar[str]
+    stray: ClassVar[str]
+    noun: ClassVar[str]
+    vow: ClassVar[str]
+    # Whether the edge leans on an intermediary (a capability reaches its steps THROUGH providers), which
+    # is the one semantic the drawing renders differently - a soft indirect lean is dashed.
+    indirect: ClassVar[bool]
 
     @abstractmethod
     def admits(self, name: object) -> bool:
-        # Is this a legal thing to find in a slot addressed this way? Asked at declaration time, which is
-        # the earliest moment a forgotten comma can be caught.
+        # Is this a value of MY shape? The vetting question, asked polymorphically - exposing an
+        # `expected` type instead would force this module to import Step at module level, which the
+        # step module (minting the shipped language at class definition) cannot allow back.
         ...
 
     @abstractmethod
     def found(self, name: object, instances: Mapping[type["Step"], Sequence["Step"]],
               providers: Mapping[str, Sequence["Step"]]) -> tuple["Step", ...]:
-        # Every step in the run this name points at. TOTAL - an absent name is an empty match and never an
-        # error, because whether absence is fatal is the KIND's business (hard or soft) and not the
-        # addressing's. Keeping that decision out of here is what lets one addressing serve both flavours.
+        # THE lookup - what a declared name resolves to. Total - an absent name is an empty match, never
+        # an error. The narrows inside the implementations are for the type checker, not from doubt:
+        # the Graph vets every element through admits() before it ever resolves one.
+        ...
+
+    @abstractmethod
+    def shown(self, names: Sequence[object], labels: Mapping["Step", str]) -> tuple[str, ...]:
+        # How this addressing's declared names read on a structural page - a kind by its class name, a
+        # capability by its label, an instance by its per-run label, present ones only.
         ...
 
     @abstractmethod
     def spoken(self, name: object) -> str:
-        # The name as a person would say it, for a refusal or a drawing.
+        # How ONE declared name reads in a sentence, present or not - a class by its own name, a capability
+        # quoted so it cannot be read as a class, an instance by its class name. Match.label and demand()
+        # both speak names and each used to carry this dispatch as its own if-chain. One home now.
+        ...
+
+    @abstractmethod
+    def absent(self, named: str) -> str:
+        # The middle of a hard-kind refusal - what exactly is missing when a name of this addressing
+        # matched nothing.
         ...
 
 
 @final
 class _ByClass(Addressing):
     __slots__ = ()
-    takes, stray, noun, indirect = "step CLASSES", "A step class", "dependency", False
+    takes = "step CLASSES"
+    stray = "A step class"
+    noun = "dependency"
+    vow = "demands its presence"
+    indirect = False
 
     @override
     def admits(self, name: object) -> bool:
-        from .step import Step  # the class object, which no annotation rule supplies
-        return isinstance(name, type) and issubclass(name, Step)
+        return isinstance(name, type)
 
     @override
     def found(self, name: object, instances: Mapping[type["Step"], Sequence["Step"]],
               providers: Mapping[str, Sequence["Step"]]) -> tuple["Step", ...]:
-        # EVERY instance of the class, not the first. Two steps of one kind are two nodes, so a dependent
-        # that named the kind meant both of them.
-        return tuple(instances.get(name, ())) if isinstance(name, type) else ()
+        return tuple(instances.get(cast("type[Step]", name), ())) if isinstance(name, type) else ()
+
+    @override
+    def shown(self, names: Sequence[object], labels: Mapping["Step", str]) -> tuple[str, ...]:
+        return tuple(named.__name__ for named in names if isinstance(named, type))
 
     @override
     def spoken(self, name: object) -> str:
         return name.__name__ if isinstance(name, type) else repr(name)
 
+    @override
+    def absent(self, named: str) -> str:
+        return f"but no {named} is in the run"
+
 
 @final
 class _ByLabel(Addressing):
     __slots__ = ()
-    takes, stray, noun, indirect = "capability labels", "A capability label", "capability", True
+    takes = "capability labels"
+    stray = "A capability label"
+    noun = "capability"
+    vow = "insists on a provider"
+    indirect = True
 
     @override
     def admits(self, name: object) -> bool:
@@ -83,28 +132,65 @@ class _ByLabel(Addressing):
     @override
     def found(self, name: object, instances: Mapping[type["Step"], Sequence["Step"]],
               providers: Mapping[str, Sequence["Step"]]) -> tuple["Step", ...]:
-        # A capability fans in. Duplicate providers are not a conflict, they are several things that all
-        # satisfy the same promise, so a dependent orders after all of them. The kernel matches and never
-        # picks, because picking would be the kernel guessing which provider a domain meant.
         return tuple(providers.get(name, ())) if isinstance(name, str) else ()
 
     @override
+    def shown(self, names: Sequence[object], labels: Mapping["Step", str]) -> tuple[str, ...]:
+        return tuple(name for name in names if isinstance(name, str))
+
+    @override
     def spoken(self, name: object) -> str:
-        return f"{name!r}"
+        return repr(name)
+
+    @override
+    def absent(self, named: str) -> str:
+        return "but no step in the run provides it"
+
+
+@final
+class _ByInstance(Addressing):
+    __slots__ = ()
+    takes = "step INSTANCES"
+    stray = "A step instance"
+    noun = "instance"
+    vow = "demands its presence"
+    indirect = False
+
+    @override
+    def admits(self, name: object) -> bool:
+        # This one survives every annotation reform, PEP 649 included - isinstance takes the class, not the name.
+        from .step import Step  # late on purpose: step mints the shipped language at class definition,
+        return isinstance(name, Step)   # so the cycle breaks here, where the name is needed at runtime
+
+    @override
+    def found(self, name: object, instances: Mapping[type["Step"], Sequence["Step"]],
+              providers: Mapping[str, Sequence["Step"]]) -> tuple["Step", ...]:
+        from .step import Step
+        return (name,) if isinstance(name, Step) and name in instances.get(type(name), ()) else ()
+
+    @override
+    def shown(self, names: Sequence[object], labels: Mapping["Step", str]) -> tuple[str, ...]:
+        from .step import Step
+        return tuple(labels[name] for name in names if isinstance(name, Step) and name in labels)
+
+    @override
+    def spoken(self, name: object) -> str:
+        return name.__class__.__name__
+
+    @override
+    def absent(self, named: str) -> str:
+        return "but that instance is not in the run"
 
 
 @final
 class Roster(Sequence["Step"]):
-    """The instances of one class, in supplied order, with an identity index beside them.
+    """WHO is in the run, of one step class, in supplied order - a sequence that can also be ASKED.
 
-    A plain list answered membership by scanning, while an instance-addressed edge asks that question once
-    per name - so a chain where each step names the previous cost O(n) per lookup and O(n squared) to
-    derive. Measured on a four-thousand step chain, that was 0.284 seconds and rising by three and a half
-    on every doubling.
-
-    The set is beside the tuple rather than replacing it, because ORDER IS PART OF THE ANSWER - a class
-    edge reaches every instance of the class and reaches them in the order they were supplied, which is
-    what makes a resolved run reproducible."""
+    A plain list answers both questions and answers the second one in linear time, `step in instances[cls]`
+    walks the list. On a chain of N steps of one class that is N scans of up to N entries, so the whole
+    derivation is quadratic. A 200000 step chain took a hundred seconds where the ordering it feeds took
+    a third of one. The order is not negotiable (it is the fan order every class-addressed edge lands in and
+    the run has to be deterministic), so the membership gets its own index instead."""
 
     __slots__ = ("__held", "__present")
 
@@ -114,54 +200,28 @@ class Roster(Sequence["Step"]):
 
     @overload
     def __getitem__(self, position: int) -> "Step": ...
-
     @overload
     def __getitem__(self, position: slice) -> Sequence["Step"]: ...
-
+    @override
     def __getitem__(self, position: int | slice) -> "Step | Sequence[Step]":
+        if isinstance(position, slice):
+            return self.__held[position]
         return self.__held[position]
 
+    @override
     def __len__(self) -> int:
         return len(self.__held)
 
+    @override
     def __contains__(self, wanted: object) -> bool:
-        # The whole point. A Step hashes and compares by identity, so this is an identity lookup in
-        # constant time rather than a walk.
-        return wanted in self.__present
+        return wanted in cast(Any, self.__present)
 
+    @override
     def __iter__(self) -> Iterator["Step"]:
         return iter(self.__held)
 
 
-@final
-class _ByInstance(Addressing):
-    __slots__ = ()
-    takes, stray, noun, indirect = "step INSTANCES", "A step instance", "instance", False
-
-    @override
-    def admits(self, name: object) -> bool:
-        from .step import Step
-        return isinstance(name, Step)
-
-    @override
-    def found(self, name: object, instances: Mapping[type["Step"], Sequence["Step"]],
-              providers: Mapping[str, Sequence["Step"]]) -> tuple["Step", ...]:
-        from .step import Step
-        if not isinstance(name, Step):
-            return ()
-        # Present by IDENTITY, not by equality. A named instance that is not the one in the run is absent,
-        # however alike the two look, which is the same currency every derived structure is keyed by.
-        #
-        # Asked of the named step's OWN class rather than of every class, answered by an index rather
-        # than by a walk. Both halves matter - the first turns a scan of the whole run into a scan of one
-        # kind, while the second turns that into a lookup.
-        return (name,) if name in instances.get(type(name), ()) else ()
-
-    @override
-    def spoken(self, name: object) -> str:
-        return type(name).__name__
-
-
+# The three singletons plus the tuple a refusal hint walks to say where a stray belongs instead.
 BY_CLASS: Addressing = _ByClass()
 BY_LABEL: Addressing = _ByLabel()
 BY_INSTANCE: Addressing = _ByInstance()
@@ -171,93 +231,127 @@ MODES: tuple[Addressing, ...] = (BY_CLASS, BY_LABEL, BY_INSTANCE)
 @final
 @dataclass(frozen=True)
 class EdgeKind:
-    """One row of the language - a slot a step may declare and what an entry in it means.
+    """One kind of dependency edge, as a VALUE OBJECT - the Type Object pattern. The KINDS of edge are
+    data, so consumers iterate a table instead of hardcoding a vocabulary, while growing the language is
+    adding a row rather than editing everyone who speaks it.
 
-    A frozen dataclass and deliberately not a NamedTuple, because tuple-ness would be accidental API and
-    somebody would eventually unpack one."""
+    A frozen dataclass, NOT a NamedTuple. A Seat is a tuple because its lexicographic order IS the walk
+    rule, yet an EdgeKind's tuple-ness would be accidental API - indexable, sliceable, equal to any stray
+    six-tuple - and none of that is contract. Value equality and hashing stay, the accidents go, frozen
+    already refuses a stray attribute as it refuses a rewrite. The value GUARDS ITSELF. The
+    element-level invariants live here at construction, one gate earlier than the Vocabulary's
+    collection-level ones. (No hand-written __slots__, unlike DriftItem. A defaulted field stores its
+    default as a class attribute, which __slots__ cannot coexist with - `precedes` defaults for every
+    shipped row, so five records a process do not need the memory discipline a Drift stream does.)
 
-    slot: str                       # the attribute name a declaration writes
-    addressing: Addressing          # how its entries name what they point at
-    hard: bool                      # whether an absent target is a refusal or a shrug
-    counterpart: str | None         # the slot of the same kind with the other hardness
-    precedes: bool = False          # True means this step runs BEFORE the match, not after it
+    `slot` is the Step attribute the declaration is read from. `addressing` is the strategy that resolves,
+    vets, renders and speaks for a declared name of this kind (see Addressing). `hard` is the presence
+    rule: a soft kind trusts an absent match (a dead end, never an error), a hard one raises at resolution
+    through Graph.demand(). `counterpart` names the other-hardness twin, so a refusal can say "unlike
+    `expects`..." without anyone re-learning the pairing. `colour` is the kind's one hue, which the diagram
+    styles per hardness and indirection - the vocabulary knows no drawing syntax, only that a kind has a
+    colour of its own. `precedes` is the DIRECTION: False (the shipped default) means declaring puts THIS
+    step after the match, True reverses it - the match comes after the declaring step, which is what a
+    `before` kind is, for the domain that cannot edit the step it must precede."""
+
+    slot: str
+    addressing: Addressing
+    hard: bool
+    counterpart: str | None
+    colour: str
+    precedes: bool = False
 
     def __post_init__(self) -> None:
-        # The invariants ONE row can check about itself. Anything needing two rows is the table's job.
+        # The invariants ONE row can check about itself - what needs the whole table (duplicate slots,
+        # counterpart mutuality) stays the Vocabulary's construction guard.
         if not self.slot.isidentifier():
-            raise Misconfigured(f"An edge kind's slot must be a usable attribute name, got {self.slot!r}")
+            raise ValueError(f"EdgeKind slot {self.slot!r} is not an identifier, so no Step could declare it")
         if self.counterpart == self.slot:
-            raise Misconfigured(f"Edge kind {self.slot!r} names itself as its own counterpart")
+            raise ValueError(f"EdgeKind `{self.slot}` names itself as its counterpart - a twin is another kind")
 
     @classmethod
     def paired(cls, soft: str, hard: str, addressing: Addressing, *,
-               precedes: bool = False) -> tuple["EdgeKind", "EdgeKind"]:
-        # The two flavours of one dependency, minted together so they cannot drift apart. Soft trusts the
-        # world if the target is absent, hard says so. Every kind this kernel ships comes in both, because
-        # "I need this" and "I need this and it had better be here" are different sentences a domain
-        # genuinely wants to write.
-        return (cls(soft, addressing, hard=False, counterpart=hard, precedes=precedes),
-                cls(hard, addressing, hard=True, counterpart=soft, precedes=precedes))
+               trusting: str, insisting: str, precedes: bool = False) -> tuple["EdgeKind", "EdgeKind"]:
+        # The soft-and-hard twins minted TOGETHER, counterparts wired both ways over one addressing - the
+        # composed form in which a mispairing cannot be written, where two hand-built rows cross-naming
+        # each other by string could. The Vocabulary still validates hand-built rows, yet a pair built
+        # here is right by construction. `trusting` colours the soft twin (it trusts an absent match),
+        # `insisting` the hard one (it refuses to run without one).
+        return (cls(soft, addressing, hard=False, counterpart=hard, colour=trusting, precedes=precedes),
+                cls(hard, addressing, hard=True, counterpart=soft, colour=insisting, precedes=precedes))
 
 
 @final
 class Vocabulary:
-    """The whole language of one run - the rows, in derivation order.
+    """The edge kinds ONE RUN speaks - an ordered, validated collection of EdgeKind rows, injected like
+    every other axis - `Reconciler(steps, vocabulary=...)` - with the shipped table as the default a run
+    gets when it says nothing. Never registered. The kernel holds no global mutable state, so two
+    reconcilers in one process cannot share a vocabulary by accident, no import can grow somebody else's
+    language, so resolution cannot depend on import order.
 
-    Injected rather than global, so two runs in one process may speak differently and a domain that
-    grows a kind does not mutate a table its neighbour is reading."""
+    Row order is DERIVATION ORDER - the order prerequisites accumulate before the dedup - so the table is
+    load-bearing, not alphabetical.
+
+    Construction VALIDATES, the fail-at-construction doctrine. A duplicate slot, a slot that is not an
+    identifier or a counterpart that is missing, one-sided, differently addressed or equally hard is
+    refused with the fix in the sentence. A slot shadowing a Step verb needs no rule here. The Graph's
+    container vet refuses `apply` the moment it reads a method where a tuple must be. `grown()` is how a
+    domain extends the shipped language without mutating anything."""
 
     __slots__ = ("__kinds",)
 
     def __init__(self, *kinds: EdgeKind):
         if not kinds:
-            raise Misconfigured("A vocabulary with no kinds cannot draw an edge - hand it at least one")
-        seen: dict[str, EdgeKind] = {}
-        for kind in kinds:
-            if kind.slot in seen:
-                raise Misconfigured(f"Edge kind {kind.slot!r} is declared twice in one vocabulary")
-            seen[kind.slot] = kind
+            raise ValueError("Vocabulary needs at least one edge kind - an empty language is ill-defined")
+        slots = [kind.slot for kind in kinds]   # each row vetted itself at construction, a VO's own gate
+        if len(set(slots)) != len(slots):
+            twice = next(slot for index, slot in enumerate(slots) if slot in slots[:index])
+            raise ValueError(f"Vocabulary declares the slot `{twice}` twice - one kind per slot, one row each")
+        by_slot = {kind.slot: kind for kind in kinds}
         for kind in kinds:
             if kind.counterpart is None:
                 continue
-            other = seen.get(kind.counterpart)
-            if other is None:
-                raise Misconfigured(
-                    f"Edge kind {kind.slot!r} names {kind.counterpart!r} as its counterpart, yet this "
-                    f"vocabulary has no such kind - a pair is only a pair when both halves are present"
+            twin = by_slot.get(kind.counterpart)
+            if twin is None:
+                raise ValueError(
+                    f"`{kind.slot}` names `{kind.counterpart}` as its counterpart, yet no such kind is in "
+                    f"this vocabulary - a pairing must name a row that exists."
                 )
-            if other.counterpart != kind.slot:
-                raise Misconfigured(f"Edge kinds {kind.slot!r} and {other.slot!r} disagree about being a pair")
-            if other.hard == kind.hard:
-                raise Misconfigured(
-                    f"Edge kinds {kind.slot!r} and {other.slot!r} are a pair and are both "
-                    f"{'hard' if kind.hard else 'soft'} - a pair is the two flavours of one dependency"
+            if twin.counterpart != kind.slot or twin.addressing is not kind.addressing or twin.hard == kind.hard:
+                raise ValueError(
+                    f"`{kind.slot}` and `{kind.counterpart}` do not pair: counterparts must name each "
+                    f"other, share one addressing and differ in hardness - the soft one trusts what the "
+                    f"hard one refuses."
                 )
-        self.__kinds = tuple(kinds)
+        self.__kinds = kinds
 
     def __iter__(self) -> Iterator[EdgeKind]:
-        # ROW ORDER IS DERIVATION ORDER, so a table read twice draws its edges the same way twice. That is
-        # what makes a resolved order reproducible rather than merely correct.
         return iter(self.__kinds)
 
     def __len__(self) -> int:
         return len(self.__kinds)
 
-    @classmethod
-    def shipped(cls) -> "Vocabulary":
-        # The language this kernel ships with. `expects` and `requires` are one dependency in its two
-        # flavours, `wants` and `demands` the same pair addressed by capability rather than by class.
-        #
-        # Four pairs, three addressings and one of them reversed. That spread is the point - the table is
-        # only worth having if it can express kinds that differ in more than their name, which these four
-        # differ in how they name their target, in whether absence is fatal and in which direction the
-        # edge points. The Graph derives all eight through one loop with no branch naming a slot.
-        return cls(*EdgeKind.paired("expects", "requires", BY_CLASS),
-                   *EdgeKind.paired("prepares", "mandates", BY_CLASS, precedes=True),
-                   *EdgeKind.paired("wants", "demands", BY_LABEL),
-                   *EdgeKind.paired("uses", "needs", BY_INSTANCE))
+    def slots_for(self, addressing: Addressing) -> str:
+        # The slots of THIS language that take a given addressing, joined the way a sentence lists them -
+        # so a refusal telling a caller where a stray name belongs can never omit a slot the vocabulary
+        # grew and never name one this run does not speak.
+        return " or ".join(f"`{kind.slot}`" for kind in self.__kinds if kind.addressing is addressing)
 
     def grown(self, *kinds: EdgeKind) -> "Vocabulary":
-        # This language plus more. A new Vocabulary rather than a mutation, so the run already holding the
-        # old one keeps reading the old one.
+        # This language plus a domain's own rows, as a NEW vocabulary - validated whole, mutating
+        # nothing, which is the only growth a zero-global-state kernel can offer.
         return Vocabulary(*self.__kinds, *kinds)
+
+    @classmethod
+    def shipped(cls) -> "Vocabulary":
+        # The language a run speaks when it says nothing, COMPOSED where it is asked for rather than held
+        # as a module table. The kernel's defaults are answered by the class that owns them, never
+        # published as a constant lying beside it. The soft-and-hard
+        # pairs are minted as pairs, so the table the docs teach cannot be written mispaired.
+        return cls(
+            *EdgeKind.paired("expects", "requires", BY_CLASS, trusting="#4c6ef5", insisting="#e03131"),
+            *EdgeKind.paired("prepares", "mandates", BY_CLASS, trusting="#20c997", insisting="#087f5b", precedes=True),
+            *EdgeKind.paired("wants", "demands", BY_LABEL, trusting="#2f9e44", insisting="#e8590c"),
+            *EdgeKind.paired("uses", "needs", BY_INSTANCE, trusting="#7048e8", insisting="#5f3dc4"),
+        )
+

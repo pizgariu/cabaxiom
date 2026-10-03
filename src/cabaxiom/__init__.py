@@ -16,6 +16,7 @@ resembles desired-state work.
 
 from importlib import metadata as _metadata
 
+from .adversary import Adversary, ChaosDispatcher, Sabotage, Targeted
 from .arranger import Arranger, BaseFan, Chains, Walk, Waves
 from .cancellation import (
     AllOf,
@@ -124,6 +125,7 @@ __all__ = [
     # dispatcher
     "OnError", "Overlap", "Ledger", "Statement", "Reading", "Settled", "Write", "Crossing", "Permit", "Authority", "Local", "Warrant", "Charter", "Ceiling", "BaseDispatcher",
     "Dispatcher", "WavesDispatcher", "RunMode", "Parallel", "Supervised", "Serial", "Flow", "ThreadDispatcher", "RemoteDispatcher",
+    "Adversary", "Sabotage", "Targeted", "ChaosDispatcher",
     # graph
     "Declared", "Match", "Graph",
     "Addressing", "BY_CLASS", "BY_LABEL", "BY_INSTANCE", "EdgeKind", "Vocabulary",

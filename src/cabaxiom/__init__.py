@@ -66,6 +66,7 @@ from .dispatcher import (
     Write,
 )
 from .drift import Artifacts, Assessment, Changes, Drift, DriftItem
+from .enclave import Enclave, Unpublished
 from .errors import (
     Coverage,
     Cycle,
@@ -78,6 +79,7 @@ from .errors import (
     Seating,
     Unresolvable,
 )
+from .fanout import Fanout
 from .graph import Declared, Graph, Match
 from .lease import Authority, Local, Permit
 from .ledger import Ledger, OnError, Reading, Statement
@@ -119,9 +121,13 @@ __all__ = [
     "BaseLooping", "Fixpoint", "Shrinking", "Budget",
     # drift
     "Drift", "DriftItem", "Assessment", "Artifacts", "Changes",
+    # enclave
+    "Enclave", "Unpublished",
     # errors - three unrelated bases, each for a different audience
     "Malformed", "Unresolvable", "Misconfigured",
     "Cycle", "Coverage", "Seating", "Pairing", "Presence", "DataFlow", "Identity",
+    # fanout
+    "Fanout",
     # dispatcher
     "OnError", "Overlap", "Ledger", "Statement", "Reading", "Settled", "Write", "Crossing", "Permit", "Authority", "Local", "Warrant", "Charter", "Ceiling", "BaseDispatcher",
     "Dispatcher", "WavesDispatcher", "RunMode", "Parallel", "Supervised", "Serial", "Flow", "ThreadDispatcher", "RemoteDispatcher",

@@ -81,6 +81,8 @@ from .errors import (
 )
 from .fanout import Fanout
 from .graph import Declared, Graph, Match
+from .idempotence import Idempotence, Proof
+from .isolation import Charge, Churn, Indictment, Isolation, Stall
 from .lease import Authority, Local, Permit
 from .ledger import Ledger, OnError, Reading, Statement
 from .observer import Chorus, Journal, Logging, Observer, Pass, Span, Stamp, Timing
@@ -89,6 +91,7 @@ from .partition import ChainsPartition, Overlap, Partition, Placement, Seat, Wal
 from .reconciler import Reconciler
 from .records import Casualty, Explanation, Residual
 from .retry import BaseRetry, Retry
+from .reversibility import Reversibility, Roundtrip
 from .scope import BaseNamed, BaseTagged, Only, Scope, Skip, WithEveryTag, WithoutTag, WithTag
 from .settle import Clean, Settle, Stable
 from .step import Step
@@ -136,6 +139,10 @@ __all__ = [
     "Declared", "Match", "Graph",
     "Addressing", "BY_CLASS", "BY_LABEL", "BY_INSTANCE", "EdgeKind", "Vocabulary",
     "Diagram", "Dot", "Mermaid", "Tone",
+    # idempotence
+    "Proof", "Idempotence",
+    # isolation
+    "Charge", "Churn", "Stall", "Indictment", "Isolation",
     # observer
     "Observer", "Chorus", "Pass", "Journal", "Logging", "Stamp", "Span", "Timing",
     # ordering
@@ -146,6 +153,8 @@ __all__ = [
     "Residual", "Explanation", "Casualty", "Reconciler",
     # retry
     "Retry", "BaseRetry",
+    # reversibility
+    "Roundtrip", "Reversibility",
     # scope
     "Scope", "BaseNamed", "Only", "Skip", "BaseTagged", "WithTag", "WithEveryTag", "WithoutTag",
     # settle

@@ -67,6 +67,7 @@ from .dispatcher import (
 )
 from .drift import Artifacts, Assessment, Changes, Drift, DriftItem
 from .enclave import Enclave, Unpublished
+from .enclosure import Enclosure, Severance, Severed
 from .errors import (
     Coverage,
     Cycle,
@@ -129,6 +130,8 @@ __all__ = [
     # errors - three unrelated bases, each for a different audience
     "Malformed", "Unresolvable", "Misconfigured",
     "Cycle", "Coverage", "Seating", "Pairing", "Presence", "DataFlow", "Identity",
+    # enclosure
+    "Severed", "Severance", "Enclosure",
     # fanout
     "Fanout",
     # dispatcher

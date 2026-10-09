@@ -84,6 +84,7 @@ from .fanout import Fanout
 from .graph import Declared, Graph, Match
 from .idempotence import Idempotence, Proof
 from .isolation import Charge, Churn, Indictment, Isolation, Stall
+from .itinerary import Itinerary, Passage
 from .lease import Authority, Local, Permit
 from .ledger import Ledger, OnError, Reading, Statement
 from .observer import Chorus, Journal, Logging, Observer, Pass, Span, Stamp, Timing
@@ -96,6 +97,8 @@ from .reversibility import Reversibility, Roundtrip
 from .scope import BaseNamed, BaseTagged, Only, Scope, Skip, WithEveryTag, WithoutTag, WithTag
 from .settle import Clean, Settle, Stable
 from .step import Step
+from .succession import Rift, Shift, Succession
+from .transition import Cutover, Transition
 from .vocabulary import (
     BY_CLASS,
     BY_INSTANCE,
@@ -146,6 +149,8 @@ __all__ = [
     "Proof", "Idempotence",
     # isolation
     "Charge", "Churn", "Stall", "Indictment", "Isolation",
+    # itinerary
+    "Passage", "Itinerary",
     # observer
     "Observer", "Chorus", "Pass", "Journal", "Logging", "Stamp", "Span", "Timing",
     # ordering
@@ -164,5 +169,9 @@ __all__ = [
     "Settle", "Clean", "Stable",
     # step
     "Step",
+    # succession
+    "Shift", "Rift", "Succession",
+    # transition
+    "Cutover", "Transition",
 ]
 

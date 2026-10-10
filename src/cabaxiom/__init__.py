@@ -96,6 +96,7 @@ from .retry import BaseRetry, Retry
 from .reversibility import Reversibility, Roundtrip
 from .scope import BaseNamed, BaseTagged, Only, Scope, Skip, WithEveryTag, WithoutTag, WithTag
 from .settle import Clean, Settle, Stable
+from .siege import Breach, Siege
 from .step import Step
 from .succession import Rift, Shift, Succession
 from .transition import Cutover, Transition
@@ -129,6 +130,7 @@ __all__ = [
     # drift
     "Drift", "DriftItem", "Assessment", "Artifacts", "Changes",
     # enclave
+    "Breach", "Siege",
     "Enclave", "Unpublished",
     # errors - three unrelated bases, each for a different audience
     "Malformed", "Unresolvable", "Misconfigured",

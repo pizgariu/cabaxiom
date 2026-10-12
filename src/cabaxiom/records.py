@@ -8,6 +8,7 @@ from typing import final, overload, override
 
 from .diagram import Dot, Mermaid
 from .drift import Artifacts, Drift
+from .errors import Unresolvable
 from .step import Step
 from .vocabulary import EdgeKind
 
@@ -98,6 +99,18 @@ class Residual(Sequence[Drift]):
 
 
 @final
+class _Declared(dict[str, tuple[tuple[str, tuple[str, ...]], ...]]):
+    # A slot this run does not carry is refused BY NAME, since CPython's KeyError repeats the key back and
+    # names nothing else. Every slot the vocabulary knows is present here, empty when no step wrote it, so a
+    # key that misses is a typo or a slot that does not exist rather than a run that happened not to use it.
+    def __missing__(self, slot: str) -> tuple[tuple[str, tuple[str, ...]], ...]:
+        raise Unresolvable(
+            f"{slot} is not a declaration slot. This run carries {', '.join(sorted(self))}. A slot no step "
+            f"wrote is present and empty rather than absent, so a miss here is the name and not the run."
+        )
+
+
+@final
 class Explanation:
     """What the Reconciler resolved, surfaced read-only. The groups the dispatcher walks in run order, the
     resolved dependency edges behind that order plus the declarations that produced them.
@@ -132,7 +145,7 @@ class Explanation:
         self.__groups = groups
         self.__shape = shape
         self.__arrows = arrows
-        self.__declared = MappingProxyType(dict(declared))   # a read-only view, frozen like every channel
+        self.__declared = MappingProxyType(_Declared(declared))   # a read-only view, frozen like every channel
         self.__vocabulary = vocabulary
 
     @property

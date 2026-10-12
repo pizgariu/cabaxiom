@@ -17,6 +17,7 @@ from cabaxiom import (
     RunMode,
     Statement,
     Step,
+    Unresolvable,
     Walk,
 )
 from support import A, B, Boom, C, Fixable, ReportOnly
@@ -34,6 +35,16 @@ class ExplainTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(explanation.declared["needs"], ())                                 # expects-only run: no instance edges to surface
         self.assertEqual(explanation.declared["requires"], ())                              # nor any hard requires edges
         self.assertIn("(A) -> (B) -> (C)", repr(explanation))
+
+    def test_a_slot_that_is_not_a_slot_is_refused_by_name(self):
+        # An unused slot is present and empty, so a typo answered the same way read as a run that simply
+        # never wrote it. The two are different findings and CPython spells both KeyError.
+        explanation = Reconciler((C([]), A([]), B([]))).explain()
+        with self.assertRaises(Unresolvable) as refused:
+            explanation.declared["expcets"]
+        self.assertIn("expcets", str(refused.exception))
+        self.assertIn("expects", str(refused.exception))   # the slots it does carry, so the fix is readable
+        self.assertEqual(explanation.declared["needs"], ())
 
     def test_explain_surfaces_instance_needs_edges(self):
         class P(Step):

@@ -152,9 +152,10 @@ class Diagram(ABC):
 
     @staticmethod
     def _escaped(label: str) -> str:
-        # A label as a quoted string literal, the same in both shipped languages. A label is minted by the
-        # kernel from a class name plus an optional #n, so the escape is a formality - written anyway,
-        # because a domain naming a class with a quote deserves a diagram rather than a syntax error.
+        # A label as a quoted string literal in the backslash convention DOT reads. Mermaid spells the same
+        # escape as an entity and overrides this. A label is minted by the kernel from a class name plus an
+        # optional #n, so the escape is a formality - written anyway, because a domain naming a class with a
+        # quote deserves a diagram rather than a syntax error.
         return '"' + label.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
@@ -210,6 +211,14 @@ class Mermaid(Diagram):
     def __init__(self, tones: Mapping[str, Tone] | None = None, *, theme: str = ""):
         super().__init__(tones)
         self.__theme = theme
+
+    @staticmethod
+    @override
+    def _escaped(label: str) -> str:
+        # Mermaid reads no backslash escape inside a quoted label, so the quote goes in as the entity Mermaid
+        # spells it with. Quoting at all is what carries a pipe through, the character that would otherwise
+        # close an edge label and leave the rest of the line standing as syntax.
+        return '"' + label.replace('"', "#quot;") + '"' 
 
     @override
     def opening(self) -> tuple[str, ...]:

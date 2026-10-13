@@ -383,3 +383,38 @@ class GlimpseTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(seen["apply"], {"uri": "s3://x"})    # the write export
         self.assertEqual(seen["assess"], {"uri": "s3://x"})   # and the SAME key in the re-probe payload
 
+
+class EveryChannelCrossesTests(unittest.IsolatedAsyncioTestCase):
+    """All four channels of the inner reading reach the parent, not deviation alone.
+
+    They used to stop at the boundary. The first real consumer of a nested run found it - a check suite
+    holding a git-hooks reconciler needs the inner run's ADVICE, which is exactly what a run with no
+    deviation still has to say. An enclave that drops it is lossy in the one direction nothing would ever
+    notice, because the parent stays green either way."""
+
+    class Speaks(Step):
+        def assess(self, inputs):
+            return Assessment(
+                deviation=[DriftItem("inner", "wrong")],
+                plan=[DriftItem("inner", "would fix it")],
+                advisory=[DriftItem("inner", "worth knowing")],
+                footprint=[DriftItem("inner", "held")],
+            ), {}
+
+    async def test_the_parent_reads_all_four_channels_of_the_inner_run(self):
+        reading = await Reconciler((Enclave(Reconciler((self.Speaks(),))),)).assess()
+        self.assertEqual([item.message for item in reading], ["wrong"])
+        self.assertEqual([item.message for item in reading.plan], ["would fix it"])
+        self.assertEqual([item.message for item in reading.advisory], ["worth knowing"])
+        self.assertEqual([item.message for item in reading.footprint], ["held"])
+
+    async def test_advice_crosses_from_a_sub_stack_with_nothing_wrong(self):
+        # The case that made the gap invisible. Nothing deviates, so the parent is green whether or not
+        # the advice arrives - which is why only a consumer that RENDERS advice would ever have noticed.
+        class Quiet(Step):
+            def assess(self, inputs):
+                return Assessment(advisory=[DriftItem("inner", "an upgrade is available")]), {}
+
+        reading = await Reconciler((Enclave(Reconciler((Quiet(),))),)).assess()
+        self.assertEqual(list(reading), [])
+        self.assertEqual([item.message for item in reading.advisory], ["an upgrade is available"])

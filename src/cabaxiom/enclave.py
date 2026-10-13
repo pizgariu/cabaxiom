@@ -88,11 +88,17 @@ class Enclave(Step):
     @override
     async def assess(self, inputs: Artifacts) -> FlowAssessment:
         # The parent's re-assessment sees the WHOLE sub-stack's deviation as this one step's deviation,
-        # which is what keeps "empty means verified" true across a nested tree. The sub-stack does not
-        # surface its plan, advice or footprint separately here - the reconciler's read is its deviation.
-        # The published keys cross here too, as the GLIMPSE. What the inner reading actually shows.
+        # which is what keeps "empty means verified" true across a nested tree.
+        #
+        # ALL FOUR CHANNELS CROSS, not deviation alone. They used to stop here. The first real consumer of a
+        # nested run found it within an hour - a check suite holding a git-hooks reconciler needs the inner
+        # run's ADVICE, so dropping it made the enclave lossy in the one direction nothing would ever notice,
+        # since advice is precisely what a green run still has to say. There is no double count to fear in
+        # either direction. The inner steps are not in the parent's graph, so the parent aggregates this
+        # enclave's four channels exactly once. The published keys cross here too, as the GLIMPSE.
         reading = await self._reconciler.assess()
-        return Assessment(deviation=reading), self.__glimpsed(reading)
+        return Assessment(deviation=reading, plan=reading.plan, advisory=reading.advisory,
+                          footprint=reading.footprint), self.__glimpsed(reading)
 
     @override
     async def apply(self, inputs: Artifacts) -> FlowOutcome:

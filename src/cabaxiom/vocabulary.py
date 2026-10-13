@@ -13,8 +13,10 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, cast, final, overload, override
 
 # Step is imported for TYPING ONLY and every annotation below quotes it, because step.py imports THIS module at
-# module level and calls Vocabulary.shipped() while its own class body runs. This module therefore has to finish
-# importing before step.py does and a module-level `from .step import Step` here would close that cycle.
+# module level while Step.__init_subclass__ reads Vocabulary.shipped() at every subclass definition - including
+# the ones the package defines while it is still importing. This module therefore has to finish importing before
+# step.py does. A module-level `from .step import Step` here closes that cycle - measured, the whole package
+# stops importing with `cannot import name 'Step' from partially initialized module`.
 #
 # MIGRATION, when the floor rises to 3.14: PEP 649 evaluates annotations lazily, so the quotes around "Step" become
 # unnecessary and can come off in one sweep. This guard itself STAYS, since the name still must not be bound at

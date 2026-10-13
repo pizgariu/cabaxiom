@@ -171,7 +171,11 @@ class _ByInstance(Addressing):
     @override
     def shown(self, names: Sequence[object], labels: Mapping["Step", str]) -> tuple[str, ...]:
         from .step import Step
-        return tuple(labels[name] for name in names if isinstance(name, Step) and name in labels)
+        # Two if clauses rather than one `and`. Sequential filters narrow the name to Step before the
+        # subscript reads it, where a compound condition leaves the union standing in a checker that does
+        # not split `and` inside a comprehension. Same semantics either way. Only one of them is readable
+        # to every tool.
+        return tuple(labels[name] for name in names if isinstance(name, Step) if name in labels)
 
     @override
     def spoken(self, name: object) -> str:

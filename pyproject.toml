@@ -125,3 +125,4 @@ exclude_lines = ["pragma: no cover", "raise NotImplementedError", "if TYPE_CHECK
 
 [tool.mutmut]
 source_paths = ["src/cabaxiom"]
+also_copy = ["README.md", "CHANGELOG.md", "docs", "examples", "bench"]

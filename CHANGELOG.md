@@ -8,6 +8,17 @@ Every release is a pre-release on the road to the 1.0.0 freeze.
 
 Nothing yet.
 
+## [0.6.1] - 2026-10-14
+
+**One channel of four was crossing the enclave boundary. The first real nested run found the other three missing.**
+
+### Fixed
+- **An `Enclave` answered on one of the four channels its own record defines.** `Enclave` is a `Step` and a step's read answers on an `Assessment` with four channels. Its `assess()` forwarded the inner run's deviation and dropped the plan, the advice and the footprint on the floor, so a sub-stack reporting nothing but `advisory=[DriftItem("inner", "an upgrade is available")]` came back to the parent with an empty advisory channel and a green residual. The parent stayed green either way, which is what kept it invisible. Advice is precisely what a run with no deviation still has to say, so the one caller who notices is a caller who renders advice. The first real one hit it within an hour. A dry-run preview and a teardown preview stopped at the boundary of a nested stack the same way. All four channels cross now. There is no double count to fear in either direction, since the inner steps are not in the parent's graph and the parent aggregates the enclave's channels exactly once.
+- **The weekly mutation run failed before it tried a single mutant.** mutmut copies the package into a scratch directory and runs the suite there. The prose tests read `README.md` and the changelog from the repository root, which the copy left behind. `[tool.mutmut]` now lists them in `also_copy` beside the other files the suite reads.
+
+### BC break
+Nothing.
+
 ## [0.6.0] - 2026-10-13
 
 **The kernel grows its second half. Data flows between steps, a whole run nests inside one step and every claim the README makes now has a class that proves it.**
@@ -235,7 +246,8 @@ Planned milestones, in rough order. Nothing here is a promise of scope.
 - **0.7.0** - Layers a test can enforce. The flat package becomes `cabaxiom.core` in four layers whose arrows a linter checks, the laboratory moves out to `cabaxiom.laboratory` and the front door narrows to what you declare, run and catch. Every name that moves answers with the line to type instead of a bare ImportError.
 - **0.8.0** - The easter egg, kept for last because the kernel came first.
 - **1.0.0** - API stability. Freeze the public surface and commit to Semantic Versioning guarantees for it. The first non-prerelease, cut from the last of the 0.x line.
-[unreleased]: https://github.com/pizgariu/cabaxiom/compare/v0.6.0...HEAD
+[unreleased]: https://github.com/pizgariu/cabaxiom/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/pizgariu/cabaxiom/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/pizgariu/cabaxiom/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/pizgariu/cabaxiom/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/pizgariu/cabaxiom/compare/v0.5.0...v0.5.1

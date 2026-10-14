@@ -46,7 +46,7 @@ class Reconciler:
         scope = scope or Scope()
         ordering = ordering or Kahn()
 
-        self._mode = mode or Parallel()
+        mode = mode or Parallel()
         self._convergence = convergence or Once()
         self._cancellation = cancellation or Cancellation()
         self._observer = observer or Observer()
@@ -67,7 +67,12 @@ class Reconciler:
         # and the second Vocabulary.shipped() a forgotten keyword used to summon has nowhere left to
         # appear. The dispatcher resolves the final, scoped graph into the run shape it will walk.
         self._graph = scope.select(Graph(tuple(steps), Vocabulary.shipped() if vocabulary is None else vocabulary))
-        self._partition = self._mode.resolve(ordering, self._graph)
+        self._partition = mode.resolve(ordering, self._graph)
+        # The WORKER, not the mode. A RunMode is a constructor-time citizen - it pairs a shape with a
+        # worker, vouches the pairing and resolves the partition - and every one of those jobs is done by
+        # this line. What the run keeps is what it walks with, the partition and the dispatcher, so holding
+        # the mode was holding a spent validator and paying a two-hop chain for its worker on every verb.
+        self._dispatcher = mode.dispatcher
 
     def explain(self) -> Explanation:
         # The structural read (returns an Explanation, not Drift). What the injected Ordering resolved and
@@ -188,7 +193,7 @@ class Reconciler:
         # this fan surfaces the deviation channel, the one converge() re-probes for its proof. The
         # Reading is a Sequence of exactly those deviations, so every list-shaped caller reads it as
         # before - and carries what each assess PRODUCED beside them, the read's own data-flow.
-        return await self._mode.dispatcher.probe(self._partition.groups, self._graph, lambda step, inputs: step.assess(inputs), self._cancellation, self._observer)
+        return await self._dispatcher.probe(self._partition.groups, self._graph, lambda step, inputs: step.assess(inputs), self._cancellation, self._observer)
 
     async def __refused(self) -> tuple[Reading, tuple[Drift, ...]] | None:
         # THE GATE, asked once and before anything is written. The ONE home BOTH write verbs ask it from -
@@ -257,7 +262,7 @@ class Reconciler:
         async def cycle() -> list[Drift]:
             nonlocal latest, held
             self._observer.began()
-            statement = await self._mode.dispatcher.execute(self._partition.groups, self._graph, do, self._cancellation, self._observer)
+            statement = await self._dispatcher.execute(self._partition.groups, self._graph, do, self._cancellation, self._observer)
             returns, failures, waited = statement.returns, statement.failures, statement.deferred
             held = statement.produced
             told[:] = failures
@@ -317,7 +322,7 @@ class Reconciler:
             return residual
 
         do = Write(self._retry, self._observer, lambda step, inputs: step.prune(inputs), "prune", self._authority)
-        statement = await self._mode.dispatcher.execute(self._partition.inverse(), self._graph, do, self._cancellation, self._observer)
+        statement = await self._dispatcher.execute(self._partition.inverse(), self._graph, do, self._cancellation, self._observer)
         return self.__pruned(statement)
 
     async def watch(self) -> AsyncIterator[Residual]:

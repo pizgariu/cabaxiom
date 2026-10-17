@@ -47,7 +47,12 @@ class Arranger(ABC):
 
     @final
     def arrange(self, ordering: Ordering, graph: Graph) -> Partition:
-        graph.demand()   # the hard-presence rule, fired the moment membership is final
+        # The hard-presence rule goes FIRST, though nothing below reads its answer. Membership is final the
+        # moment a Graph exists, so this is the earliest the question can be asked. Asking it before the
+        # shape is built means every line below works on a declaration already known to be complete. Placed
+        # after shape() it would still pass, yet a reader would have to ask what shape() does with an
+        # incomplete one.
+        graph.demand()
         partition = self.shape(ordering, graph)
         self.__covers(partition, graph.steps)
         partition.verify(graph)   # every shape, since every shape has a real placement rule

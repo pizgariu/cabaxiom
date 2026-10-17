@@ -388,6 +388,33 @@ class IdentityIsTheCurrencyTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("handed to this run twice", str(refused.exception))
 
 
+    def test_a_bare_dataclass_is_refused_by_name_and_not_by_a_hash_error(self):
+        # The COMMONEST way to write it, the one the guard above could not reach. A bare @dataclass
+        # takes eq=True, which writes __eq__ and drops __hash__ to None, so the set the equality check is
+        # built on raised `unhashable type` first - a bare TypeError from inside the derivation, naming no
+        # step and no fix, for the exact decorator that guard exists to catch. The frozen=True form was
+        # tested and the bare one never was, which is how it survived.
+        @dataclass
+        class Payload(Step):
+            name: str = "same"
+
+        with self.assertRaises(ValueError) as refused:
+            Graph((Payload(),))
+        told = str(refused.exception)
+        self.assertIn("Payload", told)          # names the class, where the TypeError named a set element
+        self.assertIn("eq=False", told)         # and carries the fix, like its sibling above
+        self.assertNotIn("unhashable", told)
+
+    def test_one_unaddressable_step_is_enough_to_be_refused(self):
+        # Not a duplicate problem. A single unhashable step cannot be addressed at all, so the run is
+        # refused on its own and not only when a second one collides with it.
+        @dataclass
+        class Alone(Step):
+            name: str = "only"
+
+        with self.assertRaises(ValueError):
+            Graph((Alone(),))
+
 class OnePlaneForEveryDeclarationTests(unittest.IsolatedAsyncioTestCase):
     """The seven declaration slots speak ONE plane. The class value is the default, the instance may
     override, where the kernel reads the instance - `b.wants = ('db',)` used to be swallowed in silence,

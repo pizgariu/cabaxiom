@@ -116,6 +116,18 @@ class Graph:
         self.__steps = tuple(steps)
         for step in self.__steps:
             self.__vet(step, self.__vocabulary)
+        # HASHABILITY FIRST, because the guard below cannot run without it and the commonest way to break
+        # identity breaks this too. A bare @dataclass takes eq=True, which writes __eq__ AND sets
+        # __hash__ to None, so building the set two lines down raised a bare `unhashable type` from inside
+        # the derivation - naming no step, no cause and no fix, for the exact decorator the guard beneath
+        # was written to catch. The sentence has to be said before the set is built or it is never said.
+        for step in self.__steps:
+            if step.__class__.__hash__ is None:
+                raise Identity(
+                    f"{step.__class__.__name__} is not hashable, so this run cannot address it at all. A "
+                    f"Step's identity IS the kernel's dependency addressing. A bare @dataclass drops __hash__ "
+                    f"when it writes __eq__, so take eq=False and keep value semantics on a field object instead."
+                )
         present = set(self.__steps)
         # The identity guard's second half, for what the class-definition hook cannot see. A decorator
         # like dataclass(eq=True) rewrites __eq__ AFTER Step.__init_subclass__ ran. Two value-equal steps

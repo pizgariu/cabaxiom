@@ -184,13 +184,18 @@ class Graph:
 
     @staticmethod
     def __vet(step: Step, vocabulary: Vocabulary) -> None:
-        # The declaration guard. Every slot takes exactly one shape. A value in the wrong slot is a
-        # programming error, never a dead end - the silent kind of wrong the one home exists to refuse.
-        # Driven by the registry, so a new edge kind arrives already vetted. The addressing says what an
-        # element must BE. The belongs-elsewhere hint is composed from the OTHER currencies' slots,
-        # which is exactly the sentence that used to be spelled by hand three times. Vetted here per
-        # INSTANCE (the class-definition guard cannot see an instance assignment), the identity
-        # contract's own two-gate doctrine.
+        # The declaration guard, in two halves that share a reason and nothing else. A value in the wrong
+        # slot is a programming error, never a dead end - the silent kind of wrong the one home exists to
+        # refuse. Vetted here per INSTANCE (the class-definition guard cannot see an instance assignment),
+        # the identity contract's own two-gate doctrine.
+        Graph.__slotted(step, vocabulary)
+        Graph.__labelled(step)
+
+    @staticmethod
+    def __slotted(step: Step, vocabulary: Vocabulary) -> None:
+        # The EDGE slots. Driven by the registry, so a new edge kind arrives already vetted. The addressing
+        # says what an element must BE. The belongs-elsewhere hint is composed from the OTHER currencies'
+        # slots, which is exactly the sentence that used to be spelled by hand three times.
         for kind in vocabulary:
             declared = getattr(step, kind.slot, ())
             if not isinstance(declared, tuple):
@@ -207,9 +212,12 @@ class Graph:
                         f"{kind.addressing.takes}. {first.stray} belongs in {vocabulary.slots_for(first)} and "
                         f"{second.stray.lower()} in {vocabulary.slots_for(second)}."
                     )
-        # The label SETS, vetted the same way for the same reason. A bare string is the silent one - it
-        # iterates into single characters, so `provides = "database"` would offer six capabilities named
-        # d, a, t, b, s and e. Every match would miss without a word.
+
+    @staticmethod
+    def __labelled(step: Step) -> None:
+        # The label SETS, which carry no addressing and so get no row in the registry. A bare string is the
+        # silent one - it iterates into single characters, so `provides = "database"` would offer six
+        # capabilities named d, a, t, b, s and e. Every match would miss without a word.
         for slot, noun in (("provides", "capability labels"), ("produces", "artifact keys"),
                            ("consumes", "artifact keys")):
             declared = getattr(step, slot)

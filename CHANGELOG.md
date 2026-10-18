@@ -8,6 +8,16 @@ Every release is a pre-release on the road to the 1.0.0 freeze.
 
 Nothing yet.
 
+## [0.6.2] - 2026-10-18
+
+**The commonest broken step was refused by a hash error instead of by name.**
+
+### Fixed
+- **A bare `@dataclass` step is refused by name, before the set that cannot hold it is built.** `Step.__init_subclass__` refuses a hand-written `__eq__` and its own comment says a decorator rewriting equality after the class body escapes that hook, which is why the `Graph` re-checks at construction. The re-check could not run for the decorator it names. A bare `@dataclass` takes `eq=True`, which writes `__eq__` and drops `__hash__` to `None`, so the set built one line before the equality comparison raised a bare `unhashable type` error from inside the derivation, naming no step, no cause and no fix. One instance was enough. This was never about duplicates. `@dataclass(frozen=True)` stays hashable and was caught correctly, which is the variant the tests used and how the gap survived. Hashability is now checked per step before the set is built, raising `Identity` naming the class and carrying `eq=False` as the fix, the same sentence its sibling already gave.
+
+### BC break
+Nothing.
+
 ## [0.6.1] - 2026-10-14
 
 **One channel of four was crossing the enclave boundary. The first real nested run found the other three missing.**
@@ -246,7 +256,8 @@ Planned milestones, in rough order. Nothing here is a promise of scope.
 - **0.7.0** - Layers a test can enforce. The flat package becomes `cabaxiom.core` in four layers whose arrows a linter checks, the laboratory moves out to `cabaxiom.laboratory` and the front door narrows to what you declare, run and catch. Every name that moves answers with the line to type instead of a bare ImportError.
 - **0.8.0** - The easter egg, kept for last because the kernel came first.
 - **1.0.0** - API stability. Freeze the public surface and commit to Semantic Versioning guarantees for it. The first non-prerelease, cut from the last of the 0.x line.
-[unreleased]: https://github.com/pizgariu/cabaxiom/compare/v0.6.1...HEAD
+[unreleased]: https://github.com/pizgariu/cabaxiom/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/pizgariu/cabaxiom/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/pizgariu/cabaxiom/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/pizgariu/cabaxiom/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/pizgariu/cabaxiom/compare/v0.5.1...v0.5.2

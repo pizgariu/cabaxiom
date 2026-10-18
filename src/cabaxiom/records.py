@@ -9,6 +9,7 @@ from typing import final, overload, override
 from .diagram import Dot, Mermaid
 from .drift import Artifacts, Drift
 from .errors import Unresolvable
+from .ledger import Statement
 from .step import Step
 from .vocabulary import EdgeKind
 
@@ -41,6 +42,37 @@ class Residual(Sequence[Drift]):
         self.__vetoed = tuple(vetoed)
         self.__applied = tuple(applied)
         self.__produced = {step: dict(artifacts) for step, artifacts in (produced or {}).items()}
+
+    # THE FOUR VERDICTS A RUN CAN CLOSE ON, each minted by the factory named for it. The constructor stays
+    # public and unchanged, so every caller and every test that builds a Residual by hand keeps working. What
+    # the factories take away is the knowledge a caller had to carry - which channel a refusal rides beside,
+    # that failures stay empty when nothing broke, that a teardown's proof is the residue itself. Four
+    # sites in the reconciler each spelled one of those rules out in a ten-line comment. Each rule is said
+    # once here, so a site that mints the wrong verdict now reads wrong at a glance.
+
+    @classmethod
+    def refused(cls, reasons: Sequence[Drift], *, beside: Sequence[Drift], produced: Mapping[Step, Artifacts]) -> "Residual":
+        # A WARRANT SAID NO before anything was written. The reasons ride in the sequence view beside the
+        # channel THIS verb's residual is made of - a converge's deviations, a teardown's footprint - so a
+        # refused run cannot read as verified, while `vetoed` keeps them apart so no caller reads a policy
+        # decision as a crash. Nothing broke and nothing was applied, so both of those channels stay empty.
+        return cls([*reasons, *beside], vetoed=reasons, produced=produced)
+
+    @classmethod
+    def converged(cls, residual: Sequence[Drift], *, failures: Sequence[Drift], applied: Sequence[Drift],
+                  produced: Mapping[Step, Artifacts] | None) -> "Residual":
+        # A CONVERGE RAN TO ITS POLICY'S END. The sequence is whatever the convergence policy handed back as
+        # the final residual, the failures are the last cycle's own and `applied` is the diary of every pass.
+        return cls(residual, failures=failures, applied=applied, produced=produced)
+
+    @classmethod
+    def pruned(cls, statement: Statement) -> "Residual":
+        # A TEARDOWN RAN. The residue each prune() returned (what SURVIVED) concatenated with the dispatcher's
+        # own failures and deferrals is the whole proof set. There is no re-assessment channel on purpose -
+        # a read after a teardown measures deviation from a world that should EXIST, so it would report a
+        # successful teardown as everything being missing. The survived residue IS the proof. The order
+        # of the three groups inside it does not matter, since it is a (name, message) proof set.
+        return cls([*statement.returns, *statement.failures, *statement.deferred], failures=statement.failures, produced=statement.produced)
 
     @property
     def vetoed(self) -> tuple[Drift, ...]:
@@ -306,6 +338,4 @@ class Casualty:
     def __repr__(self) -> str:
         return (f"Casualty({self.__failed}: blocked={len(self.__blocked)}, skipped={len(self.__skipped)}, "
                 f"settling={len(self.__settling)}, starves={len(self.__starves)})")
-
-
 

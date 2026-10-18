@@ -18,7 +18,6 @@ from .drift import (
     AsyncFlowAssessment,
     AsyncFlowOutcome,
     Changes,
-    Drift,
     FlowAssessment,
     FlowOutcome,
 )
@@ -335,12 +334,10 @@ class WavesDispatcher(Dispatcher, ABC):
                 out_assessment, out_arts = res
             return unit, out_assessment, out_arts
 
-        items: list[Drift] = []
-        # The other three channels, collected rather than dropped. Every step already computed them and
-        # the fan used to throw three quarters of that away, which is why no gate could ask about scale.
-        plan: list[Drift] = []
-        advisory: list[Drift] = []
-        footprint: list[Drift] = []
+        # Every settled read, kept whole for Reading.gathered to fold. All four channels ride along - the fan
+        # used to throw three quarters of what every step computed away, which is why no gate could ask
+        # about scale. The store is ALSO filled per wave below, because the next wave mounts from it.
+        answered: list[tuple[Step, Assessment, Artifacts]] = []
         for group in groups:
             if cancellation.cancelled():
                 raise Cancelled.by(cancellation)
@@ -365,18 +362,13 @@ class WavesDispatcher(Dispatcher, ABC):
                 if isinstance(result, BaseException):
                     broken.append(result)
                 else:
-                    r_unit, r_assessment, r_arts = result
-                    artifacts_store[r_unit] = r_arts
-                    items.extend(r_assessment.deviation)
-                    plan.extend(r_assessment.plan)
-                    advisory.extend(r_assessment.advisory)
-                    footprint.extend(r_assessment.footprint)
+                    artifacts_store[result[0]] = result[2]
+                    answered.append(result)
             if broken:
                 raise BaseExceptionGroup(f"{len(broken)} of the wave's {len(settled)} reads failed", broken)
         # The reading closes over BOTH what the probe found and what each assess produced - the store used
-        # to die right here as a local. All-or-raise above is what makes it total. Every settled step has
-        # an entry, empty dict included, so an absent key downstream means "answered without it".
-        return Reading(items, artifacts_store, plan, advisory, footprint)
+        # to die right here as a local. All-or-raise above is what makes it total.
+        return Reading.gathered(answered)
 
     @final
     @override
@@ -574,7 +566,7 @@ class _Walker(Dispatcher):
         # propagates as itself here rather than as a group, since nothing else in the leg is in flight to
         # settle first - the wave fan's ExceptionGroup exists only because a wave is a barrier.
         produced: dict[Step, Artifacts] = {}
-        found: dict[str, list[Drift]] = {"deviation": [], "plan": [], "advisory": [], "footprint": []}
+        answered: list[tuple[Step, Assessment, Artifacts]] = []
         for leg in groups:
             for step in leg:
                 if cancellation.cancelled():
@@ -583,10 +575,9 @@ class _Walker(Dispatcher):
                 observer.dispatching(step, MappingProxyType(mounted))
                 answer = read(step, mounted)
                 assessment, artifacts = await answer if inspect.isawaitable(answer) else answer
-                produced[step] = artifacts
-                for channel, items in found.items():
-                    items.extend(getattr(assessment, channel))
-        return Reading(found["deviation"], produced, found["plan"], found["advisory"], found["footprint"])
+                produced[step] = artifacts      # mounted into the NEXT step's payload, so it stays live here
+                answered.append((step, assessment, artifacts))
+        return Reading.gathered(answered)
 
 
 @final

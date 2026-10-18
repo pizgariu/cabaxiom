@@ -249,6 +249,24 @@ class ResidualTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(residual, Residual([DriftItem("a", "x"), DriftItem("b", "y")]))   # and against its own kind
         self.assertNotEqual(residual, object())                                            # anything else is NotImplemented, not a guess
 
+    def test_each_verdict_has_a_factory_that_knows_its_own_channels(self):
+        # The constructor stays public, so this pins what the factories carry FOR a caller - which channel a
+        # refusal rides beside, that nothing-broke means an empty failures channel, that a teardown's whole
+        # statement is its proof. Four reconciler sites used to spell each of those out by hand.
+        reason, found, made = DriftItem("policy", "too many"), DriftItem("svc", "drifted"), DriftItem("svc", "made")
+        refused = Residual.refused([reason], beside=[found], produced={})
+        self.assertEqual(refused, [reason, found])                 # reasons ride beside the verb's channel
+        self.assertEqual(refused.vetoed, (reason,))                # and apart, so no caller reads a crash
+        self.assertEqual(refused.failures, ())                     # nothing broke
+        self.assertEqual(refused.applied, ())                      # nothing was written
+        converged = Residual.converged([found], failures=[found], applied=[made], produced=None)
+        self.assertEqual((converged.failures, converged.applied, converged.vetoed), ((found,), (made,), ()))
+        statement = Statement([DriftItem("a", "survived")], [DriftItem("b", "step failed")], {}, [DriftItem("c", "waited")])
+        pruned = Residual.pruned(statement)
+        self.assertEqual([item.name for item in pruned], ["a", "b", "c"])   # returns, failures, deferrals - the whole residue
+        self.assertEqual(pruned.failures, tuple(statement.failures))
+        self.assertEqual(pruned.vetoed, ())
+
     async def test_the_failures_channel_replaces_the_message_prefix_hunt(self):
         # "Did anything BREAK or is the world merely still drifting" used to mean parsing a prefix out
         # of the message text. It is a channel now, told apart from the re-probe findings in the view.

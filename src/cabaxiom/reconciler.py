@@ -153,37 +153,26 @@ class Reconciler:
         # describing the same run must name the same step the same way.
         return Step.labelled(step for group in self._partition for step in group)
 
-    def __settled(self, returns: Sequence[Drift], failures: Sequence[Drift], applied: list[Drift],
-                 reprobe: Sequence[Drift], waited: Sequence[Drift] = ()) -> list[Drift]:
-        # The tail of a converge pass. The fresh re-assessment arrives already awaited, what apply()
-        # changed is routed to the applied channel and kept OUT of the residual so an empty list stays
-        # verified-success, then the residual is this run's failures plus that re-assessment. `applied`
-        # accumulates on the caller's own coroutine across passes (never in a dispatcher's workers), so it
-        # stays race-free and in resolved order.
+    def __settled(self, statement: Statement, applied: list[Drift], reprobe: Sequence[Drift]) -> list[Drift]:
+        # The tail of a converge pass. It takes the dispatcher's Statement whole rather than making the
+        # caller unpack it. The fresh re-assessment arrives already awaited,
+        # what apply() changed is routed to the applied channel and kept OUT of the residual so an empty
+        # list stays verified-success, then the residual is this run's failures plus that re-assessment.
+        # `applied` accumulates on the caller's own coroutine across passes (never in a dispatcher's
+        # workers), so it stays race-free and in resolved order.
         #
         # Each hook is handed a TUPLE. An Observer is a trace, so a trace must not be able to rewrite what
         # it traces - the residual IS this kernel's proof, so an observer that appended to the list it was
         # shown once made a verified-clean run come back dirty. A Chorus relayed the same object to
         # every member so one could alter what a later one saw. A tuple does not merely discard the
         # mutation the way a copy did - it refuses it, with the Sequence annotation saying so up front.
-        applied.extend(returns)
-        self._observer.acted(tuple(returns))
+        applied.extend(statement.returns)
+        self._observer.acted(statement.returns)
         # Deferrals ride into the residual beside the failures and stay a SEPARATE argument the whole way,
         # so no sentence between the pool and the report can rename a full queue into a broken step. A run
         # whose only trouble is exhausted capacity is not clean, which is what this line says.
-        residual = [*failures, *waited, *reprobe]
+        residual = [*statement.failures, *statement.deferred, *reprobe]
         self._observer.remained(tuple(residual))
-        return residual
-
-    def __pruned(self, statement: Statement) -> Residual:
-        # The tail of a teardown, the prune twin of __settled. The residue each prune() returned (what
-        # SURVIVED) concatenated with any hard dispatcher failures is the residual proof set, which the
-        # teardown observer hook then sees. Unlike __settled there is no re-assessment channel - the read
-        # is deliberately NOT re-run after a teardown (it measures deviation from the should-EXIST state,
-        # so it would report everything as missing) - so the survived residue IS the proof. The two
-        # groups' order within the set does not matter, it is a (name, message) proof set.
-        residual = Residual([*statement.returns, *statement.failures, *statement.deferred], failures=statement.failures, produced=statement.produced)
-        self._observer.pruned(tuple(residual))
         return residual
 
     async def assess(self) -> Reading:
@@ -247,7 +236,7 @@ class Reconciler:
             # stays deliberately unfired, because no pass began and Timing opens its span on it.
             self._observer.acted(())
             self._observer.remained(tuple([*refused, *reading]))
-            return Residual([*refused, *reading], vetoed=refused, produced=reading.produced)
+            return Residual.refused(refused, beside=reading, produced=reading.produced)
 
         applied: list[Drift] = []
         told: list[Drift] = []              # the failures of the LAST cycle, for the minted channel
@@ -263,13 +252,12 @@ class Reconciler:
             nonlocal latest, held
             self._observer.began()
             statement = await self._dispatcher.execute(self._partition.groups, self._graph, do, self._cancellation, self._observer)
-            returns, failures, waited = statement.returns, statement.failures, statement.deferred
             held = statement.produced
-            told[:] = failures
+            told[:] = statement.failures
             # Bound to a local as well as to the nonlocal, because the nonlocal is declared
             # list[Drift] | None for its pre-first-pass state and a reader should not have to do the
             # narrowing in their head to see what this hands back.
-            latest = settled = self.__settled(returns, failures, applied, await self.assess(), waited)
+            latest = settled = self.__settled(statement, applied, await self.assess())
             return settled
 
         # The convergence policy lives once in passes(). It yields the wait before each pass, the cycle
@@ -286,7 +274,7 @@ class Reconciler:
             # last cycle - a custom passes() synthesizing some other list gets an empty channel rather
             # than a guessed one, so the view stays exactly what the policy answered.
             flat = cast(list[Drift], done.value)
-            return Residual(flat, failures=told if flat is latest else (), applied=applied, produced=held if flat is latest else None)
+            return Residual.converged(flat, failures=told if flat is latest else (), applied=applied, produced=held if flat is latest else None)
 
     async def prune(self) -> Residual:
         # The deletion half, the mirror of converge. Run every step's prune() in REVERSE resolved order
@@ -300,7 +288,7 @@ class Reconciler:
         # the suite composed a warrant with a teardown.
         #
         # THE LEADING PROBE IS TAKEN WHILE THE WORLD STILL STANDS, which is why a read before a teardown is
-        # coherent at all. __pruned says why the read is deliberately NOT re-run afterwards - it measures
+        # coherent at all. Residual.pruned says why the read is deliberately NOT re-run afterwards - it measures
         # deviation from a world that should EXIST, so it would report a successful teardown as everything
         # being missing - and that objection is about a reading taken AFTER the removal. It does not touch
         # this one, which reads the standing world and whose footprint channel is precisely the question a
@@ -317,13 +305,17 @@ class Reconciler:
             # for a refused converge. pruned() is fired because it is the teardown's own closing hook -
             # a trace that recorded every teardown but the refused one would be the same lie the converge
             # veto's unpaired hooks already were.
-            residual = Residual([*refused, *reading.footprint], vetoed=refused, produced=reading.produced)
+            residual = Residual.refused(refused, beside=reading.footprint, produced=reading.produced)
             self._observer.pruned(tuple(residual))
             return residual
 
         do = Write(self._retry, self._observer, lambda step, inputs: step.prune(inputs), "prune", self._authority)
         statement = await self._dispatcher.execute(self._partition.inverse(), self._graph, do, self._cancellation, self._observer)
-        return self.__pruned(statement)
+        # The verdict says why no read follows the teardown. The observer hook is fired here because it is
+        # the teardown's own closing hook, on the refused path and the run path alike.
+        residual = Residual.pruned(statement)
+        self._observer.pruned(tuple(residual))
+        return residual
 
     async def watch(self) -> AsyncIterator[Residual]:
         # The standing converge, woken by the world instead of a timer. Each step's watch() is monitored

@@ -8,7 +8,7 @@ from types import MappingProxyType
 from typing import NamedTuple, final, overload, override
 
 from .cancellation import Cancelled, Deferred, Fault, Skew
-from .drift import Artifacts, Changes, Drift, DriftItem
+from .drift import Artifacts, Assessment, Changes, Drift, DriftItem
 from .graph import Graph
 from .observer import Observer
 from .step import Step
@@ -130,6 +130,27 @@ class Reading(Sequence[Drift]):
         self.__footprint = tuple(footprint)
         self.__items = tuple(deviations)
         self.__produced = {step: dict(artifacts) for step, artifacts in (produced or {}).items()}
+
+    @classmethod
+    def gathered(cls, settled: Iterable[tuple[Step, Assessment, Artifacts]]) -> "Reading":
+        # ONE PROBE'S WORTH OF ASSESSMENTS, FOLDED. Every dispatcher that fans a read ends with the same
+        # walk - each step's four channels appended to four lists, each step's artifacts filed by instance -
+        # and two of them wrote it out by hand with the five results passed positionally into a constructor
+        # where `plan` and `advisory` are the same type, so a swapped pair would have typed clean. The fold
+        # lives here once. Every settled step gets an entry in `produced`, empty dict included, so an absent
+        # key downstream means "answered without it" rather than "never asked".
+        deviation: list[Drift] = []
+        plan: list[Drift] = []
+        advisory: list[Drift] = []
+        footprint: list[Drift] = []
+        produced: dict[Step, Artifacts] = {}
+        for step, assessment, artifacts in settled:
+            deviation.extend(assessment.deviation)
+            plan.extend(assessment.plan)
+            advisory.extend(assessment.advisory)
+            footprint.extend(assessment.footprint)
+            produced[step] = artifacts
+        return cls(deviation, produced, plan=plan, advisory=advisory, footprint=footprint)
 
     @property
     def plan(self) -> tuple[Drift, ...]:

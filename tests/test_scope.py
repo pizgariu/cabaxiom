@@ -214,4 +214,3 @@ class TagPredicateTests(unittest.IsolatedAsyncioTestCase):
 
         both, one = self._tagged("prod", "network"), self._tagged("prod")
         self.assertEqual(Exactly("prod", "network").select(Graph((both, one))).steps, (one,))
-

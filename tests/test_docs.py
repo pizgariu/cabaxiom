@@ -24,7 +24,7 @@ _BLOCK = re.compile(r"^```python[^\n]*\n(.*?)^```", re.M | re.S)
 # `from cabaxiom... import a, b` wherever it sits, inside a fence or quoted mid-sentence. The
 # parenthesised form is matched too, since a long import list wraps. The name list may hold ONLY what an
 # import list can hold, which is what stops the sweep at a closing backtick: README's "you `from
-# cabaxiom.setup import ...`. See `examples/dev_setup.py` for the full arc - declare, converge, prove"
+# battery.setup import ...`. See `examples/dev_setup.py` for the full arc - declare, converge, prove"
 # would otherwise read the rest of the sentence as four imported names and accuse the README of all four.
 _IMPORT = re.compile(
     r"from\s+(cabaxiom(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\s+import\s+(\([^)]*\)|[A-Za-z_*][A-Za-z0-9_ ,*]*)")
@@ -81,7 +81,7 @@ class _Page:
             names = match.group(2).split("#")[0].strip().strip("()")
             for name in names.split(","):
                 bound = name.split(" as ")[0].strip()
-                # Drops the elision in a quoted `from cabaxiom.setup import ...` and the trailing
+                # Drops the elision in a quoted `from battery.setup import ...` and the trailing
                 # backslash of a continued line, neither of which names anything.
                 if bound.isidentifier():
                     found.add((self.at(match.start()), match.group(1), bound))

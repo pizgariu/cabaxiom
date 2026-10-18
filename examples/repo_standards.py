@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """An organisation standard reconciled across a FLEET of repositories and proven.
 
-This is the pitch for cabaxiom.repository. Stop asking "is every repo compliant?" and prove it. Declare the
+This is the pitch for battery.repository: stop asking "is every repo compliant?" and prove it. Declare the
 standard once, hand every repo's copy to one Reconciler and read the residual as a compliance report -
 an EMPTY residual proves the whole fleet conforms, a non-empty one NAMES the repos that resist.
 
@@ -14,12 +14,14 @@ import sys
 from pathlib import Path
 
 try:
+    from battery.repository import GitHub, RepoSetting
+
     from cabaxiom import Reconciler
-    from cabaxiom.repository import GitHub, RepoSetting
 except ModuleNotFoundError:  # running from a source checkout without an install
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+    from battery.repository import GitHub, RepoSetting
+
     from cabaxiom import Reconciler
-    from cabaxiom.repository import GitHub, RepoSetting
 
 
 class FakeHub:
@@ -80,4 +82,3 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
-

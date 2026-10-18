@@ -483,4 +483,3 @@ class Stress:
 
 if __name__ == "__main__":
     raise SystemExit(Stress.cli(sys.argv[1:]))
-

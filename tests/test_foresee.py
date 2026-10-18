@@ -127,4 +127,3 @@ class StarvationTests(unittest.IsolatedAsyncioTestCase):
     def test_a_step_providing_nothing_starves_nobody(self):
         reconciler, network = _fleet(Parallel())
         self.assertEqual(reconciler.foresee(network).starves, ())
-

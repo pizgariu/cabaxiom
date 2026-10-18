@@ -8,7 +8,6 @@ import unittest
 
 from cabaxiom import (
     Chains,
-    ChaosDispatcher,
     Components,
     Coverage,
     Cycle,
@@ -24,14 +23,14 @@ from cabaxiom import (
     Presence,
     Reconciler,
     RunMode,
-    Sabotage,
     Seating,
     Step,
     Supervised,
     Unresolvable,
     Walk,
 )
-from cabaxiom.dispatcher import _Gather
+from cabaxiom.core.run.dispatcher import _Gather
+from cabaxiom.laboratory import ChaosDispatcher, Sabotage
 from support import A, B
 
 
@@ -185,4 +184,3 @@ class TheSegregationBuysSomethingTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(build=build):
                 with self.assertRaises(Unresolvable):
                     build()
-

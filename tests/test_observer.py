@@ -550,4 +550,3 @@ class TheReadPhaseIsTracedTests(unittest.IsolatedAsyncioTestCase):
                 seen = self._Seen()
                 await Reconciler((Looks(),), mode=mode, observer=seen).assess()
                 self.assertEqual(len(seen.dispatched), 1)
-

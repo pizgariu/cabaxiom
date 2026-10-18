@@ -30,10 +30,12 @@ import sys
 from pathlib import Path
 
 try:
-    from cabaxiom import Assessment, DriftItem, Enclave, Idempotence, Reconciler, Step
+    from cabaxiom import Assessment, DriftItem, Enclave, Reconciler, Step
+    from cabaxiom.laboratory import Idempotence
 except ModuleNotFoundError:  # running from a source checkout without an install
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-    from cabaxiom import Assessment, DriftItem, Enclave, Idempotence, Reconciler, Step
+    from cabaxiom import Assessment, DriftItem, Enclave, Reconciler, Step
+    from cabaxiom.laboratory import Idempotence
 
 
 class Provisioned(Step):
@@ -115,4 +117,3 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
-

@@ -155,6 +155,25 @@ class ReadingRecordTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotEqual(one, [])                                   # and one that is shorter
         self.assertNotEqual(one, object())                             # NotImplemented falls through
 
+    def test_gathered_folds_every_channel_and_files_every_artifact(self):
+        # The fold both read fans used to hand-roll, with five positional results into a constructor where
+        # plan and advisory share a type - so a swapped pair typed clean. Folded once, every channel lands in
+        # its own slot and every settled step gets a produced entry, the empty one included.
+        from cabaxiom import Assessment
+        from cabaxiom.core.record import Reading
+
+        one, two = A([]), B([])
+        reading = Reading.gathered([
+            (one, Assessment(deviation=[DriftItem("one", "off")], plan=[DriftItem("one", "would fix")]), {"k": 1}),
+            (two, Assessment(advisory=[DriftItem("two", "note")], footprint=[DriftItem("two", "owns")]), {}),
+        ])
+        self.assertEqual(reading, [DriftItem("one", "off")])
+        self.assertEqual(reading.plan, (DriftItem("one", "would fix"),))
+        self.assertEqual(reading.advisory, (DriftItem("two", "note"),))
+        self.assertEqual(reading.footprint, (DriftItem("two", "owns"),))
+        self.assertEqual(dict(reading.produced), {one: {"k": 1}, two: {}})   # answered without it, not never asked
+        self.assertEqual(Reading.gathered([]), [])
+
     def test_produced_is_copied_at_mint_exactly_as_the_statements(self):
         from cabaxiom import Reading
 
@@ -169,21 +188,3 @@ class ReadingRecordTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(TypeError):
             reading.produced[maker] = {}   # type: ignore[index]
         self.assertIn("Reading(", repr(reading))
-
-    def test_gathered_folds_every_channel_and_files_every_artifact(self):
-        # The fold both read fans used to hand-roll, with five positional results into a constructor where
-        # plan and advisory share a type - so a swapped pair typed clean. Folded once, every channel lands in
-        # its own slot and every settled step gets a produced entry, the empty one included.
-        from cabaxiom import Assessment, Reading
-
-        one, two = A([]), B([])
-        reading = Reading.gathered([
-            (one, Assessment(deviation=[DriftItem("one", "off")], plan=[DriftItem("one", "would fix")]), {"k": 1}),
-            (two, Assessment(advisory=[DriftItem("two", "note")], footprint=[DriftItem("two", "owns")]), {}),
-        ])
-        self.assertEqual(reading, [DriftItem("one", "off")])
-        self.assertEqual(reading.plan, (DriftItem("one", "would fix"),))
-        self.assertEqual(reading.advisory, (DriftItem("two", "note"),))
-        self.assertEqual(reading.footprint, (DriftItem("two", "owns"),))
-        self.assertEqual(dict(reading.produced), {one: {"k": 1}, two: {}})   # answered without it, not never asked
-        self.assertEqual(Reading.gathered([]), [])

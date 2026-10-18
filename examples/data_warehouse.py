@@ -1,6 +1,6 @@
 """A miniature warehouse as desired state, proven end to end on the standard library's sqlite3.
 
-The cabaxiom.data batteries take a PORT, never a driver. The connection below is stdlib sqlite3 and the
+The battery.data batteries take a PORT, never a driver: the connection below is stdlib sqlite3 and the
 same five steps run unchanged against Postgres or Snowflake the moment the domain injects its own PEP-249
 connection and the ANSI dialect. The arc is the beachhead's whole pitch - not rigor, PROOFS:
 
@@ -10,8 +10,10 @@ import asyncio
 import io
 import sqlite3
 
-from cabaxiom import Chorus, Idempotence, Journal, Reconciler
-from cabaxiom.data import SQLITE, Fresh, Lineage, Loaded, Quality, Schema, Table
+from battery.data import SQLITE, Fresh, Lineage, Loaded, Quality, Schema, Table
+
+from cabaxiom import Chorus, Journal, Reconciler
+from cabaxiom.laboratory import Idempotence
 
 NOW = 1_000_000.0   # the example rehearses time instead of waiting for it, like every test in this house
 
@@ -70,4 +72,3 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
-

@@ -4,8 +4,10 @@ the domain brings the driver, the battery brings the state machine."""
 import sqlite3
 import unittest
 
-from cabaxiom import Idempotence, Reconciler
-from cabaxiom.data import SQLITE, Fresh, Loaded, Quality, Schema, Table
+from battery.data import SQLITE, Fresh, Loaded, Quality, Schema, Table
+
+from cabaxiom import Reconciler
+from cabaxiom.laboratory import Idempotence
 
 
 class _SqlCase(unittest.IsolatedAsyncioTestCase):
@@ -20,7 +22,7 @@ class BareBridgeTests(_SqlCase):
     beachheads pin theirs. Override only the judgements you own, where the rest stays quiet."""
 
     async def test_a_battery_that_overrides_nothing_is_quiet_on_every_channel(self):
-        from cabaxiom.data.sql import _Sql
+        from battery.data.sql import _Sql
 
         class Inert(_Sql):
             pass
@@ -235,4 +237,3 @@ class QualityTests(_SqlCase):
 
 if __name__ == "__main__":
     unittest.main()
-

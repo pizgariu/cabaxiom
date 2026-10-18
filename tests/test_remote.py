@@ -11,12 +11,10 @@ import threading
 import unittest
 
 from cabaxiom import (
-    Adversary,
     Assessment,
     Authority,
     Cancellation,
     Cancelled,
-    ChaosDispatcher,
     Crossing,
     DriftItem,
     Graph,
@@ -28,13 +26,13 @@ from cabaxiom import (
     Reconciler,
     RemoteDispatcher,
     Retry,
-    Sabotage,
     Skew,
     Step,
     Supervised,
     ThreadDispatcher,
     Write,
 )
+from cabaxiom.laboratory import Adversary, ChaosDispatcher, Sabotage
 
 
 class Producer(Step):
@@ -996,4 +994,3 @@ class SupervisedBoundsTheCrossingTests(unittest.IsolatedAsyncioTestCase):
                          mode=RemoteDispatcher(self._never_answers, Supervised(poll=0.01, grace=0.05)))
         with self.assertRaises(Cancelled):
             await asyncio.wait_for(run.assess(), timeout=3.0)
-

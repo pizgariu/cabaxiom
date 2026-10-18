@@ -1,4 +1,4 @@
-"""cabaxiom.repository standards against a FAKE in-memory GitHub - the transport is injected, so a whole
+"""battery.repository standards against a FAKE in-memory GitHub - the transport is injected, so a whole
 compliance run is rehearsed offline. An empty residual across the fleet proves every repo conforms."""
 import io
 import json
@@ -6,9 +6,10 @@ import unittest
 import urllib.request
 from http.client import HTTPMessage
 
+from battery.repository import GitHub, RepoSetting, RepoTopic
+from battery.repository._github import _SameOrigin, _Urllib
+
 from cabaxiom import Reconciler
-from cabaxiom.repository import GitHub, RepoSetting, RepoTopic
-from cabaxiom.repository._github import _SameOrigin, _Urllib
 
 
 class _FakeHub:
@@ -142,7 +143,7 @@ class BareStandardTests(unittest.IsolatedAsyncioTestCase):
     judgements you own, where the rest stays quiet instead of inventing findings."""
 
     async def test_a_standard_that_overrides_nothing_is_quiet_on_every_channel(self):
-        from cabaxiom.repository.standards import _Standard
+        from battery.repository.standards import _Standard
 
         class Inert(_Standard):
             pass
@@ -150,4 +151,3 @@ class BareStandardTests(unittest.IsolatedAsyncioTestCase):
         reconciler = Reconciler((Inert(),))
         self.assertEqual(await reconciler.converge(), [])
         self.assertEqual(await reconciler.prune(), [])
-

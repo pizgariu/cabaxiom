@@ -35,7 +35,6 @@ from cabaxiom import (
     Cancelled,
     Ceiling,
     Chains,
-    ChaosDispatcher,
     Charter,
     Chorus,
     Components,
@@ -69,7 +68,6 @@ from cabaxiom import (
     Reconciler,
     Retry,
     RunMode,
-    Sabotage,
     Shrinking,
     Some,
     Step,
@@ -81,6 +79,7 @@ from cabaxiom import (
     WithEveryTag,
     WithTag,
 )
+from cabaxiom.laboratory import ChaosDispatcher, Sabotage
 
 
 class _Custom(Dispatcher):
@@ -1341,4 +1340,3 @@ class ExecutorIsTheDispatchersChoice(unittest.IsolatedAsyncioTestCase):
                         f"ThreadDispatcher ran the {verb} write on the event loop, so the blocking bridge "
                         f"the dispatcher axis was chosen for is gone",
                     )
-

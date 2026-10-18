@@ -1,4 +1,4 @@
-"""cabaxiom.setup filesystem batteries. Each self-verifies and reverses and a declared setup
+"""battery.setup filesystem batteries: each self-verifies and reverses, where a declared setup
 converges idempotently. Run against a throwaway temp tree, the way a real setup should be rehearsed."""
 import json
 import os
@@ -7,8 +7,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from cabaxiom import Idempotence, Parallel, Reconciler
-from cabaxiom.setup import Directory, File, JsonKey, LineInFile, Symlink
+from battery.setup import Directory, File, JsonKey, LineInFile, Symlink
+
+from cabaxiom import Parallel, Reconciler
+from cabaxiom.laboratory import Idempotence
 
 
 class _Tmp(unittest.IsolatedAsyncioTestCase):
@@ -333,7 +335,7 @@ class BareFixtureTests(unittest.IsolatedAsyncioTestCase):
     fixture that owns none stays quiet on every channel instead of inventing findings."""
 
     async def test_a_fixture_that_overrides_nothing_is_quiet_on_every_channel(self):
-        from cabaxiom.setup._base import Fixture
+        from battery.setup._base import Fixture
 
         class Inert(Fixture):
             pass
@@ -342,4 +344,3 @@ class BareFixtureTests(unittest.IsolatedAsyncioTestCase):
             reconciler = Reconciler((Inert(Path(root) / "inert"),))
             self.assertEqual(await reconciler.converge(), [])   # no drift invented, apply a clean no-op
             self.assertEqual(await reconciler.prune(), [])      # nothing owned, so nothing survives
-

@@ -194,4 +194,3 @@ class AsyncStepItineraryTests(unittest.IsolatedAsyncioTestCase):
         passage = await Itinerary(((), (_AsyncStuck(),))).converge()
         self.assertFalse(passage)
         self.assertEqual(passage.reached, 0)
-

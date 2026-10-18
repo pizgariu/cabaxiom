@@ -128,4 +128,3 @@ class TheDeclarationNeedsNoCarrierTests(unittest.TestCase):
         for name in ("verified", "drifted", "unchanged", "changed"):
             with self.subTest(constructor=name):
                 self.assertTrue(getattr(getattr(Step, name), "__final__", False))
-

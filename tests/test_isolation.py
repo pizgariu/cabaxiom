@@ -2,7 +2,8 @@
 import asyncio
 import unittest
 
-from cabaxiom import Assessment, Charge, Churn, DriftItem, Indictment, Isolation, Proof, Stall, Step
+from cabaxiom import Assessment, DriftItem, Step
+from cabaxiom.laboratory import Charge, Churn, Indictment, Isolation, Proof, Stall
 
 
 class _Innocent(Step):
@@ -139,4 +140,3 @@ class AsyncStepIsolationTests(unittest.IsolatedAsyncioTestCase):
         indictment = await Isolation((self._AsyncInnocent(),), charge=Churn()).isolate()
         self.assertFalse(indictment)
         self.assertEqual(indictment.trials, 1)
-

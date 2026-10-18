@@ -366,4 +366,3 @@ class ReseatGuardTests(unittest.TestCase):
         spoken = str(refused.exception)
         self.assertIn("Dependent depends on Dependency, yet the Ordering yielded it first", spoken)
         self.assertIn("valid topological order", spoken)
-

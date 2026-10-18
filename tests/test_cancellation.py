@@ -317,7 +317,7 @@ class CancellableProbeTests(unittest.IsolatedAsyncioTestCase):
     async def test_the_bridges_carry_the_cancellation_through(self):
         # ThreadDispatcher and the chaos decorator both delegate, so a flag already up refuses the probe
         # before any read runs - through however many layers are composed.
-        from cabaxiom import ChaosDispatcher, Sabotage
+        from cabaxiom.laboratory import ChaosDispatcher, Sabotage
 
         class Quiet(Step):
             def assess(self, inputs):
@@ -369,4 +369,3 @@ class CancellableProbeTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(BaseExceptionGroup) as raised:
             await Reconciler((BrokenA(), BrokenB()), mode=Supervised(poll=0.01)).assess()
         self.assertEqual(len(raised.exception.exceptions), 2)
-

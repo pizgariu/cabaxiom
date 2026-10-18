@@ -1,0 +1,16 @@
+# What the images have no use for. The build context is the repository root because the core image needs both
+# `src` and `service`, so this list is what keeps that from meaning "ship everything".
+.git
+.venv
+.pytest_cache
+.ruff_cache
+.mypy_cache
+**/__pycache__
+**/*.pyc
+htmlcov
+.coverage
+docs
+demo
+dist
+build
+*.egg-info

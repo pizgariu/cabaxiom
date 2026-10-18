@@ -459,8 +459,8 @@ class AbortKeepsPrecedenceTests(unittest.TestCase):
     @staticmethod
     def _ledger(step, policy):
         from cabaxiom import Observer
-        from cabaxiom.graph import Graph
-        from cabaxiom.ledger import Ledger
+        from cabaxiom.core.plan.graph import Graph
+        from cabaxiom.core.record.ledger import Ledger
 
         return Ledger(((step,),), policy, Observer(), Graph((step,)))
 
@@ -484,4 +484,3 @@ class AbortKeepsPrecedenceTests(unittest.TestCase):
                 statement = ledger.outcome()
                 self.assertEqual(list(statement.failures), [])
                 self.assertIn("step deferred", statement.deferred[0].message)
-

@@ -287,4 +287,3 @@ class BudgetTests(unittest.IsolatedAsyncioTestCase):
         second = _NeverSettles()
         await Reconciler((second,), convergence=budget).converge()
         self.assertEqual((first.applies, second.applies), (2, 2))
-

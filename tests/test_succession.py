@@ -355,4 +355,3 @@ class VerdictShapeTests(unittest.TestCase):
         disjoint = Succession((Web(),), (Api(),)).compare()
         self.assertFalse(disjoint.torn)
         self.assertEqual(disjoint.estranged, ())
-

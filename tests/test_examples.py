@@ -21,4 +21,3 @@ class ExampleSmokeTests(unittest.TestCase):
                     capture_output=True, text=True, timeout=120, env=_ENV,
                 )
                 self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
-

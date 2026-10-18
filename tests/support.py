@@ -1,5 +1,5 @@
 from cabaxiom import Artifacts, Assessment, Backoff, DriftItem, Step
-from cabaxiom.drift import FlowAssessment, FlowOutcome
+from cabaxiom.core.declaration.drift import FlowAssessment, FlowOutcome
 
 
 class _RecStep(Step):
@@ -104,4 +104,3 @@ class RecordingBackoff(Backoff):
     def delay(self, stalled: int) -> float:
         self.stalls.append(stalled)
         return 0.0
-

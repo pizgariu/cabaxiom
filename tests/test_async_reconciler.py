@@ -95,7 +95,7 @@ class ConvergeTests(unittest.IsolatedAsyncioTestCase):
         # A positive delay is awaited on the event loop (patched instant) rather than blocking it, so a
         # pause never stalls the coroutines sharing the loop.
         step = _Stuck()
-        with patch("cabaxiom.reconciler.asyncio.sleep", new_callable=AsyncMock) as slept:
+        with patch("cabaxiom.core.run.reconciler.asyncio.sleep", new_callable=AsyncMock) as slept:
             residual = await Reconciler((step,), convergence=Fixpoint(max_passes=3, backoff=Fixed(2.5))).converge()
         self.assertEqual(len(residual), 1)
         self.assertEqual(step.applies, 3)   # the opening pass plus two paced retries
@@ -312,4 +312,3 @@ class HookColourTests(unittest.IsolatedAsyncioTestCase):
 
         reconciler = Reconciler((Kept(), self._AsyncApply()), scope=Only(Kept))
         self.assertEqual(reconciler.explain().groups, (("Kept",),))
-

@@ -4,7 +4,7 @@ import unittest
 from dataclasses import dataclass
 
 from cabaxiom import Graph, Step
-from cabaxiom.vocabulary import Roster
+from cabaxiom.core.declaration.vocabulary import Roster
 from support import A, B, C, X, Y
 
 
@@ -369,25 +369,6 @@ class IdentityIsTheCurrencyTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("compare EQUAL", str(refused.exception))
         self.assertIn("eq=False", str(refused.exception))   # the fix rides in the message
 
-    def test_a_dataclass_step_with_eq_false_is_the_documented_form(self):
-        @dataclass(frozen=True, eq=False)
-        class Payload(Step):
-            name: str = "same"
-
-        first, second = Payload(), Payload()
-        graph = Graph((first, second))
-        self.assertEqual(len(graph.steps), 2)   # two concerns, two nodes, no collapse
-
-    def test_the_same_instance_handed_twice_gets_its_own_sentence(self):
-        class Solo(Step):
-            pass
-
-        one = Solo()
-        with self.assertRaises(ValueError) as refused:
-            Graph((one, one))
-        self.assertIn("handed to this run twice", str(refused.exception))
-
-
     def test_a_bare_dataclass_is_refused_by_name_and_not_by_a_hash_error(self):
         # The COMMONEST way to write it, the one the guard above could not reach. A bare @dataclass
         # takes eq=True, which writes __eq__ and drops __hash__ to None, so the set the equality check is
@@ -414,6 +395,25 @@ class IdentityIsTheCurrencyTests(unittest.IsolatedAsyncioTestCase):
 
         with self.assertRaises(ValueError):
             Graph((Alone(),))
+
+    def test_a_dataclass_step_with_eq_false_is_the_documented_form(self):
+        @dataclass(frozen=True, eq=False)
+        class Payload(Step):
+            name: str = "same"
+
+        first, second = Payload(), Payload()
+        graph = Graph((first, second))
+        self.assertEqual(len(graph.steps), 2)   # two concerns, two nodes, no collapse
+
+    def test_the_same_instance_handed_twice_gets_its_own_sentence(self):
+        class Solo(Step):
+            pass
+
+        one = Solo()
+        with self.assertRaises(ValueError) as refused:
+            Graph((one, one))
+        self.assertIn("handed to this run twice", str(refused.exception))
+
 
 class OnePlaneForEveryDeclarationTests(unittest.IsolatedAsyncioTestCase):
     """The seven declaration slots speak ONE plane. The class value is the default, the instance may
@@ -588,4 +588,3 @@ class DataFlowContractTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(TypeError) as refused:
             Graph((reader,))
         self.assertIn("names 3306 in `consumes`", str(refused.exception))
-

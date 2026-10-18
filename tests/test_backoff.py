@@ -68,35 +68,35 @@ class BackoffTests(unittest.IsolatedAsyncioTestCase):
     async def test_a_positive_delay_is_awaited_on_the_event_loop(self):
         # A positive delay makes the engine pause before each retry (patched to stay instant), so the wait
         # the policy yields is what gets awaited on the loop, not swallowed.
-        with patch("cabaxiom.reconciler.asyncio.sleep", new_callable=AsyncMock) as slept:
+        with patch("cabaxiom.core.run.reconciler.asyncio.sleep", new_callable=AsyncMock) as slept:
             residual = await Reconciler((_ClearsAfter(3),), convergence=Fixpoint(backoff=Fixed(2.5))).converge()
         self.assertEqual(residual, [])
         self.assertEqual([call.args[0] for call in slept.call_args_list], [2.5, 2.5])
 
     def test_fixed_waits_a_constant_duration(self):
         backoff = Fixed(2.5)
-        with patch("cabaxiom.convergence.time.sleep") as slept:
+        with patch("cabaxiom.core.run.convergence.time.sleep") as slept:
             backoff.wait(1)
             backoff.wait(6)
         self.assertEqual([call.args[0] for call in slept.call_args_list], [2.5, 2.5])
 
     def test_exponential_doubles_each_stall_then_holds_at_the_cap(self):
         backoff = Exponential(base=1, cap=8)
-        with patch("cabaxiom.convergence.time.sleep") as slept:
+        with patch("cabaxiom.core.run.convergence.time.sleep") as slept:
             for stall in range(1, 6):
                 backoff.wait(stall)
         self.assertEqual([call.args[0] for call in slept.call_args_list], [1, 2, 4, 8, 8])
 
     def test_linear_ramps_by_a_constant_step_then_holds_at_the_cap(self):
         backoff = Linear(step=2, cap=7)
-        with patch("cabaxiom.convergence.time.sleep") as slept:
+        with patch("cabaxiom.core.run.convergence.time.sleep") as slept:
             for stall in range(1, 6):
                 backoff.wait(stall)
         self.assertEqual([call.args[0] for call in slept.call_args_list], [2, 4, 6, 7, 7])
 
     def test_fibonacci_ramps_by_the_sequence_then_holds_at_the_cap(self):
         backoff = Fibonacci(base=1, cap=8)
-        with patch("cabaxiom.convergence.time.sleep") as slept:
+        with patch("cabaxiom.core.run.convergence.time.sleep") as slept:
             for stall in range(1, 8):
                 backoff.wait(stall)
         self.assertEqual([call.args[0] for call in slept.call_args_list], [1, 2, 3, 5, 8, 8, 8])
@@ -157,7 +157,7 @@ class BackoffTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_fibonacci_paces_a_stalled_fixpoint(self):
         # It is a Backoff like any other, so Fixpoint takes it and a stalled pass becomes a paced retry.
-        with patch("cabaxiom.reconciler.asyncio.sleep", new_callable=AsyncMock) as slept:
+        with patch("cabaxiom.core.run.reconciler.asyncio.sleep", new_callable=AsyncMock) as slept:
             residual = await Reconciler((_ClearsAfter(3),),
                                         convergence=Fixpoint(backoff=Fibonacci(base=1, cap=8))).converge()
         self.assertEqual(residual, [])
@@ -183,4 +183,3 @@ class JitterTests(unittest.IsolatedAsyncioTestCase):
         drawn = Jitter(Fixed(2.0)).delay(1)   # no rng given -> a fresh random.Random()
         self.assertGreaterEqual(drawn, 0.0)
         self.assertLessEqual(drawn, 2.0)
-

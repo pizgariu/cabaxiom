@@ -260,4 +260,3 @@ class Cost:
 
 if __name__ == "__main__":
     raise SystemExit(Cost.cli(sys.argv[1:]))
-

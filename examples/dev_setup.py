@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """A development environment declared as desired state, converged, PROVEN idempotent and reversed.
 
-This is the pitch for cabaxiom.setup. A setup script that breaks on its second run is dead. Declare
+This is the pitch for battery.setup: a setup script that breaks on its second run is dead. Declare
 what you want - directories, files, a config key, a gitignore line, a symlinked dotfile - hand it to a
 Reconciler and it converges the machine, re-reads to prove it landed, certifies with Idempotence that
 a second run changes nothing, self-heals when the world drifts and tears down cleanly through prune.
@@ -15,12 +15,16 @@ import tempfile
 from pathlib import Path
 
 try:
-    from cabaxiom import Idempotence, Reconciler
-    from cabaxiom.setup import Directory, File, JsonKey, LineInFile, Symlink
+    from battery.setup import Directory, File, JsonKey, LineInFile, Symlink
+
+    from cabaxiom import Reconciler
+    from cabaxiom.laboratory import Idempotence
 except ModuleNotFoundError:  # running from a source checkout without an install
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-    from cabaxiom import Idempotence, Reconciler
-    from cabaxiom.setup import Directory, File, JsonKey, LineInFile, Symlink
+    from battery.setup import Directory, File, JsonKey, LineInFile, Symlink
+
+    from cabaxiom import Reconciler
+    from cabaxiom.laboratory import Idempotence
 
 
 async def main() -> None:
@@ -103,4 +107,3 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
-

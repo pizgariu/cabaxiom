@@ -328,7 +328,7 @@ class InstanceDepsTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Node", str(ctx.exception))
 
     async def test_a_uses_edge_outside_the_supplied_set_is_ignored(self):
-        # Scoped like expects=: a uses pointing at a step not handed in is dropped, so a subset still resolves.
+        # Scoped like expects= - a uses pointing at a step not handed in is dropped, so a subset still resolves.
         log = []
 
         class Node(Step):
@@ -346,5 +346,4 @@ class InstanceDepsTests(unittest.IsolatedAsyncioTestCase):
         # present resolved and ran. The absent edge was DROPPED, not resolved (else it would raise on the
         # missing node or pull it in). Proving the claim, not merely that nothing blew up.
         self.assertEqual(log, ["present"])
-
 

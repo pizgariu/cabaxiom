@@ -600,4 +600,3 @@ class UnwireableStepTests(_Boundary):
         self.assertIsInstance(broken.exception.exceptions[0], TypeError)
         self.assertIn("pickle", str(broken.exception.exceptions[0]))
         self.assertEqual(wire.verbs, [])
-

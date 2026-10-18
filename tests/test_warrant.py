@@ -14,21 +14,19 @@ import unittest
 from cabaxiom import (
     Assessment,
     Ceiling,
-    ChaosDispatcher,
     Charter,
     DriftItem,
-    Idempotence,
     Observer,
     OnError,
     Parallel,
     Reading,
     Reconciler,
-    Sabotage,
     Step,
     Supervised,
     ThreadDispatcher,
     Warrant,
 )
+from cabaxiom.laboratory import ChaosDispatcher, Idempotence, Sabotage
 
 
 class Owning(Step):
@@ -426,4 +424,3 @@ class VetoMeetsTheCitizensTests(unittest.IsolatedAsyncioTestCase):
         step = Producing()
         residual = await Reconciler((step,), warrant=_Always()).converge()
         self.assertEqual(residual.produced[step], {"uri": "s3://x"})
-

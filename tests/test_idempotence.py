@@ -2,7 +2,8 @@
 import asyncio
 import unittest
 
-from cabaxiom import Assessment, DriftItem, Idempotence, Proof, Reconciler, Step
+from cabaxiom import Assessment, DriftItem, Reconciler, Step
+from cabaxiom.laboratory import Idempotence, Proof
 from support import Fixable
 
 
@@ -119,4 +120,3 @@ class AsyncApplyIdempotenceTests(unittest.IsolatedAsyncioTestCase):
         proof = await Idempotence(Reconciler((_AsyncChurner(),))).prove()
         self.assertFalse(proof.stable)
         self.assertEqual([item.message for item in proof.churned], ["rebuilt again"])
-

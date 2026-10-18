@@ -14,7 +14,6 @@ from cabaxiom import (
     Exponential,
     Fixed,
     Fixpoint,
-    Idempotence,
     Journal,
     OnError,
     Parallel,
@@ -22,7 +21,8 @@ from cabaxiom import (
     Retry,
     Step,
 )
-from cabaxiom.testing import Firing, Fixable, Recording, RecordingBackoff, Staged
+from cabaxiom.laboratory import Idempotence
+from cabaxiom.laboratory.rig.testing import Firing, Fixable, Recording, RecordingBackoff, Staged
 
 
 class StagedTests(unittest.IsolatedAsyncioTestCase):
@@ -368,4 +368,3 @@ class HonestyTests(unittest.IsolatedAsyncioTestCase):
 
     def test_the_backoff_hands_back_a_float(self):
         self.assertIsInstance(RecordingBackoff(Fixed(2.5)).delay(1), float)
-

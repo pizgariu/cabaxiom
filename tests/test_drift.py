@@ -3,7 +3,7 @@ import unittest
 from dataclasses import dataclass
 
 from cabaxiom import Artifacts, Assessment, DriftItem, Reconciler, Step
-from cabaxiom.drift import FlowAssessment, FlowOutcome
+from cabaxiom.core.declaration.drift import FlowAssessment, FlowOutcome
 
 
 class DriftItemTests(unittest.TestCase):
@@ -77,4 +77,3 @@ class DriftContractTests(unittest.IsolatedAsyncioTestCase):
         residual = await Reconciler((Domain(),)).converge()
         self.assertEqual(residual, [])
         self.assertEqual([(c.name, c.message) for c in residual.applied], [("svc", "mode corrected")])
-

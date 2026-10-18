@@ -51,7 +51,7 @@ from cabaxiom import (
     Vocabulary,
     Write,
 )
-from cabaxiom.vocabulary import Roster
+from cabaxiom.core.declaration.vocabulary import Roster
 
 
 class _Counts:
@@ -757,4 +757,3 @@ class LargeGraphCostTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((counts.apply, counts.assess), (1024, 1024))
         self.assertEqual(watch.fired("began", "acted", "remained"), (1, 1, 1))
         self.assertEqual(watch.fired("dispatching", "stepped", "produced"), (2048, 1024, 1024))   # dispatching announces both phases
-

@@ -14,10 +14,11 @@ from collections.abc import Sequence
 from unittest import mock
 
 import cabaxiom
+import cabaxiom.laboratory  # never arrives on `import cabaxiom` alone, which is the point
 from cabaxiom import Assessment
-from cabaxiom.diagram import STYLING
-from cabaxiom.partition import Placement
-from cabaxiom.vocabulary import BY_CLASS, BY_INSTANCE, BY_LABEL, EdgeKind, Vocabulary
+from cabaxiom.core.declaration.vocabulary import BY_CLASS, BY_INSTANCE, BY_LABEL, EdgeKind, Vocabulary
+from cabaxiom.core.plan.partition import Placement
+from cabaxiom.core.record.diagram import STYLING
 
 # The default language, minted once for these assertions - the kernel itself mints it per derivation.
 SHIPPED = Vocabulary.shipped()
@@ -564,8 +565,8 @@ class OneFactSpokenOnceTests(unittest.IsolatedAsyncioTestCase):
             def assess(self, inputs):
                 return Assessment(deviation=[]), {}
 
-        class Always(cabaxiom.Charge):
-            def shows(self, proof: cabaxiom.Proof) -> bool:
+        class Always(cabaxiom.laboratory.Charge):
+            def shows(self, proof: cabaxiom.laboratory.Proof) -> bool:
                 return True
 
         second, first = Web(), Web()
@@ -574,7 +575,7 @@ class OneFactSpokenOnceTests(unittest.IsolatedAsyncioTestCase):
         run = cabaxiom.Reconciler(steps)
         named = dict(zip((label for group in run.explain().groups for label in group),
                          (step for group in run._partition for step in group)))
-        indicted = await cabaxiom.Isolation(steps, charge=Always()).isolate()
+        indicted = await cabaxiom.laboratory.Isolation(steps, charge=Always()).isolate()
         for label in (*indicted.accused, *indicted.dismissed):
             with self.subTest(label=label):
                 self.assertIn(label, named, "an indictment must name a step by the run's own label")
@@ -655,11 +656,16 @@ class FinalMarkingTests(unittest.TestCase):
 
     @staticmethod
     def _kernel_classes() -> dict[str, type]:
+        # BOTH published surfaces. The second one is here because the first stopped being the whole
+        # story. When the front door narrowed to the kernel, this walk silently lost sight of the
+        # laboratory's fifteen classes - a guard that quietly covers less is worse than one that fails, so
+        # the sibling test below exists to make that shrinkage loud.
         found = {}
-        for name in dir(cabaxiom):
-            held = getattr(cabaxiom, name)
-            if isinstance(held, type):
-                found[name] = held
+        for module in (cabaxiom, cabaxiom.laboratory):
+            for name in dir(module):
+                held = getattr(module, name)
+                if isinstance(held, type):
+                    found[name] = held
         return found
 
     def test_no_final_class_is_subclassed_anywhere_in_the_suite(self):
@@ -683,7 +689,7 @@ class FinalMarkingTests(unittest.TestCase):
     def test_the_check_would_actually_catch_a_sealed_base(self):
         # A guard nobody has seen fail is a guard nobody should trust. Isolation IS sealed and deliberately so,
         # which makes it the honest fixture for proving the walk fires.
-        self.assertTrue(getattr(cabaxiom.Isolation, "__final__", False))
+        self.assertTrue(getattr(cabaxiom.laboratory.Isolation, "__final__", False))
         known = self._kernel_classes()
         tree = ast.parse("class Sneaky(Isolation):\n    pass\n")
         caught = [n.name for n in ast.walk(tree) if isinstance(n, ast.ClassDef)
@@ -693,8 +699,8 @@ class FinalMarkingTests(unittest.TestCase):
     def test_the_two_harnesses_the_suite_extends_are_left_open(self):
         # The other direction. These two carry a documented, tested extension point, so a later tidy-up that
         # reseals them has to break this line first.
-        self.assertFalse(getattr(cabaxiom.Idempotence, "__final__", False))
-        self.assertFalse(getattr(cabaxiom.Reversibility, "__final__", False))
+        self.assertFalse(getattr(cabaxiom.laboratory.Idempotence, "__final__", False))
+        self.assertFalse(getattr(cabaxiom.laboratory.Reversibility, "__final__", False))
 
 
 class PlacementWordingTests(unittest.TestCase):
@@ -746,4 +752,3 @@ class PlacementWordingTests(unittest.TestCase):
         # The guard must not merely refuse. A shape that words its rule properly still gets to exist.
         shape = self._shape("beside its dependent", "band")
         self.assertEqual(shape.placement.grouping, "band")
-

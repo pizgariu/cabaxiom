@@ -5,16 +5,8 @@ the declaration still and shrinks the FAULT - which failure the stack cannot tak
 oracle (converge twice, let the Charge read the Proof) and both mint a record rather than prose."""
 import unittest
 
-from cabaxiom import (
-    Assessment,
-    Breach,
-    Churn,
-    DriftItem,
-    Siege,
-    Stall,
-    Step,
-    Targeted,
-)
+from cabaxiom import Assessment, DriftItem, Step
+from cabaxiom.laboratory import Breach, Churn, Siege, Stall, Targeted
 
 
 class _Settles(Step):
@@ -115,4 +107,3 @@ class TheSiegeShrinksTheFaultTests(unittest.IsolatedAsyncioTestCase):
     async def test_the_evidence_is_the_trial_the_surviving_faults_broke(self):
         breach = await Siege((_Settles(), _Settles()), charge=Stall()).lay()
         self.assertFalse(breach.evidence.stable)   # the kept fault set really did break that trial
-

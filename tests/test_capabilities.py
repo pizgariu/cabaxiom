@@ -147,4 +147,3 @@ class CapabilityRideTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError) as ctx:
             Reconciler((Api(),))
         self.assertIn("Api demands 'database'", str(ctx.exception))
-

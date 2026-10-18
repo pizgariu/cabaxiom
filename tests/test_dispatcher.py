@@ -668,8 +668,9 @@ class OverlapPairingTests(unittest.IsolatedAsyncioTestCase):
         # the thread bridge walked a CHAIN shape, ran a step beside its own prerequisite, handed it an empty
         # payload and reported the run clean - while the identical BARE pairing was correctly refused. The
         # decorator answers for the pair now, so wrapping cannot launder a mismatch.
-        from cabaxiom import Chains, ChaosDispatcher, Components, Sabotage, ThreadDispatcher
-        from cabaxiom.dispatcher import _Gather
+        from cabaxiom import Chains, Components, ThreadDispatcher
+        from cabaxiom.core.run.dispatcher import _Gather
+        from cabaxiom.laboratory import ChaosDispatcher, Sabotage
 
         with self.assertRaises(ValueError):
             Reconciler(self._steps(), Components(), mode=RunMode(Chains(), _Gather()))   # the bare mismatch
@@ -924,7 +925,7 @@ class SerialModeTests(unittest.IsolatedAsyncioTestCase):
         # Overlap.NEITHER asks the shape's rule nothing, so the one mode that fans nothing is the one mode
         # that is safe against every partition - including the chain shape no wave worker may walk.
         from cabaxiom import Chains, Components
-        from cabaxiom.dispatcher import _Walker
+        from cabaxiom.core.run.dispatcher import _Walker
 
         Reconciler((A([]), B([])), Components(), mode=RunMode(Chains(), _Walker()))
         Reconciler((A([]), B([])), Kahn(), mode=Serial())
@@ -1078,7 +1079,7 @@ class FlowModeTests(unittest.IsolatedAsyncioTestCase):
     def test_it_walks_any_shape_because_it_governs_its_own_concurrency(self):
         # Overlap.EDGES: the worker leans on no seating, so the pairing guard has nothing to refuse.
         from cabaxiom import Chains, Components
-        from cabaxiom.dispatcher import _Flow
+        from cabaxiom.core.run.dispatcher import _Flow
 
         Reconciler((A([]), B([])), Components(), mode=RunMode(Chains(), _Flow()))
         Reconciler((A([]), B([])), Kahn(), mode=RunMode(Waves(), _Flow()))
@@ -1119,4 +1120,3 @@ class FlowModeTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(BaseExceptionGroup) as raised:
             await Reconciler((BoomLeft(), BoomRight()), mode=Flow()).converge()
         self.assertEqual(sorted(str(failure) for failure in raised.exception.exceptions), ["left", "right"])
-

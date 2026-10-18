@@ -34,7 +34,9 @@ from cabaxiom import (
     Step,
     Waves,
 )
-from cabaxiom.dispatcher import _Gather  # the wave worker is private, so a custom wire wrapper reaches for it here
+from cabaxiom.core.run.dispatcher import (
+    _Gather,  # the wave worker is private, so a custom wire wrapper reaches for it here
+)
 
 
 class Producer(Step):
@@ -237,4 +239,3 @@ class VersionedEnvelopeTests(unittest.IsolatedAsyncioTestCase):
         # producer's artifact reached it - across the wire, keyed on the ORIGINAL instances.
         self.assertEqual(residual, [])
         self.assertEqual([item.message for item in residual.applied], ["made remotely"])
-

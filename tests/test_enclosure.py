@@ -188,4 +188,3 @@ class VerdictShapeTests(unittest.IsolatedAsyncioTestCase):
 
         top = Reconciler((Network(), Ordered(Reconciler((Leaning(),)))))
         self.assertEqual(Enclosure(top).prove().inverted, ())
-

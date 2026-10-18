@@ -14,12 +14,16 @@ import sys
 from pathlib import Path
 
 try:
-    from cabaxiom import Isolation, Reconciler, Stall
-    from cabaxiom.repository import GitHub, RepoSetting
+    from battery.repository import GitHub, RepoSetting
+
+    from cabaxiom import Reconciler
+    from cabaxiom.laboratory import Isolation, Stall
 except ModuleNotFoundError:  # running from a source checkout without an install
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-    from cabaxiom import Isolation, Reconciler, Stall
-    from cabaxiom.repository import GitHub, RepoSetting
+    from battery.repository import GitHub, RepoSetting
+
+    from cabaxiom import Reconciler
+    from cabaxiom.laboratory import Isolation, Stall
 
 
 class FakeHub:
@@ -84,4 +88,3 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
-

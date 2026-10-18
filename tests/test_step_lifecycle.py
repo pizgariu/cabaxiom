@@ -436,7 +436,6 @@ class SelfNamingReachesEverySentenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("draft.uses", str(refused.exception))
 
     async def test_a_stamp_repr_names_the_step_the_caller_named(self):
-        from cabaxiom.observer import Stamp
+        from cabaxiom.core.record.observer import Stamp
 
         self.assertIn("Stamp(draft,", repr(Stamp(self._named("draft"), 0.0)))
-

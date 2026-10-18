@@ -4,8 +4,9 @@ import io
 import json
 import unittest
 
+from battery.data import Lineage
+
 from cabaxiom import Chorus, OnError, Parallel, Reconciler, Step
-from cabaxiom.data import Lineage
 
 
 class Maker(Step):
@@ -70,4 +71,3 @@ class LineageTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

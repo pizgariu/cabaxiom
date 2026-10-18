@@ -64,4 +64,3 @@ TestReconcilerMachine.settings = settings(
     max_examples=50, stateful_step_count=15, deadline=None,
     suppress_health_check=[HealthCheck.differing_executors],
 )
-

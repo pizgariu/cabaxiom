@@ -1,18 +1,8 @@
 """Fanout. A step that lists its world each pass and converges a graph over what it found."""
 import unittest
 
-from cabaxiom import (
-    Assessment,
-    DriftItem,
-    Enclave,
-    Enclosure,
-    Fanout,
-    Fixpoint,
-    Idempotence,
-    Reconciler,
-    Retry,
-    Step,
-)
+from cabaxiom import Assessment, DriftItem, Enclave, Enclosure, Fanout, Fixpoint, Reconciler, Retry, Step
+from cabaxiom.laboratory import Idempotence
 
 
 class World:
@@ -308,4 +298,3 @@ class EnclosureBoundaryTests(unittest.IsolatedAsyncioTestCase):
         world = World("a")
         enclosed = Enclosure(Reconciler((Enclave(Reconciler((Sweep(world), Settle(world, "a")))),)))
         self.assertTrue(enclosed.prove().airtight)
-

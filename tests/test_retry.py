@@ -452,4 +452,3 @@ class ThreadedRetryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(residual, [])
         self.assertEqual(len(ran), 1)
         self.assertNotEqual(ran, [threading.main_thread().name])
-

@@ -7,7 +7,6 @@ import unittest
 from cabaxiom import (
     Authority,
     Cancelled,
-    ChaosDispatcher,
     DriftItem,
     Observer,
     OnError,
@@ -15,10 +14,10 @@ from cabaxiom import (
     Permit,
     Reconciler,
     Retry,
-    Sabotage,
     Step,
     ThreadDispatcher,
 )
+from cabaxiom.laboratory import ChaosDispatcher, Sabotage
 
 
 class SeededSabotageTests(unittest.IsolatedAsyncioTestCase):
@@ -226,4 +225,3 @@ class TheStrikeRidesInsideTheRunsOwnLayersTests(unittest.IsolatedAsyncioTestCase
 
 if __name__ == "__main__":
     unittest.main()
-

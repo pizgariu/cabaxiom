@@ -472,4 +472,3 @@ class ExplanationDiagramTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(explanation.arrows,
                          (("Api", "Primary", "expects"), ("Api", "Primary", "wants")))
         self.assertEqual(explanation.dependencies, (("Api", ("Primary",)),))
-

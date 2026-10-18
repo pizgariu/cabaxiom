@@ -2,7 +2,8 @@
 import asyncio
 import unittest
 
-from cabaxiom import Assessment, DriftItem, Enclave, Idempotence, OnError, Parallel, Reconciler, Step, Unpublished
+from cabaxiom import Assessment, DriftItem, Enclave, OnError, Parallel, Reconciler, Step, Unpublished
+from cabaxiom.laboratory import Idempotence
 from support import Fixable, ReportOnly
 
 
@@ -387,10 +388,10 @@ class GlimpseTests(unittest.IsolatedAsyncioTestCase):
 class EveryChannelCrossesTests(unittest.IsolatedAsyncioTestCase):
     """All four channels of the inner reading reach the parent, not deviation alone.
 
-    They used to stop at the boundary. The first real consumer of a nested run found it - a check suite
-    holding a git-hooks reconciler needs the inner run's ADVICE, which is exactly what a run with no
-    deviation still has to say. An enclave that drops it is lossy in the one direction nothing would ever
-    notice, because the parent stays green either way."""
+    They used to stop at the boundary, where the first real consumer of a nested run found it - a check
+    suite holding a git-hooks reconciler needs the inner run's ADVICE, which is exactly what a run with
+    no deviation still has to say. An enclave that drops it is lossy in the one direction nothing would
+    ever notice, because the parent stays green either way."""
 
     class Speaks(Step):
         def assess(self, inputs):

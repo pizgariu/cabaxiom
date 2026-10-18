@@ -175,4 +175,3 @@ A five thousand step declaration resolves and converges in about seventy millise
 every step written once and read once. The gated version of this run is 1024 steps over 1984 edges, bounded by
 a 60 second timeout - roughly a hundred times the measured cost, because that bound exists to catch a run that
 stopped finishing and never to grade the machine it runs on.
-

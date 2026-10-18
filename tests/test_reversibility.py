@@ -2,7 +2,8 @@
 import asyncio
 import unittest
 
-from cabaxiom import Assessment, DriftItem, Reconciler, Reversibility, Roundtrip, Step
+from cabaxiom import Assessment, DriftItem, Reconciler, Step
+from cabaxiom.laboratory import Reversibility, Roundtrip
 
 
 class _Lifecycle(Step):
@@ -197,4 +198,3 @@ class AsyncReversibilityTests(unittest.IsolatedAsyncioTestCase):
         roundtrip = await Reversibility(Reconciler((_AsyncSquatter(),))).prove()
         self.assertFalse(roundtrip)
         self.assertEqual([item.message for item in roundtrip.restored], ["missing"])
-

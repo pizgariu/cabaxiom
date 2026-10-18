@@ -72,4 +72,3 @@ class ConvergenceProperties(unittest.IsolatedAsyncioTestCase):
 
         asyncio.run(Reconciler((NeverSettles(),), convergence=Fixpoint(max_passes=max_passes)).converge())
         self.assertEqual(len(applies), max_passes)
-

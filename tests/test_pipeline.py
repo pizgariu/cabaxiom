@@ -107,4 +107,3 @@ class ChainsGuardTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError) as ctx:
             ChainsPartition(((second, first),)).verify(graph)      # dependency LAST in its own chain
         self.assertIn("earlier in the same group", str(ctx.exception))
-

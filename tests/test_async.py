@@ -484,4 +484,3 @@ class AsyncHaltTests(unittest.IsolatedAsyncioTestCase):
         messages = [item.message for item in residual]
         self.assertEqual(sum("step failed" in message for message in messages), 1)
         self.assertEqual(sum("step skipped: the run halted after _Fails failed" in message for message in messages), 1)
-

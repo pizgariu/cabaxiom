@@ -63,15 +63,17 @@ ignore = ["E501"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["src"]
+# The batteries moved to examples/ and must NOT fall out of the strict gate on the way - they are
+# published as things a reader will copy. Untyped example code is a worse example than none.
+files = ["src", "examples/battery"]
 
-# A SECOND OPINION, not a second gate. mypy --strict is what CI enforces and it stays that way, but
-# two checkers disagree in useful places: this one found eighteen methods overriding a base without
+# A SECOND OPINION, not a second gate. mypy --strict is what CI enforces and it stays that way. But
+# two checkers disagree in useful places. This one found eighteen methods overriding a base without
 # saying so, including twelve implementations of Addressing, which is a contract this repository does
-# rename. What is switched off below is switched off for a stated reason, and every rule that can
+# rename. What is switched off below is switched off for a stated reason. Every rule that can
 # catch a real defect is left on - including the three it still reports, which are known and argued
-# in partition.py: an abstract property satisfied by a class constant, which is correct Python, keeps
-# the ABC's refusal to construct an incomplete shape, and is a pattern this checker dislikes.
+# in partition.py. An abstract property satisfied by a class constant, which is correct Python, keeps
+# the ABC's refusal to construct an incomplete shape and is a pattern this checker dislikes.
 [tool.basedpyright]
 include = ["src/cabaxiom"]
 typeCheckingMode = "recommended"
@@ -85,7 +87,7 @@ reportUnknownMemberType = false
 reportUnknownVariableType = false
 reportUnknownLambdaType = false
 # Constructor parameters are annotated already. Repeating the annotation on the attribute they are
-# assigned to is duplication, and duplication is the defect this repository keeps a changelog of.
+# assigned to is duplication. Duplication is the defect this repository keeps a changelog of.
 reportUnannotatedClassAttribute = false
 # A no-op hook on a base Observer or Scope declares its parameters because the SIGNATURE is the
 # contract. Not touching them is what a default implementation is.
@@ -100,7 +102,7 @@ reportUnusedCallResult = false
 # The only cycles here are under TYPE_CHECKING, which is the documented way to type a back reference
 # without importing one at runtime.
 reportImportCycles = false
-# `object` gets twenty of these for __repr__ and __eq__. Nobody is renaming those, and marking them
+# `object` gets twenty of these for __repr__ and __eq__. Nobody is renaming those. Marking them
 # buys noise. The overrides that a rename COULD break are marked in the source.
 reportImplicitOverride = false
 # A Step subclass's __init__ does not call super().__init__(): Step is an ABC that declares no __init__
@@ -113,10 +115,16 @@ reportUnnecessaryComparison = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=cabaxiom --cov-report=term-missing --cov-fail-under=100"
+# The batteries live in examples/ and are NOT part of the wheel, so their tests reach them the way the
+# example scripts do - through examples/ on the path. A script run as `python examples/x.py` gets that
+# directory as sys.path[0] for free. This is the same import line spelled for the suite.
+pythonpath = ["examples"]
+addopts = "--cov=cabaxiom --cov=battery --cov-report=term-missing --cov-fail-under=100"
 
 [tool.coverage.run]
-source = ["cabaxiom"]
+# The kernel AND the batteries beside it. Moving the batteries out of the wheel must not quietly move
+# them out of the coverage gate too - they were at 100% as shipped code and they stay there as examples.
+source = ["cabaxiom", "battery"]
 branch = true
 
 [tool.coverage.report]

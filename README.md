@@ -213,7 +213,7 @@ if not residual:
     print("verified clean")
 ```
 
-`converge()` returns a `Residual`, a `list[Drift]` of whatever gap outlived the run. Empty means the kernel acted, probed again and confirmed reality now matches intent. The changes made along the way live on a separate channel, `residual.applied`, which is what the examples print under "applied this run". Keeping the two apart means "what I fixed" never blurs into "what is still wrong".
+`converge()` returns a `Residual`, a read-only sequence of whatever gap outlived the run. Empty means the kernel acted, probed again and confirmed reality now matches intent. The changes made along the way live on a separate channel, `residual.applied`, which is what the examples print under "applied this run". Keeping the two apart means "what I fixed" never blurs into "what is still wrong".
 
 ### `watch()` - the reactive standing converge
 
@@ -264,7 +264,7 @@ residual = asyncio.run(reconciler.converge())
 
 ### Async native - the one engine on your event loop
 
-The kernel is async to the bone. There is no sync twin. Every verb that touches a step is a coroutine - `converge()`, `prune()` and the read `assess()` - so a step whose `apply()` or `assess()` is a coroutine closes its gap over I/O without blocking the coroutines it shares the loop with and a plain sync `apply()` still runs inline. `Parallel` fans each dependency wave with `asyncio.gather` and bars between waves, fanning the re-probe that proves a converge exactly as it fans the writes. It checks the cancellation only between waves, so `Supervised` is its polling sibling. It consults the cancellation while a wave is in flight and cancels the outstanding coroutines when it fires, which is what lets a `Deadline` bound an `apply()` that hangs instead of blocking on it forever. A synchronous, blocking domain rides the same engine through `ThreadDispatcher`, which runs each blocking `apply()` on a worker thread via `asyncio.to_thread` - and a domain with workers on other machines rides it through `RemoteDispatcher`, whose injected transport carries each `(verb, step, inputs)` envelope out and whose books never leave the originals. Two sentences an operator needs before putting anything irreversible behind that wire. The default `Retry(1)` is at-most-once per cycle, while any larger budget over a wire is an opt-in at-least-once - a reply lost on the way home cannot be told apart from an envelope lost on the way out, so retry re-ships and the write lands again, which an idempotent `apply()` absorbs and anything else answers by declining a distinguishable lost-reply error in `retryable()`. And artifacts carry POINTERS, not payloads. `RemoteDispatcher(transport, limit=...)` puts a byte ceiling on both directions, refusing an oversized envelope before it crosses and an oversized reply as the non-retryable `Skew` it is, because the data plane moves the data and the wire moves the words. For a continuous loop, `Reconciler.watch()` drives a converge per wake, taking the same pluggable `settle=` stop condition (`Clean` by default, `Stable(k)` for k consecutive clean passes).
+The kernel is async to the bone. There is no sync twin. Every verb that touches a step is a coroutine - `converge()`, `prune()` and the read `assess()` - so a step whose `apply()` or `assess()` is a coroutine closes its gap over I/O without blocking the coroutines it shares the loop with and a plain sync `apply()` still runs inline. `Parallel` fans each dependency wave with `asyncio.gather` and bars between waves, fanning the re-probe that proves a converge exactly as it fans the writes. It checks the cancellation only between waves, so `Supervised` is its polling sibling. It consults the cancellation while a wave is in flight and cancels the outstanding coroutines when it fires, which is what lets a `Deadline` bound an `apply()` that hangs instead of blocking on it forever. A synchronous, blocking domain rides the same engine through `ThreadDispatcher`, which runs each blocking `apply()` on a worker thread via `asyncio.to_thread` - and a domain with workers on other machines rides it through `RemoteDispatcher`, whose injected transport carries each `(verb, step, inputs)` envelope out and whose books never leave the originals. Two sentences an operator needs before putting anything irreversible behind that wire. The default `Retry(1)` is at-most-once per cycle, while any larger budget over a wire is an opt-in at-least-once - a reply lost on the way home cannot be told apart from an envelope lost on the way out, so retry re-ships and the write lands again, which an idempotent `apply()` absorbs and anything else answers by declining a distinguishable lost-reply error in `retryable()`. And artifacts carry POINTERS, not payloads. `RemoteDispatcher(transport, limit=...)` puts a byte ceiling on both directions, refusing an oversized envelope before it crosses and an oversized reply as the non-retryable `Skew` it is, because the data plane moves the data and the wire moves the words. For a continuous loop, `Reconciler.watch()` drives a converge per wake and the caller applies a `Settle` (`Clean` or `Stable(k)` for k consecutive clean passes) to decide when to stop.
 
 ### More than converge
 
@@ -283,7 +283,7 @@ Idempotence is the whole promise. Converge and a second converge on the settled 
 ```python
 import asyncio
 
-from cabaxiom import Idempotence
+from cabaxiom.laboratory import Idempotence
 
 proof = asyncio.run(Idempotence(reconciler).prove())
 assert proof.stable          # the second converge was a clean no-op
@@ -298,7 +298,7 @@ assert proof.stable          # the second converge was a clean no-op
 ```python
 import asyncio
 
-from cabaxiom import Reversibility
+from cabaxiom.laboratory import Reversibility
 
 roundtrip = asyncio.run(Reversibility(reconciler).prove())
 assert roundtrip.reversible   # arrived, erased its footprint, world reads as first observed
@@ -313,7 +313,7 @@ When a large stack churns or will not settle, the question is always the same. W
 ```python
 import asyncio
 
-from cabaxiom import Isolation, Stall
+from cabaxiom.laboratory import Isolation, Stall
 
 indictment = asyncio.run(Isolation(steps, charge=Stall()).isolate())
 if indictment:
@@ -329,7 +329,7 @@ Every candidate subset travels with everything it stands on (the Graph keeps it 
 `Isolation` holds the world still and shrinks the DECLARATION, asking which step breaks the stack. A `Siege` is its twin on the other axis. It holds the declaration still and shrinks the FAULT, asking which failure the stack cannot take. It lays a strike on every step, then lifts them one at a time while the failure keeps showing and returns a `Breach` naming the smallest fault set your declaration cannot absorb.
 
 ```python
-from cabaxiom import Siege, Stall
+from cabaxiom.laboratory import Siege, Stall
 
 breach = await Siege(steps, charge=Stall()).lay()
 if breach:
@@ -348,7 +348,8 @@ The Step surface and the reconciler surface align verb for verb and `Enclave` cl
 ```python
 import asyncio
 
-from cabaxiom import Enclave, Idempotence, Parallel, Reconciler
+from cabaxiom import Enclave, Parallel, Reconciler
+from cabaxiom.laboratory import Idempotence
 
 database = Reconciler(db_steps, mode=Parallel())    # a whole stack...
 application = Reconciler(app_steps)                       # ...and another
@@ -509,13 +510,14 @@ The walk advances only on a clean `Cutover`, so the world never leaves a waypoin
 
 ## Batteries - declare a dev environment
 
-A setup script that breaks on its second run is dead. `cabaxiom.setup` ships ready-made `Step`s for the most common desired state a developer declares - directories, files, symlinked dotfiles, a line in a shell profile, a key in a JSON config - so you get value without writing a single `drift`/`apply` yourself.
+A setup script that breaks on its second run is dead. `battery.setup` ships ready-made `Step`s for the most common desired state a developer declares - directories, files, symlinked dotfiles, a line in a shell profile, a key in a JSON config - so you get value without writing a single `drift`/`apply` yourself.
 
 ```python
 import asyncio
 
-from cabaxiom import Idempotence, Reconciler
-from cabaxiom.setup import Directory, File, Symlink, LineInFile, JsonKey
+from cabaxiom import Reconciler
+from cabaxiom.laboratory import Idempotence
+from battery.setup import Directory, File, Symlink, LineInFile, JsonKey
 
 class AppDir(Directory):
     def __init__(self): super().__init__("~/.config/myapp")
@@ -534,19 +536,19 @@ assert asyncio.run(Idempotence(Reconciler(setup)).prove())   # PROVES a second r
 
 Every battery is a `Step`, so a declared setup **converges** to the machine you want, **self-verifies** by re-probing, **proves idempotent** under `Idempotence` (not trusted, proven), **self-heals** when the world drifts and **reverses** through `prune` - and it is never reckless. `Directory` prunes only when empty, `JsonKey` removes its key but not a file it shares, so a teardown never deletes what it did not fully own.
 
-The batteries - `Directory`, `File`, `Symlink`, `LineInFile`, `JsonKey`. They are opt-in - `import cabaxiom` stays the pristine, zero-dependency kernel and the batteries arrive only when you `from cabaxiom.setup import ...`. See `examples/dev_setup.py` for the full arc - declare, converge, prove, drift, self-heal, reverse.
+The batteries - `Directory`, `File`, `Symlink`, `LineInFile`, `JsonKey`. They live in `examples/battery/` and are deliberately NOT part of the wheel, because a demonstration that ships as public API is a promise nobody asked for - the kernel is domain-agnostic on purpose and the moment a `Symlink` sits inside it that claim needs an asterisk. Copy the ones you want or read them as the worked answer to what a real `Step` looks like. They are held to the same gate as the kernel (strict typing, full branch coverage) and they import it through the same front door you do. See `examples/dev_setup.py` for the full arc - declare, converge, prove, drift, self-heal, reverse.
 
 ---
 
 ## Fleet standards - prove your repos conform
 
-Stop asking "is every repo compliant?" and prove it. `cabaxiom.repository` reconciles one repository or a whole fleet to an organisation standard and the residual reads as a **compliance report**. An empty residual PROVES every repo conforms, a non-empty one NAMES the repos that resist.
+Stop asking "is every repo compliant?" and prove it. `battery.repository` reconciles one repository or a whole fleet, to an organisation standard and the residual reads as a **compliance report**. An empty residual PROVES every repo conforms, a non-empty one NAMES the repos that resist.
 
 ```python
 import asyncio
 
 from cabaxiom import Reconciler
-from cabaxiom.repository import GitHub, RepoSetting
+from battery.repository import GitHub, RepoSetting
 
 gh = GitHub(token)
 standard = [RepoSetting(gh, repo, "has_issues", True) for repo in ("acme/api", "acme/web", "acme/cli")]
@@ -556,7 +558,7 @@ residual = asyncio.run(Reconciler(standard).converge())   # enforce it across th
 assert not residual                          # empty means the fleet conforms, PROVEN by re-probe
 ```
 
-### Batteries - declare a warehouse (`cabaxiom.data`)
+### Batteries - declare a warehouse (`battery.data`)
 
 The data batteries take a PORT, never a driver. Any PEP-249 connection the domain's own client minted -
 Snowflake, Postgres, DuckDB or the standard library's sqlite3, which is what the whole suite proves
@@ -570,7 +572,7 @@ through stdlib subprocess only when the reading is dirty - the command is the se
 dependencies and the suite rehearses it offline. The full arc, proofs included, runs in
 `examples/data_warehouse.py`.
 
-The GitHub client is stdlib `urllib` only - no `requests`, no `PyGithub` - and its transport is injectable, so a compliance run rehearses against a fake in-memory GitHub with no token and no network, exactly the way the kernel rehearses everything. The self-verifying loop is the point. `apply` patches a repo but the RE-READ is the judge, so a setting the API accepted yet did not change (a locked or archived repo) is caught and named, never called done on the strength of the API's word. When a repo carries many standards and one will not hold, `Isolation` delta-debugs them down to the single blocker and names it (`examples/repo_isolation.py`) and file standards - a required LICENSE, a gitignore entry - reuse the `cabaxiom.setup` batteries on a checked-out path. See `examples/repo_standards.py`.
+The GitHub client is stdlib `urllib` only - no `requests`, no `PyGithub` - and its transport is injectable, so a compliance run rehearses against a fake in-memory GitHub with no token and no network, exactly the way the kernel rehearses everything. The self-verifying loop is the point. `apply` patches a repo but the RE-READ is the judge, so a setting the API accepted yet did not change (a locked or archived repo) is caught and named, never called done on the strength of the API's word. When a repo carries many standards and one will not hold, `Isolation` delta-debugs them down to the single blocker and names it (`examples/repo_isolation.py`) and file standards - a required LICENSE, a gitignore entry - reuse the `battery.setup` batteries on a checked-out path. See `examples/repo_standards.py`.
 
 ---
 
@@ -582,7 +584,7 @@ The [`examples/`](examples/) directory holds runnable, self-contained programs. 
 
 ### `dev_setup.py` - the batteries, proven
 
-A development environment declared with `cabaxiom.setup`, then converged, certified idempotent, drifted, self-healed and torn down - the whole beachhead arc against a throwaway temp home, safe to run again and again.
+A development environment declared with `battery.setup`, then converged, certified idempotent, drifted, self-healed and torn down - the whole beachhead arc against a throwaway temp home, safe to run again and again.
 
 ### `repo_standards.py` - the fleet, proven
 
@@ -689,4 +691,3 @@ This is where the building stops.
 ## License
 
 Released under the MIT License. See [LICENSE](LICENSE).
-

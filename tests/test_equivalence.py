@@ -178,4 +178,3 @@ class FailureEquivalence(_Equivalence):
         for name in ("Supervised", "ThreadDispatcher"):
             with self.subTest(mode=name):
                 self.assertEqual(verdicts[name], (failed, blocked, ran))
-

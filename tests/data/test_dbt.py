@@ -8,8 +8,10 @@ import unittest
 from datetime import datetime
 from pathlib import Path
 
-from cabaxiom import Idempotence, Reconciler
-from cabaxiom.data import DbtRun
+from battery.data import DbtRun
+
+from cabaxiom import Reconciler
+from cabaxiom.laboratory import Idempotence
 
 
 def _recorded(project: Path, statuses: dict[str, str], generated_at: str | None = "2026-08-08T10:00:00+00:00") -> None:
@@ -131,4 +133,3 @@ class DbtRunTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -9,19 +9,9 @@ import threading
 import time
 import unittest
 
-from cabaxiom import (
-    Assessment,
-    Components,
-    DriftItem,
-    Ordering,
-    Parallel,
-    Reading,
-    Reconciler,
-    Seat,
-    Statement,
-    Step,
-    ThreadDispatcher,
-)
+from cabaxiom import Assessment, DriftItem, Parallel, Reconciler, Step, ThreadDispatcher
+from cabaxiom.core.plan import Components, Ordering, Seat
+from cabaxiom.core.record import Reading, Statement
 
 
 class _Timed(Step):
@@ -69,7 +59,7 @@ def _shaped(arranger, overlap):
     # A dispatcher composing a non-wave arranger, so the contention seating under Chains and Walk can be
     # read off explain(). The verbs are stubs - these tests only arrange and explain, never converge - so
     # the shape and its guard, both the arranger's, are reachable without a shipped chain/walk dispatcher.
-    from cabaxiom import Dispatcher, RunMode
+    from cabaxiom.core.run import Dispatcher, RunMode
 
     class _Shaped(Dispatcher):
         overlaps = overlap
@@ -123,7 +113,7 @@ class SeatingTests(unittest.IsolatedAsyncioTestCase):
     def test_chains_pull_contenders_into_one_chain(self):
         # A chain is serial inside and chains overlap, so the move is the mirror image - merge, not split.
         # Read off a Chains-composing dispatcher's explain, since no shipped dispatcher runs chains.
-        from cabaxiom import Chains, Overlap
+        from cabaxiom.core.plan import Chains, Overlap
 
         steps = (Migrate(), Backfill(), Report(), Free())
         groups = Reconciler(steps, Components(), mode=_shaped(Chains, Overlap.ACROSS)()).explain().groups
@@ -134,7 +124,7 @@ class SeatingTests(unittest.IsolatedAsyncioTestCase):
 
     def test_a_serial_walk_needs_no_moving_at_all(self):
         # A Walk runs everything in one serial group, so contention is already satisfied and seats nothing.
-        from cabaxiom import Overlap, Walk
+        from cabaxiom.core.plan import Overlap, Walk
 
         steps = (Migrate(), Backfill(), Report(), Free())
         groups = Reconciler(steps, mode=_shaped(Walk, Overlap.NEITHER)()).explain().groups
@@ -172,7 +162,7 @@ class GuardTests(unittest.IsolatedAsyncioTestCase):
     """The second guard. A shape that seats rivals together is refused, however it was built."""
 
     def test_a_shape_that_seats_rivals_together_is_refused(self):
-        from cabaxiom import Arranger, Overlap, WavesPartition
+        from cabaxiom.core.plan import Arranger, Overlap, WavesPartition
 
         class Careless(Arranger):
             def shape(self, ordering, graph):
@@ -190,7 +180,7 @@ class TogetherTests(unittest.IsolatedAsyncioTestCase):
     """together() is derived from the placement rule, never declared beside it."""
 
     def test_each_shape_answers_from_its_own_rule(self):
-        from cabaxiom import ChainsPartition, WalkPartition, WavesPartition
+        from cabaxiom.core.plan import ChainsPartition, WalkPartition, WavesPartition
 
         same, apart = (Seat(0, 0), Seat(0, 1)), (Seat(0, 0), Seat(1, 0))
         for shape, inside, across in ((WavesPartition, True, False),
@@ -207,7 +197,7 @@ class AlreadyApartTests(unittest.IsolatedAsyncioTestCase):
         # Components puts a dependency and its dependent in ONE chain, which is already serial, so the merge
         # has nothing to do for this pair. The seating must not churn just because the labels matched. Read
         # off a Chains-composing dispatcher's explain, since no shipped dispatcher runs chains.
-        from cabaxiom import Chains, Overlap
+        from cabaxiom.core.plan import Chains, Overlap
 
         class Lock(_Timed):
             contends = frozenset({"tape"})
@@ -319,7 +309,7 @@ class DrawingTests(unittest.IsolatedAsyncioTestCase):
     def test_a_format_written_before_this_release_still_renders(self):
         # THE NON-BREAKING GUARANTEE. contended() is the one seam on this axis with a default, so a Diagram
         # that never heard of contention keeps working and simply says nothing about it.
-        from cabaxiom import Diagram
+        from cabaxiom.core.record import Diagram
 
         class Older(Diagram):
             def opening(self):

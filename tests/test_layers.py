@@ -100,9 +100,25 @@ class TheKernelCannotSeeTheLaboratoryTests(unittest.TestCase):
         )
         self.assertEqual(told.stdout.strip(), "[]")
 
-    def test_the_front_door_publishes_the_kernel_and_nothing_else(self):
-        self.assertEqual(sorted(cabaxiom.__all__), sorted(cabaxiom.core.__all__))
+    def test_the_front_door_is_a_curated_subset_of_the_kernel(self):
+        # Two claims, where the second is the one that rots. Everything in the door comes from the kernel,
+        # and the door is deliberately SMALLER than the kernel - a name that only opens on `cabaxiom.core`
+        # is not hidden, it is filed, so the day the door quietly re-absorbs the layers this fails.
+        self.assertTrue(set(cabaxiom.__all__) < set(cabaxiom.core.__all__))
         self.assertEqual(set(cabaxiom.__all__) & set(cabaxiom.laboratory.__all__), set())
+
+    def test_every_name_the_door_leaves_out_still_opens_on_its_layer(self):
+        # The cost of narrowing, paid in full and checked. Nothing was deleted, so every demoted name must
+        # be reachable at `cabaxiom.core` and at the layer that owns it - two addresses, both live. Otherwise the
+        # narrowing stopped being a filing decision and became a removal nobody announced.
+        filed = sorted(set(cabaxiom.core.__all__) - set(cabaxiom.__all__))
+        self.assertGreater(len(filed), 0)
+        layers = {name: getattr(cabaxiom.core, name) for name in filed}
+        for name, held in layers.items():
+            with self.subTest(name=name):
+                owner = ".".join(getattr(held, "__module__", "").split(".")[:3])
+                self.assertTrue(owner.startswith("cabaxiom.core."), f"{name} claims to live at {owner}")
+                self.assertIs(getattr(__import__(owner, fromlist=[name]), name), held)
 
     def test_the_laboratory_still_has_to_be_asked_for_by_name(self):
         for name in cabaxiom.laboratory.__all__:

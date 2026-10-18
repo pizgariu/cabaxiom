@@ -1,20 +1,8 @@
 """Scope - which of the handed steps take part, Only with its dependency closure, Skip without cascade."""
 import unittest
 
-from cabaxiom import (
-    Assessment,
-    BaseTagged,
-    DriftItem,
-    Graph,
-    Only,
-    Reconciler,
-    Scope,
-    Skip,
-    Step,
-    WithEveryTag,
-    WithoutTag,
-    WithTag,
-)
+from cabaxiom import Assessment, DriftItem, Graph, Only, Reconciler, Skip, Step, WithoutTag, WithTag
+from cabaxiom.core.plan import BaseTagged, Scope, WithEveryTag
 from support import A, B, C, X, Y, Z
 
 

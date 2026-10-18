@@ -4,26 +4,21 @@ import time
 import unittest
 
 from cabaxiom import (
-    AllOf,
-    AnyOf,
     Assessment,
-    Cancellation,
     Cancelled,
     Deadline,
     DriftItem,
     Every,
     Flag,
     Kahn,
-    Majority,
-    Most,
     OnError,
     Parallel,
-    Quorum,
     Reconciler,
     Step,
     Supervised,
     ThreadDispatcher,
 )
+from cabaxiom.core.declaration import AllOf, AnyOf, Cancellation, Majority, Most, Quorum
 from support import A, B, C
 
 

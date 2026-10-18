@@ -11,11 +11,20 @@ import re
 import unittest
 
 import cabaxiom
+import cabaxiom.core
+import cabaxiom.laboratory
 
 _ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 _MARKDOWN = [_ROOT / "README.md", *sorted((_ROOT / "docs").glob("*.md"))]
-_EXPORTS = frozenset(cabaxiom.__all__)
+# THE WHOLE PUBLISHED SURFACE, not the front door. Keyed off `cabaxiom.__all__` this sweep quietly
+# shrank from 257 references to 161 the day eighty names moved down into their layers - it stopped
+# RECOGNISING them, so it stopped checking them and every test still passed. That is the third guard in
+# this suite to lose its footing the same way, all three tied to the door. The door is the one
+# thing here designed to move, so nothing that means "everything we publish" may be spelled with it.
+_PUBLISHED = {name: getattr(cabaxiom.core, name) for name in cabaxiom.core.__all__} | \
+             {name: getattr(cabaxiom.laboratory, name) for name in cabaxiom.laboratory.__all__}
+_EXPORTS = frozenset(_PUBLISHED)
 
 # A ```python block. The body is captured without its fence lines, so offsets inside it still map onto
 # the page's own line numbers and a failure can name a line the reader can open.
@@ -27,7 +36,7 @@ _BLOCK = re.compile(r"^```python[^\n]*\n(.*?)^```", re.M | re.S)
 # battery.setup import ...`. See `examples/dev_setup.py` for the full arc - declare, converge, prove"
 # would otherwise read the rest of the sentence as four imported names and accuse the README of all four.
 _IMPORT = re.compile(
-    r"from\s+(cabaxiom(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\s+import\s+(\([^)]*\)|[A-Za-z_*][A-Za-z0-9_ ,*]*)")
+    r"from\s+((?:cabaxiom|battery)(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\s+import\s+(\([^)]*\)|[A-Za-z_*][A-Za-z0-9_ ,*]*)")
 
 # A backticked token that is EXACTLY `Owner.member` or `Owner.member()` with no arguments. Anchoring on
 # both backticks is what keeps this free of false positives. `Retry(attempts, backoff=...)` and
@@ -74,7 +83,7 @@ class _Page:
             for node in ast.walk(tree):
                 if not isinstance(node, ast.ImportFrom) or node.level or not node.module:
                     continue                               # a relative import cannot appear in prose
-                if node.module.split(".")[0] == "cabaxiom":
+                if node.module.split(".")[0] in ("cabaxiom", "battery"):
                     for alias in node.names:
                         found.add((start + node.lineno - 1, node.module, alias.name))
         for match in _IMPORT.finditer(self.text):
@@ -182,7 +191,7 @@ class DocumentedAttributeTests(unittest.IsolatedAsyncioTestCase):
             for line, owner, member in page.references():
                 with self.subTest(page=page.name, line=line, reference=f"{owner}.{member}"):
                     self.assertTrue(
-                        hasattr(getattr(cabaxiom, owner), member),
+                        hasattr(_PUBLISHED[owner], member),
                         f"{page.name}:{line} writes `{owner}.{member}` but {owner} has no '{member}'. "
                         f"Point the docs at the current name or restore the attribute. If the page is "
                         f"deliberately naming a retired API, it belongs in _HISTORY beside the release "

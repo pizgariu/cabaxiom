@@ -5,22 +5,17 @@ import unittest
 
 from cabaxiom import (
     Assessment,
-    Chorus,
     DriftItem,
     Fixpoint,
     Journal,
-    Logging,
-    Observer,
     OnError,
     Parallel,
     Reconciler,
     Retry,
-    Span,
-    Stamp,
     Step,
     ThreadDispatcher,
-    Timing,
 )
+from cabaxiom.core.record import Chorus, Logging, Observer, Span, Stamp, Timing
 
 # The new observability leaves are imported from their module, not the package root: __init__.py is wired
 # once, afterwards, so three parallel authors never collide on it.

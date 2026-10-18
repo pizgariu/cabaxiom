@@ -4,19 +4,10 @@ arranger - which is exactly what proves the shape and its disjoint guard belong 
 one dispatcher class."""
 import unittest
 
-from cabaxiom import (
-    Chains,
-    ChainsPartition,
-    Components,
-    Dispatcher,
-    Graph,
-    Ordering,
-    Overlap,
-    Reading,
-    Reconciler,
-    RunMode,
-    Statement,
-)
+from cabaxiom import Graph, Reconciler
+from cabaxiom.core.plan import Chains, ChainsPartition, Components, Ordering, Overlap
+from cabaxiom.core.record import Reading, Statement
+from cabaxiom.core.run import Dispatcher, RunMode
 from support import A, B, C, X, Y, _RecStep
 
 

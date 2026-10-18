@@ -2,17 +2,8 @@
 import random
 import unittest
 
-from cabaxiom import (
-    DFS,
-    Components,
-    Graph,
-    Kahn,
-    Parallel,
-    Priority,
-    Reconciler,
-    Step,
-    WavesPartition,
-)
+from cabaxiom import Graph, Kahn, Parallel, Reconciler, Step
+from cabaxiom.core.plan import DFS, Components, Priority, WavesPartition
 from support import A, B, C, X, Y, Z, _RecStep
 
 

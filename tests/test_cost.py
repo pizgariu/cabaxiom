@@ -27,17 +27,11 @@ import asyncio
 import unittest
 
 from cabaxiom import (
-    Addressing,
     Assessment,
-    Authority,
     DriftItem,
-    EdgeKind,
     Fixpoint,
     Graph,
     Kahn,
-    Local,
-    Logging,
-    Observer,
     OnError,
     Only,
     Parallel,
@@ -48,10 +42,11 @@ from cabaxiom import (
     Step,
     Supervised,
     ThreadDispatcher,
-    Vocabulary,
-    Write,
 )
+from cabaxiom.core.declaration import Addressing, Authority, EdgeKind, Local, Vocabulary
 from cabaxiom.core.declaration.vocabulary import Roster
+from cabaxiom.core.record import Logging, Observer
+from cabaxiom.core.run import Write
 
 
 class _Counts:

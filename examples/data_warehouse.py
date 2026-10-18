@@ -12,7 +12,8 @@ import sqlite3
 
 from battery.data import SQLITE, Fresh, Lineage, Loaded, Quality, Schema, Table
 
-from cabaxiom import Chorus, Journal, Reconciler
+from cabaxiom import Journal, Reconciler
+from cabaxiom.core.record import Chorus
 from cabaxiom.laboratory import Idempotence
 
 NOW = 1_000_000.0   # the example rehearses time instead of waiting for it, like every test in this house

@@ -11,21 +11,8 @@ so a non-failure stop stops impersonating a failure". These pin the verdict at e
 """
 import unittest
 
-from cabaxiom import (
-    Assessment,
-    Ceiling,
-    Charter,
-    DriftItem,
-    Observer,
-    OnError,
-    Parallel,
-    Reading,
-    Reconciler,
-    Step,
-    Supervised,
-    ThreadDispatcher,
-    Warrant,
-)
+from cabaxiom import Assessment, DriftItem, OnError, Parallel, Reconciler, Step, Supervised, ThreadDispatcher
+from cabaxiom.core.record import Ceiling, Charter, Observer, Reading, Warrant
 from cabaxiom.laboratory import ChaosDispatcher, Idempotence, Sabotage
 
 

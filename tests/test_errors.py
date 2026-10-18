@@ -7,8 +7,6 @@ working. These tests pin both halves. The new dispatch and the old catch."""
 import unittest
 
 from cabaxiom import (
-    Chains,
-    Components,
     Coverage,
     Cycle,
     DataFlow,
@@ -18,17 +16,16 @@ from cabaxiom import (
     Kahn,
     Malformed,
     Misconfigured,
-    Ordering,
     Pairing,
     Presence,
     Reconciler,
-    RunMode,
     Seating,
     Step,
     Supervised,
     Unresolvable,
-    Walk,
 )
+from cabaxiom.core.plan import Chains, Components, Ordering, Walk
+from cabaxiom.core.run import RunMode
 from cabaxiom.core.run.dispatcher import _Gather
 from cabaxiom.laboratory import ChaosDispatcher, Sabotage
 from support import A, B

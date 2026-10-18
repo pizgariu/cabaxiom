@@ -12,14 +12,9 @@ import unittest
 
 from cabaxiom import (
     Assessment,
-    Authority,
-    Cancellation,
     Cancelled,
-    Crossing,
     DriftItem,
     Graph,
-    Local,
-    Observer,
     OnError,
     Parallel,
     Permit,
@@ -30,8 +25,10 @@ from cabaxiom import (
     Step,
     Supervised,
     ThreadDispatcher,
-    Write,
 )
+from cabaxiom.core.declaration import Authority, Cancellation, Local
+from cabaxiom.core.record import Observer
+from cabaxiom.core.run import Crossing, Write
 from cabaxiom.laboratory import Adversary, ChaosDispatcher, Sabotage
 
 

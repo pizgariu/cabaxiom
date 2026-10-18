@@ -4,7 +4,6 @@ import unittest
 from typing import Any
 
 from cabaxiom import (
-    DFS,
     Assessment,
     Cancelled,
     Changes,
@@ -17,11 +16,12 @@ from cabaxiom import (
     OnError,
     Parallel,
     Reconciler,
-    Settled,
     Skew,
     Step,
     Supervised,
 )
+from cabaxiom.core.plan import DFS
+from cabaxiom.core.run import Settled
 
 
 class SettledSeamTests(unittest.IsolatedAsyncioTestCase):

@@ -6,7 +6,8 @@ import unittest
 
 from battery.data import Lineage
 
-from cabaxiom import Chorus, OnError, Parallel, Reconciler, Step
+from cabaxiom import OnError, Parallel, Reconciler, Step
+from cabaxiom.core.record import Chorus
 
 
 class Maker(Step):

@@ -5,11 +5,9 @@ import unittest
 
 from cabaxiom import (
     Assessment,
-    BaseRetry,
     Cancelled,
     DriftItem,
     Kahn,
-    Observer,
     OnError,
     Parallel,
     Reconciler,
@@ -17,6 +15,8 @@ from cabaxiom import (
     Step,
     ThreadDispatcher,
 )
+from cabaxiom.core.record import Observer
+from cabaxiom.core.run import BaseRetry
 from support import RecordingBackoff
 
 

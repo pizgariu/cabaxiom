@@ -3,18 +3,8 @@ import random
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from cabaxiom import (
-    Assessment,
-    DriftItem,
-    Exponential,
-    Fibonacci,
-    Fixed,
-    Fixpoint,
-    Jitter,
-    Linear,
-    Reconciler,
-    Step,
-)
+from cabaxiom import Assessment, DriftItem, Exponential, Fixed, Fixpoint, Reconciler, Step
+from cabaxiom.core.run import Fibonacci, Jitter, Linear
 from support import RecordingBackoff
 
 

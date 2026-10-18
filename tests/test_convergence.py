@@ -2,7 +2,8 @@
 loop-while-there-is-time."""
 import unittest
 
-from cabaxiom import Assessment, Budget, DriftItem, Fixpoint, Reconciler, Shrinking, Step
+from cabaxiom import Assessment, DriftItem, Fixpoint, Reconciler, Step
+from cabaxiom.core.run import Budget, Shrinking
 from support import RecordingBackoff, Staged
 
 

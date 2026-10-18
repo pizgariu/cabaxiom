@@ -13,20 +13,8 @@ nobody can see. These pin that choice at every place it shows.
 import asyncio
 import unittest
 
-from cabaxiom import (
-    Assessment,
-    Authority,
-    Deferred,
-    DriftItem,
-    Local,
-    OnError,
-    Parallel,
-    Permit,
-    Reconciler,
-    Retry,
-    Step,
-    Supervised,
-)
+from cabaxiom import Assessment, Deferred, DriftItem, OnError, Parallel, Permit, Reconciler, Retry, Step, Supervised
+from cabaxiom.core.declaration import Authority, Local
 
 
 class Counted(Step):
@@ -458,8 +446,8 @@ class AbortKeepsPrecedenceTests(unittest.TestCase):
 
     @staticmethod
     def _ledger(step, policy):
-        from cabaxiom import Observer
         from cabaxiom.core.plan.graph import Graph
+        from cabaxiom.core.record import Observer
         from cabaxiom.core.record.ledger import Ledger
 
         return Ledger(((step,),), policy, Observer(), Graph((step,)))

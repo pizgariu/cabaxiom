@@ -2,24 +2,10 @@
 import asyncio
 import unittest
 
-from cabaxiom import (
-    Assessment,
-    Dispatcher,
-    DriftItem,
-    Explanation,
-    Flag,
-    OnError,
-    Overlap,
-    Parallel,
-    Reading,
-    Reconciler,
-    Residual,
-    RunMode,
-    Statement,
-    Step,
-    Unresolvable,
-    Walk,
-)
+from cabaxiom import Assessment, DriftItem, Flag, OnError, Parallel, Reconciler, Residual, Step, Unresolvable
+from cabaxiom.core.plan import Overlap, Walk
+from cabaxiom.core.record import Explanation, Reading, Statement
+from cabaxiom.core.run import Dispatcher, RunMode
 from support import A, B, Boom, C, Fixable, ReportOnly
 
 

@@ -2,7 +2,8 @@
 import asyncio
 import unittest
 
-from cabaxiom import Assessment, Cutover, DriftItem, Itinerary, Passage, Residual, Step
+from cabaxiom import Assessment, Cutover, DriftItem, Itinerary, Residual, Step
+from cabaxiom.core.run import Passage
 
 
 class _Flag(Step):

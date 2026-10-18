@@ -41,9 +41,7 @@ from multiprocessing.pool import Pool
 from cabaxiom import (
     Assessment,
     Cancelled,
-    Crossing,
     DriftItem,
-    Observer,
     OnError,
     Parallel,
     Reconciler,
@@ -52,6 +50,8 @@ from cabaxiom import (
     Skew,
     Step,
 )
+from cabaxiom.core.record import Observer
+from cabaxiom.core.run import Crossing
 
 # The one deliberate context. See the module docstring for why it is not the platform's default.
 CONTEXT = multiprocessing.get_context("spawn")

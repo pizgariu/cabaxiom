@@ -8,19 +8,8 @@ reconciler drives it.
 import time
 import unittest
 
-from cabaxiom import (
-    Chorus,
-    DriftItem,
-    Exponential,
-    Fixed,
-    Fixpoint,
-    Journal,
-    OnError,
-    Parallel,
-    Reconciler,
-    Retry,
-    Step,
-)
+from cabaxiom import DriftItem, Exponential, Fixed, Fixpoint, Journal, OnError, Parallel, Reconciler, Retry, Step
+from cabaxiom.core.record import Chorus
 from cabaxiom.laboratory import Idempotence
 from cabaxiom.laboratory.rig.testing import Firing, Fixable, Recording, RecordingBackoff, Staged
 

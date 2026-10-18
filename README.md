@@ -437,25 +437,23 @@ The forecast is not a simulation. `blocked` is the Graph's `fallout()` walk and 
 `Mermaid` and `Dot` render an `Explanation` as source text. Both are handed a run that is already resolved and can reach nothing else, so a rendering bug makes an ugly picture and never a wrong run. Contention is drawn without an arrowhead, since it says neither step may run beside the other while taking no view on which of them goes first.
 
 ```python
-from cabaxiom import Mermaid
-
-print(Mermaid()(reconciler.explain()))
+print(reconciler.explain().mermaid())
 ```
 
 ```
-flowchart TD
-    subgraph g0["wave 1"]
-        Postgres[Postgres]
-        Cache[Cache]
+graph LR
+    subgraph cluster_0["wave 0"]
+        n0["Postgres"]
+        n1["Cache"]
     end
-    subgraph g1["wave 2"]
-        Api[Api]
+    subgraph cluster_1["wave 1"]
+        n2["Api"]
     end
-    Cache -.->|expects| Api
-    Postgres -->|demands 'database'| Api
+    n1 -->|expects| n2
+    n0 ==>|demands| n2
 ```
 
-A dashed arrow is a soft declaration, so the picture shows at a glance which edges the run would still be correct without.
+The arrow says which kind of declaration drew it, so the picture shows at a glance which edges the run would still be correct without. Reach for `Mermaid` or `Dot` from `cabaxiom.core.record` when you want to configure one. `explain().mermaid()` and `explain().dot()` are the shorthand for the default.
 
 ---
 

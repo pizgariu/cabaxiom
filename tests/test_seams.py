@@ -13,7 +13,7 @@ import unittest
 from collections.abc import Sequence
 from unittest import mock
 
-import cabaxiom
+import cabaxiom.core
 import cabaxiom.laboratory  # never arrives on `import cabaxiom` alone, which is the point
 from cabaxiom import Assessment
 from cabaxiom.core.declaration.vocabulary import BY_CLASS, BY_INSTANCE, BY_LABEL, EdgeKind, Vocabulary
@@ -48,7 +48,7 @@ class GuardAndSeamTests(unittest.IsolatedAsyncioTestCase):
     def test_every_guard_is_final(self):
         for owner, guard, _ in GUARDED:
             with self.subTest(guard=f"{owner}.{guard}"):
-                held = getattr(getattr(cabaxiom, owner), guard)
+                held = getattr(getattr(cabaxiom.core, owner), guard)
                 self.assertTrue(getattr(held, "__final__", False),
                                 f"{owner}.{guard} holds an invariant and must refuse an override")
 
@@ -57,17 +57,17 @@ class GuardAndSeamTests(unittest.IsolatedAsyncioTestCase):
         # implementable, which is what makes the axis extensible at all.
         for owner, _, seam in GUARDED:
             with self.subTest(seam=f"{owner}.{seam}"):
-                cls = getattr(cabaxiom, owner)
+                cls = getattr(cabaxiom.core, owner)
                 self.assertFalse(getattr(getattr(cls, seam), "__final__", False),
                                  f"{owner}.{seam} is the way in, so it must stay open")
 
     def test_every_seam_is_abstract_and_the_honest_default_ships_as_a_leaf(self):
         for owner, _, seam in GUARDED:
             with self.subTest(seam=f"{owner}.{seam}"):
-                self.assertIn(seam, getattr(cabaxiom, owner).__abstractmethods__)
+                self.assertIn(seam, getattr(cabaxiom.core, owner).__abstractmethods__)
         # The one family with an honest default ships it as the @final Retry leaf, usable as handed, so
         # the abstract seam costs nothing - except the silent inherit a forgotten policy used to get.
-        self.assertTrue(cabaxiom.Retry(2).retryable(cabaxiom.Step(), 1, RuntimeError("x")))
+        self.assertTrue(cabaxiom.core.Retry(2).retryable(cabaxiom.core.Step(), 1, RuntimeError("x")))
 
     def test_a_seam_is_never_the_axis_protocol_itself(self):
         # Marking the ABSTRACT axis method final instead of the guard would close the axis outright. The two
@@ -76,7 +76,7 @@ class GuardAndSeamTests(unittest.IsolatedAsyncioTestCase):
         # run_wave - so the axis method itself must stay open.
         for axis, method in (("Convergence", "passes"), ("Dispatcher", "execute")):
             with self.subTest(axis=f"{axis}.{method}"):
-                self.assertFalse(getattr(getattr(getattr(cabaxiom, axis), method), "__final__", False))
+                self.assertFalse(getattr(getattr(getattr(cabaxiom.core, axis), method), "__final__", False))
 
 
 # Every verb along the spine takes the run's Graph and NOTHING beside it. The membership used to travel as a
@@ -108,7 +108,7 @@ class DerivationIsTheWholeInputTests(unittest.IsolatedAsyncioTestCase):
     def test_every_spine_verb_takes_the_graph_alone(self):
         for owner, verb, expected in SPINE:
             with self.subTest(verb=f"{owner}.{verb}"):
-                taken = tuple(inspect.signature(getattr(getattr(cabaxiom, owner), verb)).parameters)
+                taken = tuple(inspect.signature(getattr(getattr(cabaxiom.core, owner), verb)).parameters)
                 self.assertEqual(taken, expected,
                                  f"{owner}.{verb} must take the Graph alone, so its membership and its "
                                  f"edges cannot describe different worlds")
@@ -116,18 +116,18 @@ class DerivationIsTheWholeInputTests(unittest.IsolatedAsyncioTestCase):
     def test_the_graph_publishes_the_membership_it_was_derived_over(self):
         # What makes the second argument removable at all. The derivation already held the set, in supplied
         # order and had held it since construction. It was published, not computed.
-        steps = (cabaxiom.Step(), cabaxiom.Step())
-        self.assertEqual(cabaxiom.Graph(steps).steps, steps)
+        steps = (cabaxiom.core.Step(), cabaxiom.core.Step())
+        self.assertEqual(cabaxiom.core.Graph(steps).steps, steps)
 
     def test_the_executor_answers_for_the_shape_it_walks(self):
         # RunMode.resolve is sealed delegation to the arranger it composes, then the pairing guard on the
         # partition returned. The arranger is held privately by the RunMode - a component nobody downstream
         # drives, so a caller cannot pair one mode's shape with another worker. The component stays composed
         # and private, so the RunMode answers.
-        self.assertTrue(getattr(cabaxiom.RunMode.resolve, "__final__", False),
+        self.assertTrue(getattr(cabaxiom.core.RunMode.resolve, "__final__", False),
                         "RunMode.resolve must refuse an override or a subclass could answer with a "
                         "partition its own arranger did not build and verify")
-        self.assertFalse(hasattr(cabaxiom.Parallel(), "arranger"),
+        self.assertFalse(hasattr(cabaxiom.core.Parallel(), "arranger"),
                          "the composed arranger is the RunMode's own, not a published handle")
 
 
@@ -138,45 +138,45 @@ class DiagramAxisTests(unittest.IsolatedAsyncioTestCase):
     differently."""
 
     def test_the_walk_is_sealed_and_every_syntax_seam_is_open(self):
-        self.assertTrue(getattr(cabaxiom.Diagram.render, "__final__", False))
-        self.assertEqual(set(cabaxiom.Diagram.__abstractmethods__),
+        self.assertTrue(getattr(cabaxiom.core.Diagram.render, "__final__", False))
+        self.assertEqual(set(cabaxiom.core.Diagram.__abstractmethods__),
                          {"opening", "grouped", "arrow", "closing"})
 
     def test_both_shipped_formats_are_final_leaves(self):
-        for leaf in (cabaxiom.Dot, cabaxiom.Mermaid):
+        for leaf in (cabaxiom.core.Dot, cabaxiom.core.Mermaid):
             with self.subTest(leaf=leaf.__name__):
                 self.assertTrue(getattr(leaf, "__final__", False))
-                self.assertTrue(issubclass(leaf, cabaxiom.Diagram))
+                self.assertTrue(issubclass(leaf, cabaxiom.core.Diagram))
 
     def test_a_custom_format_inherits_the_walk_it_never_writes(self):
         # Four small methods buy the whole run - identity, grouping, ordering and the per-kind arrows.
-        class Plain(cabaxiom.Diagram):
+        class Plain(cabaxiom.core.Diagram):
             def opening(self): return ("RUN",)
             def grouped(self, title, index, members):
                 return (title,) + tuple(f"{node}={label}" for node, label, _ in members)
             def arrow(self, prerequisite, dependent, slot, tone): return f"{prerequisite}<{slot}<{dependent}"
             def closing(self, used): return ("END",)
 
-        class Db(cabaxiom.Step):
+        class Db(cabaxiom.core.Step):
             pass
 
-        class Api(cabaxiom.Step):
+        class Api(cabaxiom.core.Step):
             expects = (Db,)
 
-        drawn = Plain().render(cabaxiom.Reconciler((Api(), Db())).explain()).splitlines()
+        drawn = Plain().render(cabaxiom.core.Reconciler((Api(), Db())).explain()).splitlines()
         self.assertEqual(drawn, ["RUN", "wave 0", "n0=Db", "wave 1", "n1=Api", "n0<expects<n1", "END"])
 
     def test_a_casualty_paints_the_run_it_forecasts(self):
         # The forecast and its picture are one value seen twice. Marks come straight off the Casualty,
         # so a drawing cannot claim a step survives while the forecast says it is blocked.
-        class Db(cabaxiom.Step):
+        class Db(cabaxiom.core.Step):
             pass
 
-        class Api(cabaxiom.Step):
+        class Api(cabaxiom.core.Step):
             expects = (Db,)
 
         steps = (Db(), Api())
-        reconciler = cabaxiom.Reconciler(steps, mode=cabaxiom.Parallel())
+        reconciler = cabaxiom.core.Reconciler(steps, mode=cabaxiom.core.Parallel())
         casualty = reconciler.foresee(steps[0])
         self.assertEqual(casualty.marks, {"Db": "failed", "Api": "blocked"})
         drawn = reconciler.explain().mermaid(casualty.marks)
@@ -190,17 +190,17 @@ class DiagramAxisTests(unittest.IsolatedAsyncioTestCase):
         # Halt gates by run POSITION, so the same failure has two more readings the graph alone cannot
         # give. The group-mates that settle plus everything a later group never starts. Both reach the
         # drawing, where DOT fills a marked node inline and Mermaid declares a class for it.
-        class Db(cabaxiom.Step):
+        class Db(cabaxiom.core.Step):
             pass
 
-        class Cache(cabaxiom.Step):
+        class Cache(cabaxiom.core.Step):
             pass
 
-        class Api(cabaxiom.Step):
+        class Api(cabaxiom.core.Step):
             expects = (Db,)
 
         db, cache, api = Db(), Cache(), Api()
-        reconciler = cabaxiom.Reconciler((db, cache, api), mode=cabaxiom.Parallel())
+        reconciler = cabaxiom.core.Reconciler((db, cache, api), mode=cabaxiom.core.Parallel())
         casualty = reconciler.foresee(db)
         self.assertEqual(casualty.marks,
                          {"Db": "failed", "Cache": "settling", "Api": "blocked"})
@@ -211,10 +211,10 @@ class DiagramAxisTests(unittest.IsolatedAsyncioTestCase):
 
     def test_an_unmarked_run_draws_no_paint_at_all(self):
         # The everyday case stays clean - no marks, no fills, no class declarations.
-        class Solo(cabaxiom.Step):
+        class Solo(cabaxiom.core.Step):
             pass
 
-        explanation = cabaxiom.Reconciler((Solo(),)).explain()
+        explanation = cabaxiom.core.Reconciler((Solo(),)).explain()
         self.assertNotIn("fillcolor", explanation.dot())
         self.assertNotIn("classDef", explanation.mermaid())
 
@@ -232,20 +232,20 @@ class TheProofCannotBeForgedTests(unittest.IsolatedAsyncioTestCase):
         # so the same code is refused with an AttributeError instead of quietly doing nothing.
         witnessed: list[type] = []
 
-        class Settled(cabaxiom.Step):
+        class Settled(cabaxiom.core.Step):
             pass
 
-        class Witness(cabaxiom.Observer):
-            def acted(self, applied: Sequence[cabaxiom.Drift]) -> None:
+        class Witness(cabaxiom.core.Observer):
+            def acted(self, applied: Sequence[cabaxiom.core.Drift]) -> None:
                 witnessed.append(type(applied))
 
-            def remained(self, residual: Sequence[cabaxiom.Drift]) -> None:
+            def remained(self, residual: Sequence[cabaxiom.core.Drift]) -> None:
                 witnessed.append(type(residual))
 
-            def pruned(self, residual: Sequence[cabaxiom.Drift]) -> None:
+            def pruned(self, residual: Sequence[cabaxiom.core.Drift]) -> None:
                 witnessed.append(type(residual))
 
-        reconciler = cabaxiom.Reconciler((Settled(),), observer=Witness())
+        reconciler = cabaxiom.core.Reconciler((Settled(),), observer=Witness())
         self.assertEqual(await reconciler.converge(), [])
         self.assertEqual(await reconciler.prune(), [])
         self.assertEqual(witnessed, [tuple, tuple, tuple])
@@ -256,34 +256,34 @@ class TheProofCannotBeForgedTests(unittest.IsolatedAsyncioTestCase):
         # `clean` used to be computed from the held Residual on every read, so appending to
         # `cutover.residual` after the fact flipped a clean transition to dirty - while the record's own
         # docstring promised a caller could not falsify it in place.
-        class Arrived(cabaxiom.Step):
+        class Arrived(cabaxiom.core.Step):
             def assess(self, inputs):
                 return Assessment(deviation=[]), {}
 
-        cutover = await cabaxiom.Transition([], [Arrived()]).converge()
+        cutover = await cabaxiom.core.Transition([], [Arrived()]).converge()
         self.assertTrue(cutover.clean)
         with self.assertRaises(AttributeError):
-            cutover.residual.append(cabaxiom.DriftItem("forged", "after the fact"))   # type: ignore[attr-defined]
+            cutover.residual.append(cabaxiom.core.DriftItem("forged", "after the fact"))   # type: ignore[attr-defined]
         self.assertTrue(cutover.clean, "the verdict must say what was true when the run ended")
         self.assertTrue(cutover)
 
     async def test_a_retry_takes_the_whole_trace_like_every_other_axis(self):
         # It used to be handed `observer.retried`, one hook plucked off another axis by the composer, which
         # put the knowledge of WHICH hook a retry fires in the reconciler rather than in the retry.
-        taken = tuple(inspect.signature(cabaxiom.BaseRetry.__call__).parameters)
+        taken = tuple(inspect.signature(cabaxiom.core.BaseRetry.__call__).parameters)
         self.assertEqual(taken, ("self", "do", "observer"))
 
         seen: list[tuple[str, int]] = []
 
-        class Watching(cabaxiom.Observer):
-            def retried(self, step: cabaxiom.Step, attempt: int, error: Exception) -> None:
+        class Watching(cabaxiom.core.Observer):
+            def retried(self, step: cabaxiom.core.Step, attempt: int, error: Exception) -> None:
                 seen.append((step.__class__.__name__, attempt))
 
-        class Flaky(cabaxiom.Step):
+        class Flaky(cabaxiom.core.Step):
             tries = 0
 
             def assess(self, inputs):
-                return Assessment(deviation=[] if Flaky.tries >= 2 else [cabaxiom.DriftItem("Flaky", "absent")]), {}
+                return Assessment(deviation=[] if Flaky.tries >= 2 else [cabaxiom.core.DriftItem("Flaky", "absent")]), {}
 
             def apply(self, inputs):
                 Flaky.tries += 1
@@ -291,7 +291,7 @@ class TheProofCannotBeForgedTests(unittest.IsolatedAsyncioTestCase):
                     raise RuntimeError("not yet")
                 return [], {}
 
-        await cabaxiom.Reconciler((Flaky(),), observer=Watching(), retry=cabaxiom.Retry(3)).converge()
+        await cabaxiom.core.Reconciler((Flaky(),), observer=Watching(), retry=cabaxiom.core.Retry(3)).converge()
         self.assertEqual(seen, [("Flaky", 1)])
 
 
@@ -302,7 +302,7 @@ class PartitionIsComposedTests(unittest.IsolatedAsyncioTestCase):
     real now, so the fail-at-construction doctrine reaches the run structure itself."""
 
     def test_a_shape_that_forgot_its_placement_cannot_be_constructed(self):
-        class Shapeless(cabaxiom.Partition):
+        class Shapeless(cabaxiom.core.Partition):
             pass
 
         with self.assertRaises(TypeError) as refused:
@@ -310,7 +310,7 @@ class PartitionIsComposedTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("placement", str(refused.exception))
 
     def test_the_groups_stay_reachable_all_three_ways(self):
-        walked = cabaxiom.WalkPartition((("a", "b"), ("c",)))
+        walked = cabaxiom.core.WalkPartition((("a", "b"), ("c",)))
         self.assertEqual(walked.groups, (("a", "b"), ("c",)))   # the executor hand-off, a plain tuple
         self.assertEqual(len(walked), 2)                        # and len()
         self.assertEqual(tuple(walked), walked.groups)          # and iteration
@@ -347,14 +347,14 @@ class VocabularyIsTheOneHomeTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(addressing.takes and addressing.stray and addressing.noun and addressing.vow)
 
     def test_a_match_carries_its_kinds_own_record(self):
-        class Db(cabaxiom.Step):
+        class Db(cabaxiom.core.Step):
             provides = frozenset({"db"})
 
-        class Api(cabaxiom.Step):
+        class Api(cabaxiom.core.Step):
             wants = ("db",)
 
         db, api = Db(), Api()
-        match = cabaxiom.Graph((db, api)).matching(api)[0]
+        match = cabaxiom.core.Graph((db, api)).matching(api)[0]
         self.assertEqual(match.kind.slot, "wants")
         self.assertFalse(match.kind.hard)
         self.assertEqual(match.kind.counterpart, "demands")
@@ -366,19 +366,19 @@ class VocabularyIsTheOneHomeTests(unittest.IsolatedAsyncioTestCase):
         # no edit - the derivation, the per-name view, the softness read and the structural explain.
         grown = SHIPPED.grown(EdgeKind("also_after", BY_CLASS, hard=False, counterpart=None, colour="#123456"))
 
-        class Anchor(cabaxiom.Step):
+        class Anchor(cabaxiom.core.Step):
             pass
 
-        class Rider(cabaxiom.Step):
+        class Rider(cabaxiom.core.Step):
             also_after = (Anchor,)   # unknown at class definition, vetted at derivation - the second gate
 
         anchor, rider = Anchor(), Rider()
-        graph = cabaxiom.Graph((anchor, rider), grown)
+        graph = cabaxiom.core.Graph((anchor, rider), grown)
         self.assertEqual(graph.dependencies(rider), (anchor,))            # 1. derived
         match = graph.matching(rider)[0]
         self.assertEqual(match.slot, "also_after")   # 2. visible per name
         self.assertTrue(match.soft)                  # 3. classified right
-        explanation = cabaxiom.Reconciler((rider, anchor), vocabulary=grown).explain()
+        explanation = cabaxiom.core.Reconciler((rider, anchor), vocabulary=grown).explain()
         self.assertEqual(explanation.declared["also_after"],
                          (("Rider", ("Anchor",)),))                       # 4. carried by explain
         self.assertEqual(explanation.groups, (("Anchor",), ("Rider",)))   # and it truly ordered the run
@@ -389,8 +389,8 @@ class VocabularyIsTheOneHomeTests(unittest.IsolatedAsyncioTestCase):
         grown = SHIPPED.grown(EdgeKind("also_after", BY_CLASS, hard=False, counterpart=None, colour="#123456"))
         with mock.patch.object(Vocabulary, "shipped", return_value=grown):
             with self.assertRaises(TypeError) as refused:
-                class Rider(cabaxiom.Step):
-                    also_after = (cabaxiom.Step)   # the forgotten comma, on a kind that did not exist
+                class Rider(cabaxiom.core.Step):
+                    also_after = (cabaxiom.core.Step)   # the forgotten comma, on a kind that did not exist
             self.assertIn("also_after must be a tuple", str(refused.exception))   # 5. vetted unedited
 
     def test_the_drawing_styles_every_kind_in_the_table(self):
@@ -444,17 +444,17 @@ class VocabularyIsAnInjectedAxisTests(unittest.IsolatedAsyncioTestCase):
         speaking = SHIPPED.grown(
             EdgeKind("before", BY_CLASS, hard=False, counterpart=None, colour="#1098ad", precedes=True))
 
-        class Deploy(cabaxiom.Step):
+        class Deploy(cabaxiom.core.Step):
             pass
 
-        class Warmup(cabaxiom.Step):
+        class Warmup(cabaxiom.core.Step):
             before = (Deploy,)   # Warmup cannot edit Deploy and no longer has to
 
         deploy, warmup = Deploy(), Warmup()
-        graph = cabaxiom.Graph((deploy, warmup), speaking)
+        graph = cabaxiom.core.Graph((deploy, warmup), speaking)
         self.assertEqual(graph.dependencies(deploy), (warmup,))   # the edge landed on the OTHER side
         self.assertEqual(graph.dependencies(warmup), ())
-        explanation = cabaxiom.Reconciler((deploy, warmup), vocabulary=speaking).explain()
+        explanation = cabaxiom.core.Reconciler((deploy, warmup), vocabulary=speaking).explain()
         self.assertEqual(explanation.groups, (("Warmup",), ("Deploy",)))   # and the run obeys it
         self.assertEqual(explanation.declared["before"], (("Warmup", ("Deploy",)),))
         drawn = explanation.mermaid()
@@ -466,19 +466,19 @@ class VocabularyIsAnInjectedAxisTests(unittest.IsolatedAsyncioTestCase):
         speaking = SHIPPED.grown(
             EdgeKind("leans_on", BY_CLASS, hard=False, counterpart=None, colour="#5c940d"))
 
-        class Base(cabaxiom.Step):
+        class Base(cabaxiom.core.Step):
             pass
 
-        class Tower(cabaxiom.Step):
+        class Tower(cabaxiom.core.Step):
             leans_on = (Base,)
 
         base, tower = Base(), Tower()
         # The scope is HANDED the run's language through the Graph it selects over, never holding one of
         # its own. The same Only narrows differently depending on the Graph's vocabulary, while the reconciler
         # builds that Graph with the run's language - so the two cannot be handed different languages.
-        self.assertEqual(cabaxiom.Only(Tower).select(cabaxiom.Graph((base, tower), speaking)).steps, (base, tower))
-        self.assertEqual(cabaxiom.Only(Tower).select(cabaxiom.Graph((base, tower))).steps, (tower,))   # shipped language cannot
-        self.assertEqual(cabaxiom.Reconciler((base, tower), scope=cabaxiom.Only(Tower),
+        self.assertEqual(cabaxiom.core.Only(Tower).select(cabaxiom.core.Graph((base, tower), speaking)).steps, (base, tower))
+        self.assertEqual(cabaxiom.core.Only(Tower).select(cabaxiom.core.Graph((base, tower))).steps, (tower,))   # shipped language cannot
+        self.assertEqual(cabaxiom.core.Reconciler((base, tower), scope=cabaxiom.core.Only(Tower),
                                              vocabulary=speaking).explain().groups,
                          (("Base",), ("Tower",)))   # and the run wires it with no keyword to forget
 
@@ -487,13 +487,13 @@ class VocabularyIsAnInjectedAxisTests(unittest.IsolatedAsyncioTestCase):
         speaking = SHIPPED.grown(
             EdgeKind("leans_on", BY_CLASS, hard=False, counterpart=None, colour="#5c940d"))
 
-        class Quiet(cabaxiom.Step):
+        class Quiet(cabaxiom.core.Step):
             def assess(self, inputs):
                 return Assessment(deviation=[]), {}
 
-        cutover = await cabaxiom.Transition([], [Quiet()], vocabulary=speaking).converge()
+        cutover = await cabaxiom.core.Transition([], [Quiet()], vocabulary=speaking).converge()
         self.assertTrue(cutover.clean)
-        rift = cabaxiom.Succession([], [Quiet()], vocabulary=speaking).compare()
+        rift = cabaxiom.core.Succession([], [Quiet()], vocabulary=speaking).compare()
         self.assertEqual(rift.quieted, ())
 
 
@@ -509,26 +509,26 @@ class BlameSpeaksTheRunsLanguageTests(unittest.IsolatedAsyncioTestCase):
         speaking = Vocabulary.shipped().grown(
             EdgeKind("leans_on", BY_CLASS, hard=False, counterpart=None, colour="#5c940d"))
 
-        class Base(cabaxiom.Step):
+        class Base(cabaxiom.core.Step):
             def assess(self, inputs):
-                return Assessment(deviation=[cabaxiom.DriftItem("Base", "absent")]), {}
+                return Assessment(deviation=[cabaxiom.core.DriftItem("Base", "absent")]), {}
 
             def apply(self, inputs):
                 raise RuntimeError("Base fell over")
 
                 return None, {}
-        class Tower(cabaxiom.Step):
+        class Tower(cabaxiom.core.Step):
             leans_on = (Base,)
 
             def assess(self, inputs):
-                return Assessment(deviation=[cabaxiom.DriftItem("Tower", "absent")]), {}
+                return Assessment(deviation=[cabaxiom.core.DriftItem("Tower", "absent")]), {}
 
         return speaking, Base, Tower
 
     async def test_a_grown_edge_blocks_the_dependent_it_ordered(self):
         speaking, Base, Tower = self._leaning()
-        reconciler = cabaxiom.Reconciler((Base(), Tower()), vocabulary=speaking,
-                                         mode=cabaxiom.Parallel(cabaxiom.OnError.BestEffort))
+        reconciler = cabaxiom.core.Reconciler((Base(), Tower()), vocabulary=speaking,
+                                         mode=cabaxiom.core.Parallel(cabaxiom.core.OnError.BestEffort))
         residual = await reconciler.converge()
         blamed = {item.name: item.message for item in residual.failures}
         self.assertIn("step failed", blamed["Base"])
@@ -539,16 +539,16 @@ class BlameSpeaksTheRunsLanguageTests(unittest.IsolatedAsyncioTestCase):
         # one walk over one derivation, in a language the shipped vocabulary does not even know.
         speaking, Base, Tower = self._leaning()
         base, tower = Base(), Tower()
-        reconciler = cabaxiom.Reconciler((base, tower), vocabulary=speaking,
-                                         mode=cabaxiom.Parallel(cabaxiom.OnError.BestEffort))
+        reconciler = cabaxiom.core.Reconciler((base, tower), vocabulary=speaking,
+                                         mode=cabaxiom.core.Parallel(cabaxiom.core.OnError.BestEffort))
         forecast = reconciler.foresee(base)
         recorded = {item.name for item in (await reconciler.converge()).failures}
         self.assertEqual(set(forecast.blocked) | {forecast.failed}, recorded)
 
     def test_the_ledger_derives_nothing_of_its_own(self):
         # The structural half. No second derivation can drift from the first if there is no second one.
-        self.assertNotIn("Graph(", inspect.getsource(cabaxiom.Ledger))
-        self.assertEqual(tuple(inspect.signature(cabaxiom.Ledger).parameters),
+        self.assertNotIn("Graph(", inspect.getsource(cabaxiom.core.Ledger))
+        self.assertEqual(tuple(inspect.signature(cabaxiom.core.Ledger).parameters),
                          ("groups", "on_error", "observer", "graph"))
 
 
@@ -561,7 +561,7 @@ class OneFactSpokenOnceTests(unittest.IsolatedAsyncioTestCase):
         # rule explain() applies" - so `Web#2` on an indictment and `Web#2` on a drawing were different
         # steps, so painting an indictment's accused onto a map reddened the innocent one. Shipped
         # vocabulary, two instances of one kind. The whole setup it took.
-        class Web(cabaxiom.Step):
+        class Web(cabaxiom.core.Step):
             def assess(self, inputs):
                 return Assessment(deviation=[]), {}
 
@@ -572,7 +572,7 @@ class OneFactSpokenOnceTests(unittest.IsolatedAsyncioTestCase):
         second, first = Web(), Web()
         second.needs = (first,)
         steps = (second, first)   # supplied order deliberately DISAGREES with run order
-        run = cabaxiom.Reconciler(steps)
+        run = cabaxiom.core.Reconciler(steps)
         named = dict(zip((label for group in run.explain().groups for label in group),
                          (step for group in run._partition for step in group)))
         indicted = await cabaxiom.laboratory.Isolation(steps, charge=Always()).isolate()
@@ -586,16 +586,16 @@ class OneFactSpokenOnceTests(unittest.IsolatedAsyncioTestCase):
         speaking = Vocabulary.shipped().grown(
             EdgeKind("rides", BY_CLASS, hard=False, counterpart=None, colour="#000000"))
 
-        class Db(cabaxiom.Step):
+        class Db(cabaxiom.core.Step):
             pass
 
-        class Api(cabaxiom.Step):
+        class Api(cabaxiom.core.Step):
             rides = (Db,)
 
-        groups = cabaxiom.Reconciler((Api(), Db()), scope=cabaxiom.Only(Api),
+        groups = cabaxiom.core.Reconciler((Api(), Db()), scope=cabaxiom.core.Only(Api),
                                      vocabulary=speaking).explain().groups
         self.assertEqual(groups, (("Db",), ("Api",)))   # the closure followed the run's own edge
-        self.assertEqual(tuple(inspect.signature(cabaxiom.Scope.select).parameters),
+        self.assertEqual(tuple(inspect.signature(cabaxiom.core.Scope.select).parameters),
                          ("self", "graph"))   # the Graph carries the language, so there is no second arg to forget
 
     def test_every_itinerary_hop_speaks_the_itinerarys_language(self):
@@ -604,17 +604,17 @@ class OneFactSpokenOnceTests(unittest.IsolatedAsyncioTestCase):
         speaking = Vocabulary.shipped().grown(
             EdgeKind("rides", BY_CLASS, hard=False, counterpart=None, colour="#000000"))
 
-        class Db(cabaxiom.Step):
+        class Db(cabaxiom.core.Step):
             def assess(self, inputs):
                 return Assessment(deviation=[]), {}
 
-        class Api(cabaxiom.Step):
+        class Api(cabaxiom.core.Step):
             rides = (Db,)
 
             def assess(self, inputs):
                 return Assessment(deviation=[]), {}
 
-        walked = cabaxiom.Itinerary([(), (Api(), Db())], vocabulary=speaking)
+        walked = cabaxiom.core.Itinerary([(), (Api(), Db())], vocabulary=speaking)
         hop = walked._Itinerary__hops[0]   # noqa: SLF001 - the language a hop resolves in is the point
         self.assertEqual(hop._converge.explain().groups, (("Db",), ("Api",)))
 
@@ -625,23 +625,23 @@ class OneFactSpokenOnceTests(unittest.IsolatedAsyncioTestCase):
         speaking = Vocabulary.shipped().grown(
             EdgeKind("before", BY_CLASS, hard=False, counterpart=None, colour="#1098ad", precedes=True))
 
-        class Network(cabaxiom.Step):
+        class Network(cabaxiom.core.Step):
             def assess(self, inputs):
                 return Assessment(deviation=[]), {}
 
-        class Warmup(cabaxiom.Step):
+        class Warmup(cabaxiom.core.Step):
             before = (Network,)
 
             def assess(self, inputs):
                 return Assessment(deviation=[]), {}
 
-        class Sub(cabaxiom.Enclave):
+        class Sub(cabaxiom.core.Enclave):
             before = (Network,)   # declared on the class - a grown kind is no per-instance slot the freeze allows
 
-        sound = Sub(cabaxiom.Reconciler((Warmup(),), vocabulary=speaking))
-        top = cabaxiom.Reconciler((sound, Network()), vocabulary=speaking)
+        sound = Sub(cabaxiom.core.Reconciler((Warmup(),), vocabulary=speaking))
+        top = cabaxiom.core.Reconciler((sound, Network()), vocabulary=speaking)
         self.assertEqual(top.explain().groups, (("Sub",), ("Network",)))   # the enclave genuinely first
-        self.assertTrue(cabaxiom.Enclosure(top).prove().airtight)
+        self.assertTrue(cabaxiom.core.Enclosure(top).prove().airtight)
 
 
 class FinalMarkingTests(unittest.TestCase):
@@ -656,12 +656,13 @@ class FinalMarkingTests(unittest.TestCase):
 
     @staticmethod
     def _kernel_classes() -> dict[str, type]:
-        # BOTH published surfaces. The second one is here because the first stopped being the whole
-        # story. When the front door narrowed to the kernel, this walk silently lost sight of the
-        # laboratory's fifteen classes - a guard that quietly covers less is worse than one that fails, so
-        # the sibling test below exists to make that shrinkage loud.
+        # BOTH published surfaces, read at their WIDEST point rather than at the front door. This walk has
+        # now lost its footing twice for the same reason - once when the laboratory left `cabaxiom` and
+        # again when eighty names moved down into their layers - so it reads `cabaxiom.core`, which carries
+        # every kernel name whether or not the door advertises it. A guard that quietly covers less is
+        # worse than one that fails, which is why the sibling test below plants a violation to prove it.
         found = {}
-        for module in (cabaxiom, cabaxiom.laboratory):
+        for module in (cabaxiom.core, cabaxiom.laboratory):
             for name in dir(module):
                 held = getattr(module, name)
                 if isinstance(held, type):
@@ -714,11 +715,11 @@ class PlacementWordingTests(unittest.TestCase):
 
     @staticmethod
     def _shape(described: str, grouping: str) -> type:
-        return type("Sneaky", (cabaxiom.Partition,),
+        return type("Sneaky", (cabaxiom.core.Partition,),
                     {"placement": Placement(lambda dependency, dependent: True, described, grouping)})
 
     def test_the_three_shipped_shapes_obey_their_own_contract(self):
-        for shape in (cabaxiom.WavesPartition, cabaxiom.ChainsPartition, cabaxiom.WalkPartition):
+        for shape in (cabaxiom.core.WavesPartition, cabaxiom.core.ChainsPartition, cabaxiom.core.WalkPartition):
             with self.subTest(shape=shape.__name__):
                 told = shape.placement.described
                 self.assertTrue(told[0].islower())

@@ -4,18 +4,8 @@ produced map as a photograph, so the record family's founding sentence holds. wh
 run ended stays true, even against a step that kept a handle to its own returned dict."""
 import unittest
 
-from cabaxiom import (
-    DriftItem,
-    Fixpoint,
-    Graph,
-    Ledger,
-    Observer,
-    OnError,
-    Parallel,
-    Reconciler,
-    Statement,
-    Step,
-)
+from cabaxiom import DriftItem, Fixpoint, Graph, Ledger, OnError, Parallel, Reconciler, Step
+from cabaxiom.core.record import Observer, Statement
 from support import A, B
 
 
@@ -147,7 +137,7 @@ class ReadingRecordTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(reading.produced[prober], {"uri": "s3://x"})  # the store, surfaced at last
 
     def test_equality_is_by_items_and_a_stranger_is_not_compared(self):
-        from cabaxiom import Reading
+        from cabaxiom.core.record import Reading
 
         one = Reading([DriftItem("a", "x")])
         self.assertEqual(one, Reading([DriftItem("a", "x")]))          # its own kind, by items
@@ -175,7 +165,7 @@ class ReadingRecordTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(Reading.gathered([]), [])
 
     def test_produced_is_copied_at_mint_exactly_as_the_statements(self):
-        from cabaxiom import Reading
+        from cabaxiom.core.record import Reading
 
         class Maker(Step):
             pass

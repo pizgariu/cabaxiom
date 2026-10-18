@@ -4,21 +4,9 @@ import asyncio
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from cabaxiom import (
-    Assessment,
-    Cancelled,
-    DriftItem,
-    Fixed,
-    Fixpoint,
-    OnError,
-    Only,
-    Parallel,
-    Reconciler,
-    RunMode,
-    Step,
-    Waves,
-    WavesDispatcher,
-)
+from cabaxiom import Assessment, Cancelled, DriftItem, Fixed, Fixpoint, OnError, Only, Parallel, Reconciler, Step
+from cabaxiom.core.plan import Waves
+from cabaxiom.core.run import RunMode, WavesDispatcher
 from support import Staged
 
 

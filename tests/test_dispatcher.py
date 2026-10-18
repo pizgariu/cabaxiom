@@ -3,33 +3,23 @@ import asyncio
 import unittest
 
 from cabaxiom import (
-    DFS,
-    Arranger,
     Assessment,
     Cancelled,
-    Dispatcher,
     DriftItem,
     Flow,
     Graph,
     Kahn,
     Ledger,
-    Observer,
     OnError,
-    Ordering,
-    Overlap,
     Parallel,
-    Reading,
     Reconciler,
-    RunMode,
     Serial,
     Skew,
-    Statement,
     Step,
-    Walk,
-    WalkPartition,
-    Waves,
-    WavesPartition,
 )
+from cabaxiom.core.plan import DFS, Arranger, Ordering, Overlap, Walk, WalkPartition, Waves, WavesPartition
+from cabaxiom.core.record import Observer, Reading, Statement
+from cabaxiom.core.run import Dispatcher, RunMode
 from support import A, B, Boom, C, X, Y, Z
 
 
@@ -290,7 +280,7 @@ class WalkArrangerTests(unittest.IsolatedAsyncioTestCase):
         # Walk is the serial-safe shape on the open seam. A custom executor composes it, publishes it as
         # its arranger and inherits the covers-guarded level walk without reimplementing it - the third
         # built-in beside Waves and Chains. The reconciler resolves the run through exactly this read.
-        from cabaxiom import Walk
+        from cabaxiom.core.plan import Walk
 
         class Custom(Dispatcher):
             overlaps = Overlap.NEITHER
@@ -306,7 +296,7 @@ class WalkArrangerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([[s.__class__.__name__ for s in level] for level in partition], [["A"], ["B"]])
 
     def test_walk_still_guards_an_ordering_that_drops_a_step(self):
-        from cabaxiom import Walk
+        from cabaxiom.core.plan import Walk
 
         class Drops(Ordering):
             def __call__(self, graph):
@@ -668,7 +658,8 @@ class OverlapPairingTests(unittest.IsolatedAsyncioTestCase):
         # the thread bridge walked a CHAIN shape, ran a step beside its own prerequisite, handed it an empty
         # payload and reported the run clean - while the identical BARE pairing was correctly refused. The
         # decorator answers for the pair now, so wrapping cannot launder a mismatch.
-        from cabaxiom import Chains, Components, ThreadDispatcher
+        from cabaxiom import ThreadDispatcher
+        from cabaxiom.core.plan import Chains, Components
         from cabaxiom.core.run.dispatcher import _Gather
         from cabaxiom.laboratory import ChaosDispatcher, Sabotage
 
@@ -924,7 +915,7 @@ class SerialModeTests(unittest.IsolatedAsyncioTestCase):
     def test_a_serial_mode_walks_any_shape_because_it_overlaps_nothing(self):
         # Overlap.NEITHER asks the shape's rule nothing, so the one mode that fans nothing is the one mode
         # that is safe against every partition - including the chain shape no wave worker may walk.
-        from cabaxiom import Chains, Components
+        from cabaxiom.core.plan import Chains, Components
         from cabaxiom.core.run.dispatcher import _Walker
 
         Reconciler((A([]), B([])), Components(), mode=RunMode(Chains(), _Walker()))
@@ -1078,7 +1069,7 @@ class FlowModeTests(unittest.IsolatedAsyncioTestCase):
 
     def test_it_walks_any_shape_because_it_governs_its_own_concurrency(self):
         # Overlap.EDGES: the worker leans on no seating, so the pairing guard has nothing to refuse.
-        from cabaxiom import Chains, Components
+        from cabaxiom.core.plan import Chains, Components
         from cabaxiom.core.run.dispatcher import _Flow
 
         Reconciler((A([]), B([])), Components(), mode=RunMode(Chains(), _Flow()))

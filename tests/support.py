@@ -1,5 +1,6 @@
-from cabaxiom import Artifacts, Assessment, Backoff, DriftItem, Step
+from cabaxiom import Artifacts, Assessment, DriftItem, Step
 from cabaxiom.core.declaration.drift import FlowAssessment, FlowOutcome
+from cabaxiom.core.run import Backoff
 
 
 class _RecStep(Step):

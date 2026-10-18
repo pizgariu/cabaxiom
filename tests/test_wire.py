@@ -17,23 +17,10 @@ import inspect
 import pickle
 import unittest
 
-from cabaxiom import (
-    Assessment,
-    Crossing,
-    Dispatcher,
-    DriftItem,
-    Graph,
-    Ledger,
-    Observer,
-    OnError,
-    Overlap,
-    Reconciler,
-    RemoteDispatcher,
-    RunMode,
-    Skew,
-    Step,
-    Waves,
-)
+from cabaxiom import Assessment, DriftItem, Graph, Ledger, OnError, Reconciler, RemoteDispatcher, Skew, Step
+from cabaxiom.core.plan import Overlap, Waves
+from cabaxiom.core.record import Observer
+from cabaxiom.core.run import Crossing, Dispatcher, RunMode
 from cabaxiom.core.run.dispatcher import (
     _Gather,  # the wave worker is private, so a custom wire wrapper reaches for it here
 )

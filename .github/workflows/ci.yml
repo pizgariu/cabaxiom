@@ -23,7 +23,13 @@ jobs:
       - name: Ruff check
         run: ruff check .
       - name: Type check
-        run: mypy --strict src/cabaxiom
+        # No path argument. pyproject already says WHICH trees are checked (the kernel and the batteries
+        # beside it in examples/), and naming one here overrode that setting and quietly dropped the other.
+        run: mypy
+      - name: Architecture
+        # The layers are enforced inside the suite too, so this cannot be the only place it runs - it is
+        # here to fail with the contract's own name rather than as one line buried in a pytest report.
+        run: lint-imports
 
   test:
     runs-on: ubuntu-latest

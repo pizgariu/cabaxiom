@@ -1,70 +1,84 @@
 """The layering, read off the real import graph rather than off the directory names.
 
 A package split into folders is a filing decision. A package split into LAYERS is an architectural claim,
-and the difference between the two is whether anything fails when the claim stops being true. Every test
-here parses the shipped source and walks the imports it actually contains, so the arrows are the ones the
-interpreter would follow and not the ones a diagram in the docs promises.
+and the difference between the two is whether anything fails when the claim stops being true.
 
-Three claims are pinned. Arrows inside the kernel point one way. The kernel cannot see the laboratory
-standing beside it. And the batteries, which live outside the wheel entirely, reach the kernel through the
-same front door a stranger would use."""
+THE ARROWS THEMSELVES ARE NOT CHECKED HERE ANY MORE. They are declared in pyproject.toml and enforced by
+import-linter and this file runs it. The walk that used to live here was hand-rolled over the AST and read
+only RELATIVE imports, so `from cabaxiom.core.record.diagram import Mermaid` written inside the plan layer
+walked straight past it - planted and confirmed green, twice, in two different shapes. grimp, which
+import-linter builds on, resolves absolute imports, relative ones, re-exports through an __init__ and
+imports written inside a function body. Four planted violations, four caught, against two of four for the
+hand-rolled version. Some wheels are worth not reinventing and an import graph is one of them.
+
+What stays here is everything a layers contract cannot say. That no module sits outside a declared layer.
+That importing the kernel loads no laboratory module AT RUNTIME, which is a fact about sys.modules and not
+about source. That the front door is a curated subset and every name it leaves out still opens on its
+layer. And that the batteries, which live outside the wheel entirely, reach the kernel through the same
+front door a stranger would use."""
 import ast
 import pathlib
+import subprocess
+import sys
 import unittest
 
 import cabaxiom
 import cabaxiom.laboratory
 
 _SOURCE = pathlib.Path(cabaxiom.__file__).parent
-_BATTERIES = pathlib.Path(__file__).resolve().parents[1] / "examples" / "battery"
+_ROOT = pathlib.Path(__file__).resolve().parents[1]
+_BATTERIES = _ROOT / "examples" / "battery"
 
-# The declared order, lowest first. A layer may import ITSELF or anything of strictly lower rank and
-# nothing else - which is the whole content of the word "layer" as this package uses it.
-_RANK = {
-    "core.declaration": 0,     # what a step IS - knows nothing of a run
-    "core.plan": 1,            # from declarations to a seated partition
-    "core.record": 2,          # what a run says about itself
-    "core.run": 3,             # turning a plan into a converged world
-    "laboratory.proof": 4,     # does a property hold
-    "laboratory.rig": 4,       # what you mount a run in
-    "laboratory.shrink": 5,    # the smallest thing that breaks it
-}
+# The layers, as pyproject.toml declares them. Named here only so the sweep below can tell a filed module
+# from an unfiled one - the ORDER between them is import-linter's business and is stated nowhere else.
+_LAYERS = frozenset({
+    "core.declaration",     # what a step IS - knows nothing of a run
+    "core.plan",            # from declarations to a seated partition
+    "core.record",          # what a run says about itself
+    "core.run",             # turning a plan into a converged world
+    "laboratory.proof",     # does a property hold
+    "laboratory.rig",       # what you mount a run in
+    "laboratory.shrink",    # the smallest thing that breaks it
+})
+
+
+def _lint() -> subprocess.CompletedProcess[str]:
+    # The console script beside this interpreter, never a bare `lint-imports` off PATH - a suite that
+    # silently linted with some other environment's copy would be worse than one that did not lint at all.
+    # There is no `python -m` entry point to reach instead, so the script is located rather than guessed.
+    script = pathlib.Path(sys.executable).parent / "lint-imports"
+    if not script.exists():                                    # pragma: no cover - a broken dev install
+        raise unittest.SkipTest(f"import-linter is not installed beside {sys.executable}")
+    return subprocess.run([str(script)], cwd=_ROOT, capture_output=True, text=True)
 
 
 def _layer(module: pathlib.Path) -> str | None:
-    parts = module.relative_to(_SOURCE).parts[:-1]
-    return ".".join(parts) if ".".join(parts) in _RANK else None
+    parts = ".".join(module.relative_to(_SOURCE).parts[:-1])
+    return parts if parts in _LAYERS else None
 
 
-def _imports(module: pathlib.Path) -> list[tuple[int, str]]:
-    # Every relative import, resolved to the absolute module it names. Absolute imports of the package's
-    # own modules are not resolved here because there are none - the kernel imports itself relatively and
-    # a test below would notice the day that changes.
-    package = ["cabaxiom", *module.relative_to(_SOURCE).parts[:-1]]
-    found = []
-    for node in ast.walk(ast.parse(module.read_text(encoding="utf-8"))):
-        if isinstance(node, ast.ImportFrom) and node.level and node.module:
-            base = package[:len(package) - (node.level - 1)]
-            found.append((node.lineno, ".".join([*base, node.module])))
-    return found
+class TheDeclaredArrowsAreEnforcedTests(unittest.TestCase):
+
+    def test_import_linter_keeps_every_contract(self):
+        # The layering itself, run rather than re-implemented. It lives in pyproject.toml because that is
+        # where a reader looks for it and because a contract written as a table is a contract a person can
+        # argue with, which twenty lines of AST walking never was.
+        told = _lint()
+        self.assertEqual(told.returncode, 0, told.stdout + told.stderr)
+
+    def test_the_contracts_are_the_ones_this_package_means_to_have(self):
+        # A guard against the quiet kind of green. Delete the contracts from pyproject.toml and the linter
+        # still exits 0, having checked nothing at all - so the NAMES are asserted, not just the verdict.
+        told = _lint()
+        for contract in ("The kernel cannot see the laboratory",
+                         "The kernel's four layers point one way",
+                         "The laboratory's benches point one way"):
+            with self.subTest(contract=contract):
+                self.assertIn(f"{contract} KEPT", told.stdout)
+        self.assertIn("3 kept, 0 broken", told.stdout)
 
 
-class TheKernelArrowsPointOneWayTests(unittest.TestCase):
-
-    def test_no_module_imports_a_layer_above_its_own(self):
-        # The claim the folders would otherwise only imply. A record that could reach into the run it
-        # records or a declaration that knew a dispatcher existed would still pass every other test in
-        # this suite and would still be the thing this split was done to prevent.
-        offences = []
-        for module in sorted(_SOURCE.rglob("*.py")):
-            here = _layer(module)
-            if here is None:
-                continue
-            for line, target in _imports(module):
-                there = ".".join(target.split(".")[1:-1])
-                if there in _RANK and there != here and _RANK[there] >= _RANK[here]:
-                    offences.append(f"{module.relative_to(_SOURCE)}:{line} {here} -> {there}")
-        self.assertEqual(offences, [], "\n".join(offences))
+class TheModulesAreAllFiledTests(unittest.TestCase):
 
     def test_every_module_of_the_kernel_and_laboratory_sits_in_a_declared_layer(self):
         # A module that belongs to no layer is a module the test above cannot police, so an unfiled one is
@@ -75,16 +89,12 @@ class TheKernelArrowsPointOneWayTests(unittest.TestCase):
 
 
 class TheKernelCannotSeeTheLaboratoryTests(unittest.TestCase):
+    """The half of this claim that a source-level contract cannot make.
 
-    def test_no_core_module_imports_anything_from_the_laboratory(self):
-        # The reason the line was drawn at all. A delta-debugger and an adversary are superb things to own
-        # and have no business being reachable from the object they are pointed at.
-        offences = []
-        for module in sorted((_SOURCE / "core").rglob("*.py")):
-            for line, target in _imports(module):
-                if target.startswith("cabaxiom.laboratory"):
-                    offences.append(f"{module.relative_to(_SOURCE)}:{line} -> {target}")
-        self.assertEqual(offences, [], "\n".join(offences))
+    import-linter proves no core module NAMES the laboratory. It says nothing about what the interpreter
+    ends up holding, which are different facts - a re-export through an __init__, a conftest, a plugin
+    or a stray `importlib.import_module` would each put the laboratory in sys.modules without any core
+    module having written its name. The runtime check below is the one a caller can actually feel."""
 
     def test_importing_the_kernel_does_not_load_one_laboratory_module(self):
         # Enforced at RUNTIME, not just in the source. `import cabaxiom` in a fresh interpreter must leave

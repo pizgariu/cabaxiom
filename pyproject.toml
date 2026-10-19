@@ -25,7 +25,7 @@ classifiers = [
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.16", "hypothesis>=6", "mutmut>=3", "mypy>=1", "basedpyright>=1.21"]
+dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.16", "hypothesis>=6", "mutmut>=3", "mypy>=1", "basedpyright>=1.21", "import-linter>=2"]
 
 [project.urls]
 Homepage = "https://github.com/pizgariu/cabaxiom"
@@ -134,3 +134,39 @@ exclude_lines = ["pragma: no cover", "raise NotImplementedError", "if TYPE_CHECK
 [tool.mutmut]
 source_paths = ["src/cabaxiom"]
 also_copy = ["README.md", "CHANGELOG.md", "docs", "examples", "bench"]
+
+# The architecture, stated once and checked by a tool that resolves the import graph properly. The
+# hand-rolled AST walk this replaces read only RELATIVE imports, so `from cabaxiom.core.record.diagram
+# import Mermaid` inside the plan layer sailed straight past it - proven by planting exactly that and
+# watching the suite stay green. grimp resolves absolute imports, relative ones, re-exports through an
+# __init__ and imports written inside a function body, which is the whole reason to stop hand-rolling.
+#
+# Dev-only. Nothing here reaches the wheel, so the zero-runtime-dependency claim is untouched.
+[tool.importlinter]
+root_package = "cabaxiom"
+
+[[tool.importlinter.contracts]]
+name = "The kernel cannot see the laboratory"
+type = "layers"
+layers = ["cabaxiom.laboratory", "cabaxiom.core"]
+
+[[tool.importlinter.contracts]]
+name = "The kernel's four layers point one way"
+type = "layers"
+layers = [
+    "cabaxiom.core.run",
+    "cabaxiom.core.record",
+    "cabaxiom.core.plan",
+    "cabaxiom.core.declaration",
+]
+
+[[tool.importlinter.contracts]]
+name = "The laboratory's benches point one way"
+type = "layers"
+layers = [
+    "cabaxiom.laboratory.shrink",
+    # Siblings, stated as siblings. proof and rig sit at the same height and neither imports the other,
+    # so listing one above the other would declare an ordering the code does not have and would quietly
+    # permit an arrow nobody intends.
+    "cabaxiom.laboratory.proof : cabaxiom.laboratory.rig",
+]

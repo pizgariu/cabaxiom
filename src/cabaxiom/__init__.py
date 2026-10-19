@@ -146,3 +146,77 @@ __all__ = [
     "Cutover",
     "Transition",
 ]
+
+# WHERE A NAME WENT, so an upgrade meets a sentence instead of a dead end. The 0.7.0 window narrowed this
+# door from a hundred and forty-nine names to fifty-nine and moved the rest one import deeper. For a
+# while every one of those moves answered with a bare ImportError naming nothing. This file's own window
+# opens by promising that nothing it removes is left without the thing that takes its place, so a caller
+# who cannot find that thing has not been given it.
+#
+# STRINGS, not imports. Resolving this map at import time would drag the laboratory into sys.modules and
+# break the very claim the split was made for, so nothing here is imported until somebody asks by name.
+# A test walks it against the live packages, which is where that check belongs.
+_MOVED: dict[str, tuple[str, ...]] = {
+    "cabaxiom.core.declaration": (
+        "Addressing", "AllOf", "AnyOf", "Authority", "BY_CLASS", "BY_INSTANCE", "BY_LABEL", "Cancellation",
+        "EdgeKind", "Local", "Majority", "Most", "Quorum", "Rule", "Some", "Vocabulary",
+    ),
+    "cabaxiom.core.plan": (
+        "Arranger", "BaseFan", "BaseNamed", "BaseTagged", "Chains", "ChainsPartition", "Components", "DFS",
+        "Declared", "Match", "Ordering", "Overlap", "Partition", "Placement", "Priority", "Rift", "Scope",
+        "Seat", "Shift", "Walk", "WalkPartition", "Waves", "WavesPartition", "WithEveryTag",
+    ),
+    "cabaxiom.core.record": (
+        "Casualty", "Ceiling", "Charter", "Chorus", "Diagram", "Dot", "Explanation", "Logging", "Mermaid",
+        "Pass", "Reading", "Span", "Stamp", "Statement", "Timing", "Tone", "Warrant",
+    ),
+    "cabaxiom.core.run": (
+        "Backoff", "BaseDispatcher", "BaseLooping", "BaseRetry", "Budget", "Convergence", "Crossing",
+        "Dispatcher", "Fibonacci", "Jitter", "Linear", "Once", "Passage", "RunMode", "Settle", "Settled",
+        "Severance", "Severed", "Shrinking", "Unpublished", "WavesDispatcher", "Write",
+    ),
+    "cabaxiom.laboratory": (
+        "Adversary", "Breach", "ChaosDispatcher", "Charge", "Churn", "Idempotence", "Indictment",
+        "Isolation", "Proof", "Reversibility", "Roundtrip", "Sabotage", "Siege", "Stall", "Targeted",
+    ),
+}
+
+# Names that did not MOVE, they went private, so a caller who reaches for one is reaching for a mistake
+# rather than a new address. Each answers with the reason it is gone and what to write instead.
+_SEALED: dict[str, str] = {
+    "Gather": "every valid pairing of it is a shipped run mode. Use Parallel() or compose your own "
+              "worker with RunMode(arranger, worker) from cabaxiom.core.run",
+    "Watch": "every valid pairing of it is a shipped run mode. Use Supervised() or compose your own "
+             "worker with RunMode(arranger, worker) from cabaxiom.core.run",
+    "ident": "Step.identifier is the name since 0.6.0 and Step.ident was never one. It was never a module-level name either",
+}
+
+
+def __getattr__(name: str) -> object:
+    # A REFUSAL, not a shim. It hands nothing back, because the whole point of the narrowing is that these
+    # names are not here - a silent forward would leave the door as wide as it ever was while pretending
+    # otherwise. What it hands back instead is the line to type, which is the bargain every other refusal
+    # in this kernel makes.
+    #
+    # ImportError AND NOT AttributeError, which is the one surprising choice here and was measured rather
+    # than assumed. `from cabaxiom import Waves` is the form people actually write, so CPython catches an
+    # AttributeError out of a module __getattr__ and replaces it with its own "cannot import name" - so a
+    # careful message raised as AttributeError reaches nobody, while the same message raised as ImportError
+    # arrives intact. The price is that `hasattr(cabaxiom, "Waves")` RAISES instead of answering False,
+    # since hasattr only swallows AttributeError. That trade is deliberate. One of the two is written by
+    # every person upgrading and the other by almost nobody.
+    #
+    # Anything not in the two tables gets a plain AttributeError and that clause is load-bearing rather
+    # than tidy. The import machinery probes a module for __path__ and other dunders, so an ImportError
+    # raised at one of those breaks importing this package at all. Found by doing exactly that.
+    for where, names in _MOVED.items():
+        if name in names:
+            raise ImportError(
+                f"cabaxiom.{name} moved to {where} in 0.7.0. Write `from {where} import {name}`. The front "
+                f"door publishes what you DECLARE, RUN and CATCH. An axis base class, a value the "
+                f"kernel mints rather than takes and the non-default strategy on an axis all live one "
+                f"import deeper. Nothing was removed and nothing is private - see the 0.7.0 section of CHANGELOG.md."
+            )
+    if name in _SEALED:
+        raise ImportError(f"cabaxiom.{name} is not a name this package exports - {_SEALED[name]}.")
+    raise AttributeError(f"module 'cabaxiom' has no attribute {name!r}")

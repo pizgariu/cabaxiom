@@ -131,9 +131,15 @@ class TheKernelCannotSeeTheLaboratoryTests(unittest.TestCase):
                 self.assertIs(getattr(__import__(owner, fromlist=[name]), name), held)
 
     def test_the_laboratory_still_has_to_be_asked_for_by_name(self):
+        # Asserted through the REFUSAL rather than through hasattr, which no longer answers here - the
+        # front door raises ImportError for a name it used to publish, so the caller who writes
+        # `from cabaxiom import Siege` is told where Siege went instead of hearing "cannot import name".
+        # hasattr only swallows AttributeError, so it raises, which is the deliberate price.
         for name in cabaxiom.laboratory.__all__:
             with self.subTest(name=name):
-                self.assertFalse(hasattr(cabaxiom, name))
+                with self.assertRaises(ImportError) as refused:
+                    getattr(cabaxiom, name)
+                self.assertIn("cabaxiom.laboratory", str(refused.exception))
 
 
 class TheBatteriesUseTheFrontDoorTests(unittest.TestCase):
@@ -161,3 +167,59 @@ class TheBatteriesUseTheFrontDoorTests(unittest.TestCase):
         for gone in ("setup", "repository", "data"):
             with self.subTest(battery=gone):
                 self.assertFalse((_SOURCE / gone).exists())
+
+
+class EveryMovedNameSaysWhereItWentTests(unittest.TestCase):
+    """The upgrade path, which the 0.7.0 window's own opening paragraph promises and briefly did not keep.
+
+    Ninety names left the front door and for a while every one of them answered `from cabaxiom import X`
+    with a bare "cannot import name", naming nothing. In a kernel whose whole identity is a refusal that
+    says which promise you broke, that was the one refusal that said nothing at all."""
+
+    def test_every_name_the_door_dropped_is_in_the_table(self):
+        # The table is hand-written STRINGS, because resolving it at import time would drag the laboratory
+        # into sys.modules and break the claim the split was made for. So the thing that can rot is the
+        # table's agreement with reality, so this is where that is caught.
+        from cabaxiom import _MOVED
+
+        listed = {name for names in _MOVED.values() for name in names}
+        dropped = (set(cabaxiom.core.__all__) | set(cabaxiom.laboratory.__all__)) - set(cabaxiom.__all__)
+        self.assertEqual(dropped - listed, set(), "left the door with no forwarding address")
+        self.assertEqual(listed - dropped, set(), "listed as moved and still in the door")
+
+    def test_every_address_in_the_table_actually_resolves(self):
+        import importlib
+
+        from cabaxiom import _MOVED
+
+        for where, names in _MOVED.items():
+            module = importlib.import_module(where)
+            for name in names:
+                with self.subTest(name=name, where=where):
+                    self.assertTrue(hasattr(module, name), f"{where} does not hold {name}")
+
+    def test_the_refusal_names_the_line_to_type(self):
+        for name, where in (("Waves", "cabaxiom.core.plan"), ("Siege", "cabaxiom.laboratory"),
+                            ("RunMode", "cabaxiom.core.run"), ("Vocabulary", "cabaxiom.core.declaration")):
+            with self.subTest(name=name):
+                with self.assertRaises(ImportError) as refused:
+                    getattr(cabaxiom, name)
+                self.assertIn(f"from {where} import {name}", str(refused.exception))
+
+    def test_a_sealed_name_says_why_rather_than_where(self):
+        # Gather and Watch did not move, they went private, so pointing at an address would be a lie.
+        with self.assertRaises(ImportError) as refused:
+            getattr(cabaxiom, "Gather")
+        self.assertIn("shipped run mode", str(refused.exception))
+        self.assertNotIn("moved to", str(refused.exception))
+
+    def test_a_name_that_never_existed_is_still_a_plain_attribute_error(self):
+        # Load-bearing, not tidiness. The import machinery and half of the standard library probe a module
+        # for attributes it may not have, where an ImportError raised at one of those makes the package
+        # unimportable - which is exactly how the first draft of this broke, on __path__. That one is a
+        # real attribute of a package and never reaches __getattr__, so the probes below are names that
+        # genuinely are not there, which is the case the clause actually guards.
+        for probe in ("Nonsense", "__wrapped__", "__all_the_things__"):
+            with self.subTest(probe=probe):
+                with self.assertRaises(AttributeError):
+                    getattr(cabaxiom, probe)

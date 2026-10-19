@@ -44,13 +44,19 @@ class Reconciler:
                  vocabulary: Vocabulary | None = None, authority: Authority | None = None,
                  warrant: Warrant | None = None):
         scope = scope or Scope()
-        ordering = ordering or Kahn()
+        # ANNOTATED, both of them and only these two. Ordering and BaseRetry are the axes that ARE
+        # callables, so a tool resolving `Kahn()` or `Retry(1)` on a class that carries __call__ can
+        # answer with the call's result instead of an instance. Left inferred, `chosen` read as
+        # `Ordering | tuple[Step, ...]` and the retry as `BaseRetry | (Step, Artifacts) -> ...`. That
+        # second union then travelled into every Write built below it. The annotation says which of the
+        # two readings is meant, once, where the value is made.
+        chosen: Ordering = ordering or Kahn()
 
         mode = mode or Parallel()
         self._convergence = convergence or Once()
         self._cancellation = cancellation or Cancellation()
         self._observer = observer or Observer()
-        self._retry = retry or Retry(1)   # the neutral single try, which wraps nothing
+        self._retry: BaseRetry = retry or Retry(1)   # the neutral single try, which wraps nothing
         # None means no capacity is asked for, so the write path wraps nothing at all - the same
         # zero-cost neutral the retry takes. A run whose steps declare no `leases` sees no difference
         # either way, so the axis is invisible until somebody wants it.
@@ -67,7 +73,7 @@ class Reconciler:
         # and the second Vocabulary.shipped() a forgotten keyword used to summon has nowhere left to
         # appear. The dispatcher resolves the final, scoped graph into the run shape it will walk.
         self._graph = scope.select(Graph(tuple(steps), Vocabulary.shipped() if vocabulary is None else vocabulary))
-        self._partition = mode.resolve(ordering, self._graph)
+        self._partition = mode.resolve(chosen, self._graph)
         # The WORKER, not the mode. A RunMode is a constructor-time citizen - it pairs a shape with a
         # worker, vouches the pairing and resolves the partition - and every one of those jobs is done by
         # this line. What the run keeps is what it walks with, the partition and the dispatcher, so holding

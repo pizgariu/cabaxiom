@@ -104,13 +104,15 @@ class RunMode:
         # overlaps in flight. Ask the shape for its overlap and compare it to the worker's. A serial worker
         # overlaps nothing and can walk any shape safely.
         worker = self._dispatcher
-        walks = worker.walks()   # the PAIR's overlap, so a decorator answers for the worker underneath it
+        # Annotated and named for the thing rather than for the method that answers it. `walks` here read
+        # as the bound method one line above it, which is a question a reader should not have to resolve.
+        in_flight: Overlap = worker.walks()   # the PAIR's overlap, so a decorator answers for the worker under it
         # NEITHER overlaps nothing and EDGES governs its own, so neither leans on the seating. Every shape
         # is safe for them, so the question the guard exists to ask never arises.
-        if walks in (Overlap.NEITHER, Overlap.EDGES) or partition.overlap is walks:
+        if in_flight in (Overlap.NEITHER, Overlap.EDGES) or partition.overlap is in_flight:
             return
         raise Pairing(
-            f"{worker.__class__.__name__} runs {walks.value} at the same time but the shape this "
+            f"{worker.__class__.__name__} runs {in_flight.value} at the same time. The shape this "
             f"RunMode composes builds a {partition.__class__.__name__}, whose rule allows a dependency "
             f"{partition.placement.described} (it overlaps {partition.overlap.value}). Under that pairing a "
             f"step could run beside its own prerequisite and the run still reports clean. Compose Waves for "
@@ -851,6 +853,25 @@ class Crossing(NamedTuple):
     trace: str | None = None       # correlation for a caller's own tracing
 
 
+# THE WIRE PROTOCOL'S OWN FACTS, one home for both halves of it. The worker vets what arrives and the
+# coordinator stamps what leaves, so both sides read these - and while they lived on the worker, the
+# coordinator reached into another class's privates to say what it itself speaks. A protocol is not the
+# property of either end of it.
+#
+# The whole verb vocabulary of the step contract, which is the protocol's own guard. A coordinator only
+# ever ships these three, so anything else in an envelope is version skew between the two sides.
+#
+# Written in the order a run SPENDS them - read the world, close the gap, tear it down. The set itself is
+# unordered, so this is for the reader. A reader who meets `apply` first has to work out where the read
+# went.
+_WIRE_VERBS = frozenset({"assess", "apply", "prune"})
+
+# The version this build speaks, shipped in every envelope and vetted on arrival. A CONSTANT rather than a
+# parameter, because two peers negotiating a version per instance is a negotiation nobody audits - the
+# version is a property of the code, while skew is a deployment fact.
+_WIRE_VERSION = 1
+
+
 @final
 class _RemoteWorker(Dispatcher):
     """The wire worker behind RemoteDispatcher. A decorator whose transport carries each unit of work to a worker that does
@@ -913,14 +934,10 @@ class _RemoteWorker(Dispatcher):
     # NEITHER and walks any shape the worker it wraps could.
     overlaps = Overlap.NEITHER
 
-    # The whole verb vocabulary of the step contract, the protocol's own guard. A coordinator only ever
-    # ships these three, so anything else in an envelope is version skew between the two sides.
-    _VERBS = frozenset({"apply", "prune", "assess"})
-
-    # The protocol version this side speaks, shipped in every envelope and vetted on arrival. It is a
-    # CLASS constant rather than a parameter, because two peers negotiating a version per instance is a
-    # negotiation nobody audits - the version is a property of the code and skew is a deployment fact.
-    _VERSION = 1
+    # Re-exposed off the module constants so the worker half keeps the names its own guards and every
+    # test reach for, without either end of the wire owning the protocol.
+    _VERBS = _WIRE_VERBS
+    _VERSION = _WIRE_VERSION
 
     def __init__(self, transport: Callable[[bytes], bytes | Awaitable[bytes]], underlying: Dispatcher,
                  *, limit: int | None = None):
@@ -961,16 +978,16 @@ class _RemoteWorker(Dispatcher):
                 f"anonymous three-tuple before this version, so a peer still shipping one is running older "
                 f"code than this worker. Update the coordinator or pin both sides to one release."
             )
-        if landed.version != _RemoteWorker._VERSION:
+        if landed.version != _WIRE_VERSION:
             raise Skew(
                 f"The envelope speaks protocol version {landed.version} and this worker speaks "
-                f"{_RemoteWorker._VERSION}. The version is refused rather than read past, because an "
+                f"{_WIRE_VERSION}. The version is refused rather than read past, because an "
                 f"unknown field is a field this worker would drop in silence. The envelope exists to "
                 f"carry a lease token whose loss nobody would notice until a capacity limit stopped holding. "
                 f"Deploy workers before coordinators."
             )
         verb, step, inputs = landed.verb, landed.step, landed.inputs
-        if verb not in _RemoteWorker._VERBS:
+        if verb not in _WIRE_VERBS:
             raise Skew(
                 f"The envelope names {verb!r}, which is no verb of the step contract. A coordinator "
                 f"ships apply, prune or assess, so anything else is protocol skew between the two sides."
@@ -1017,7 +1034,7 @@ class _RemoteWorker(Dispatcher):
         # here. The transport is taken in both colours, like every hook the kernel accepts. The reply's
         # fate is guarded as strictly as the outbound verb. A reply this coordinator does not recognise
         # is protocol skew said out loud, never a silent success for dependents to build on.
-        envelope = pickle.dumps(Crossing(_RemoteWorker._VERSION, verb, step, inputs))
+        envelope = pickle.dumps(Crossing(_WIRE_VERSION, verb, step, inputs))
         if self._limit is not None and len(envelope) > self._limit:
             # NOTHING has crossed yet, so this is an ordinary refusal the policy classifies - and it is
             # deterministic, so a retry budget spent on it is a budget wasted, which the sentence says.
@@ -1068,10 +1085,15 @@ class _RemoteWorker(Dispatcher):
             )
         verb = do.verb
 
-        def crossed(step: Step, inputs: Artifacts) -> AsyncFlowOutcome:
-            return cast(AsyncFlowOutcome, self.__crossing(verb, step, inputs))
+        async def crossed(step: Step, inputs: Artifacts) -> FlowOutcome:
+            # AWAITED HERE rather than handed back unawaited, which is what the read path one method down
+            # already did. The old shape cast the coroutine itself across the union. A coroutine of
+            # `object` is the WIDER type - the cast narrowed the thing it was carrying rather than the
+            # thing it returned, which is the shape of a cast that can quietly be wrong. A coroutine
+            # function satisfies the same callable, because the fan awaits what it gets either way.
+            return cast(FlowOutcome, await self.__crossing(verb, step, inputs))
 
-        def relocate(hook: Callable[[Step, Artifacts], AsyncFlowOutcome]) -> Callable[[Step, Artifacts], AsyncFlowOutcome]:
+        def relocate(_hook: Callable[[Step, Artifacts], AsyncFlowOutcome]) -> Callable[[Step, Artifacts], AsyncFlowOutcome]:
             # THE CROSSING IS A RELOCATION, a total one, which is why the local hook is answered
             # rather than called. The code that runs is the worker's own clone of this step, so there is
             # nothing here to wrap - but everything the carrier lays AROUND a hook still applies and
@@ -1115,8 +1137,8 @@ class RemoteDispatcher(RunMode):
 
     # Re-exposed from the worker so the worker half and the protocol version keep their user-facing home -
     # the name a remote process and every test reach for.
-    _VERBS = _RemoteWorker._VERBS
-    _VERSION = _RemoteWorker._VERSION
+    _VERBS = _WIRE_VERBS
+    _VERSION = _WIRE_VERSION
     work = staticmethod(_RemoteWorker.work)
 
     def __init__(self, transport: Callable[[bytes], bytes | Awaitable[bytes]], underlying: "RunMode | None" = None,

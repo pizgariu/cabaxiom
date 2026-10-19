@@ -16,6 +16,46 @@ declare    derive     linearise     the shape      run it        record it
 
 **Steps** declare what they depend on (`expects`, `requires`, `wants`, `demands`, `uses`, `needs`), what they come before (`prepares`, `mandates`) and what they offer (`provides`). The **Graph** derives that structure ONCE - every edge kind, vetted, total. The **Ordering** linearises the graph it is handed and that graph is the WHOLE of what it is handed. The derivation carries the run's membership alongside the edges over exactly that membership, so the strategy only chooses a valid order through a structure that already exists, creating nothing. The **Partition** is the resolved run shape (waves or chains) the reconciler holds. The **Dispatcher** walks it - fanning each wave onto the event loop with `asyncio.gather`, onto worker threads for a blocking domain or step by step as each one's own prerequisites settle. A caller never assembles that worker by hand. A `RunMode` pairs it with the Arranger whose shape it can walk and vouches for the two. The **Ledger** records what every write returned, what failed and what a failure blocked, under the kernel's one failure rule. The rest of the vocabulary (Arranger, Placement, Convergence, Retry, Cancellation, Observer, Scope, Settle) tunes or guards one of these six and each is introduced where its spine element is.
 
+## Where the spine lives
+
+The six names above are not only a story. They are the package and the arrows between them only ever
+point one way.
+
+```text
+cabaxiom/
+  core/
+    declaration/   Step, the edge vocabulary, Permit, Drift, the named refusals, Cancellation
+    plan/          Graph, Ordering, Partition, Arranger, Scope, Succession
+    record/        Ledger, Observer, the frozen verdicts, Diagram, Warrant
+    run/           Reconciler, RunMode, Dispatcher, Retry, Convergence and the multi-declaration engines
+  laboratory/
+    proof/         does a property hold - Idempotence, Reversibility
+    shrink/        the smallest thing that breaks it - Isolation, Siege
+    rig/           what you mount a run in to ask - Adversary, the test doubles
+```
+
+A declaration knows nothing of a run. A plan reads declarations. A record reads both and cannot reach the
+run it records. A run reads all three. The laboratory reads the kernel and **the kernel cannot see the
+laboratory at all** - `import cabaxiom` does not load one module of it, which is why a delta-debugger and
+an adversary are things you own without carrying them into production.
+
+None of that is a convention held by habit. `tests/test_layers.py` parses the shipped source, walks the
+imports it actually contains and fails on any arrow that points the wrong way, naming the file and the
+line. It was checked by breaking the layering three ways and watching each break get caught, including one
+that makes no import cycle, since a violation Python itself rejects proves nothing about the guard.
+
+Two addresses reach the same objects. `cabaxiom` publishes what you DECLARE, RUN and CATCH, which is
+fifty-nine names. `cabaxiom.core.<layer>` publishes all one hundred and thirty-eight, so an axis base
+class, a value the kernel mints rather than takes and the non-default strategy on an axis are one import
+deeper instead of standing in the doorway. Nothing is hidden by that and nothing is private. The layer
+says where a thing lives and saying so is the point.
+
+The ready-made `Step`s for real domains - a development machine, a repository fleet, a warehouse - are
+NOT in the wheel. They live in `examples/battery/`, held to the same strict typing and full branch
+coverage as the kernel and they import it through the same front door a stranger uses. A demonstration
+that ships as public API is a promise nobody asked for and a kernel that calls itself domain-agnostic
+while carrying a `Table` and a `Symlink` needs an asterisk on the claim.
+
 ## Composition (who holds whom and who tells whom)
 
 ```mermaid

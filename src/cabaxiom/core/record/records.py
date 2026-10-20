@@ -4,10 +4,11 @@ the operational verbs and this one holds the frozen records they hand back - and
 into the engine, so a Reconciler still returns exactly these."""
 from collections.abc import Mapping, Sequence
 from types import MappingProxyType
-from typing import final, overload, override
+from typing import final
 
 from ..declaration.drift import Artifacts, Drift
 from ..declaration.errors import Unresolvable
+from ..declaration.held import _Held
 from ..declaration.step import Step
 from ..declaration.vocabulary import EdgeKind
 from .diagram import Dot, Mermaid
@@ -15,7 +16,7 @@ from .ledger import Statement
 
 
 @final
-class Residual(Sequence[Drift]):
+class Residual(_Held[Drift]):
     """What converge() and prune() return - the run's residual as a FROZEN sequence (empty == verified
     success), carrying its channels apart instead of encoding them into message prefixes.
 
@@ -33,11 +34,11 @@ class Residual(Sequence[Drift]):
     is a tuple behind a read-only property now, slicing hands back a plain tuple (the channels stay with
     the run that produced them). What was true when the run ended stays true."""
 
-    __slots__ = ("__items", "__failures", "__vetoed", "__applied", "__produced")
+    __slots__ = ("__failures", "__vetoed", "__applied", "__produced")
 
     def __init__(self, residual: Sequence[Drift], *, failures: Sequence[Drift] = (), applied: Sequence[Drift] = (), produced: Mapping[Step, Artifacts] | None = None,
                  vetoed: Sequence[Drift] = ()):
-        self.__items = tuple(residual)
+        super().__init__(residual)
         self.__failures = tuple(failures)
         self.__vetoed = tuple(vetoed)
         self.__applied = tuple(applied)
@@ -102,32 +103,16 @@ class Residual(Sequence[Drift]):
     def applied(self) -> tuple[Drift, ...]:
         return self.__applied
 
-    @overload
-    def __getitem__(self, index: int) -> Drift: ...
-
-    @overload
-    def __getitem__(self, index: slice) -> tuple[Drift, ...]: ...
-
-    @override
-    def __getitem__(self, index: int | slice) -> Drift | tuple[Drift, ...]:
-        # One expression for both, because a tuple already answers an int with an element and a
-        # slice with a tuple. The branch that used to stand here had two identical arms.
-        return self.__items[index]
-
-    @override
-    def __len__(self) -> int:
-        return len(self.__items)
-
     def __eq__(self, other: object) -> bool:
         # By items, against any sequence. The channels are context, never identity, exactly as before.
         if isinstance(other, Residual):
-            return self.__items == other.__items
+            return self._held == other._held
         if isinstance(other, (list, tuple)):
-            return len(self.__items) == len(other) and all(a == b for a, b in zip(self.__items, other))
+            return len(self._held) == len(other) and all(a == b for a, b in zip(self._held, other))
         return NotImplemented
 
     def __repr__(self) -> str:
-        return f"Residual({list(self.__items)!r}, failures={self.__failures!r}, applied={self.__applied!r})"
+        return f"Residual({list(self._held)!r}, failures={self.__failures!r}, applied={self.__applied!r})"
 
 
 @final

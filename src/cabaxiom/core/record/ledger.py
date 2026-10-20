@@ -5,10 +5,11 @@ dependency arrow runs one way. dispatcher imports ledger, never the reverse."""
 from collections.abc import Iterable, Mapping, Sequence
 from enum import Enum
 from types import MappingProxyType
-from typing import NamedTuple, final, overload, override
+from typing import NamedTuple, final
 
 from ..declaration.cancellation import Cancelled, Deferred, Fault, Skew
 from ..declaration.drift import Artifacts, Assessment, Changes, Drift, DriftItem
+from ..declaration.held import _Held
 from ..declaration.step import Step
 from ..plan.graph import Graph
 from .observer import Observer
@@ -93,7 +94,7 @@ class Statement:
 
 
 @final
-class Reading(Sequence[Drift]):
+class Reading(_Held[Drift]):
     """What ONE probe() run read. The deviations in run order and what each step's assess produced -
     the Statement's read twin, kept in the same book because the ledger is where the run's records are
     minted and defined, whichever seam operates them.
@@ -121,14 +122,14 @@ class Reading(Sequence[Drift]):
     cannot be asked of the deviations. They are additive here, so the sequence view is still the deviations
     and no existing caller sees a change."""
 
-    __slots__ = ("__items", "__produced", "__plan", "__advisory", "__footprint")
+    __slots__ = ("__produced", "__plan", "__advisory", "__footprint")
 
     def __init__(self, deviations: Sequence[Drift], produced: Mapping[Step, Artifacts] | None = None,
                  plan: Sequence[Drift] = (), advisory: Sequence[Drift] = (), footprint: Sequence[Drift] = ()):
+        super().__init__(deviations)
         self.__plan = tuple(plan)
         self.__advisory = tuple(advisory)
         self.__footprint = tuple(footprint)
-        self.__items = tuple(deviations)
         self.__produced = {step: dict(artifacts) for step, artifacts in (produced or {}).items()}
 
     @classmethod
@@ -175,32 +176,16 @@ class Reading(Sequence[Drift]):
         # The same read-only view Statement gives. Copied once at mint, written through by nobody.
         return MappingProxyType(self.__produced)
 
-    @overload
-    def __getitem__(self, index: int) -> Drift: ...
-
-    @overload
-    def __getitem__(self, index: slice) -> tuple[Drift, ...]: ...
-
-    @override
-    def __getitem__(self, index: int | slice) -> Drift | tuple[Drift, ...]:
-        # One expression for both, because a tuple already answers an int with an element and a
-        # slice with a tuple. The branch that used to stand here had two identical arms.
-        return self.__items[index]
-
-    @override
-    def __len__(self) -> int:
-        return len(self.__items)
-
     def __eq__(self, other: object) -> bool:
         # By items, against any sequence. The produced map is context, never identity - Residual's rule.
         if isinstance(other, Reading):
-            return self.__items == other.__items
+            return self._held == other._held
         if isinstance(other, (list, tuple)):
-            return len(self.__items) == len(other) and all(a == b for a, b in zip(self.__items, other))
+            return len(self._held) == len(other) and all(a == b for a, b in zip(self._held, other))
         return NotImplemented
 
     def __repr__(self) -> str:
-        return f"Reading({list(self.__items)!r})"
+        return f"Reading({list(self._held)!r})"
 
 
 class OnError(Enum):

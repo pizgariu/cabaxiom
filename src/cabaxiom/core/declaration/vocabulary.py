@@ -10,7 +10,10 @@ derivation and nowhere else". This module is what makes that sentence true. The 
 from abc import ABC, abstractmethod
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, ClassVar, cast, final, overload, override
+from typing import TYPE_CHECKING, Any, ClassVar, cast, final, override
+
+# held.py imports nothing from this package, so this arrow closes no cycle - unlike step.py below.
+from .held import _Held
 
 # Step is imported for TYPING ONLY and every annotation below quotes it, because step.py imports THIS module at
 # module level, while Step.__init_subclass__ reads Vocabulary.shipped() at every subclass definition - including
@@ -189,7 +192,7 @@ class _ByInstance(Addressing):
 
 
 @final
-class Roster(Sequence["Step"]):
+class Roster(_Held["Step"]):
     """WHO is in the run, of one step class, in supplied order - a sequence that can also be ASKED.
 
     A plain list answers both questions and answers the second one in linear time, `step in instances[cls]`
@@ -198,25 +201,13 @@ class Roster(Sequence["Step"]):
     a third of one. The order is not negotiable (it is the fan order every class-addressed edge lands in and
     the run has to be deterministic), so the membership gets its own index instead."""
 
-    __slots__ = ("__held", "__present")
+    # The base holds the order and answers the sequence. THIS is the part that is Roster's own - the index
+    # that turns `step in instances[cls]` from a walk into a lookup.
+    __slots__ = ("__present",)
 
     def __init__(self, held: Sequence["Step"]):
-        self.__held = tuple(held)
-        self.__present = frozenset(self.__held)
-
-    @overload
-    def __getitem__(self, position: int) -> "Step": ...
-    @overload
-    def __getitem__(self, position: slice) -> Sequence["Step"]: ...
-    @override
-    def __getitem__(self, position: int | slice) -> "Step | Sequence[Step]":
-        # One expression for both, because a tuple already answers an int with an element and a
-        # slice with a tuple. The branch that used to stand here had two identical arms.
-        return self.__held[position]
-
-    @override
-    def __len__(self) -> int:
-        return len(self.__held)
+        super().__init__(held)
+        self.__present = frozenset(self._held)
 
     @override
     def __contains__(self, wanted: object) -> bool:
@@ -224,7 +215,7 @@ class Roster(Sequence["Step"]):
 
     @override
     def __iter__(self) -> Iterator["Step"]:
-        return iter(self.__held)
+        return iter(self._held)
 
 
 # The three singletons plus the tuple a refusal hint walks to say where a stray belongs instead.

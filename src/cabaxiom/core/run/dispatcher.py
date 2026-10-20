@@ -742,8 +742,8 @@ class _ThreadWorker(Dispatcher):
     overlaps = Overlap.NEITHER
 
     def __init__(self, underlying: Dispatcher):
-        self._underlying = underlying
         super().__init__(underlying._on_error)
+        self._underlying = underlying
 
     @override
     def walks(self) -> Overlap:
@@ -944,10 +944,10 @@ class _RemoteWorker(Dispatcher):
         # The transport and the byte ceiling ride the worker, the coordinator side of the wire. The limit
         # validation and the ThreadDispatcher refusal live on RemoteDispatcher, the user-facing run mode
         # that composes this worker, since that is where a caller's mistake is actually made.
+        super().__init__(underlying._on_error)
         self._transport = transport
         self._limit = limit
         self._underlying = underlying
-        super().__init__(underlying._on_error)
 
     @override
     def walks(self) -> Overlap:

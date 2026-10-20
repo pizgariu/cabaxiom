@@ -120,9 +120,9 @@ class _ChaosWorker(Dispatcher):
     overlaps = Overlap.NEITHER
 
     def __init__(self, underlying: Dispatcher, adversary: Adversary):
+        super().__init__(underlying._on_error)
         self._underlying = underlying
         self._adversary = adversary
-        super().__init__(underlying._on_error)
 
     @override
     def walks(self) -> Overlap:

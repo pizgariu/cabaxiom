@@ -80,7 +80,7 @@ class OrderingStrategyTests(unittest.IsolatedAsyncioTestCase):
     STRATEGIES = (Kahn(), DFS())
 
     def _order(self, ordering, steps):
-        return [step.__class__.__name__ for step in ordering(Graph(steps))]
+        return [step.__class__.__name__ for step in ordering.flat(Graph(steps))]
 
     def test_both_keep_caller_order_when_independent(self):
         for ordering in self.STRATEGIES:
@@ -115,7 +115,7 @@ class OrderingStrategyTests(unittest.IsolatedAsyncioTestCase):
         for ordering in self.STRATEGIES:
             with self.subTest(ordering=ordering.__class__.__name__):
                 with self.assertRaises(ValueError) as ctx:
-                    ordering(Graph((P([]), Q([]))))
+                    ordering.flat(Graph((P([]), Q([]))))
                 self.assertIn("P", str(ctx.exception))
                 self.assertIn("Q", str(ctx.exception))
 
@@ -160,7 +160,7 @@ class OrderingContractTests(unittest.IsolatedAsyncioTestCase):
             steps = tuple(cls() for cls in supplied)
             for ordering in (Kahn(), DFS(), Priority(), Components()):
                 with self.subTest(ordering=ordering.__class__.__name__, graph=[cls.__name__ for cls in supplied]):
-                    resolved = ordering(Graph(steps))
+                    resolved = ordering.flat(Graph(steps))
                     self.assertEqual(len(resolved), len(steps))   # no step dropped, no step invented
                     position = {type(step): index for index, step in enumerate(resolved)}
                     for step in resolved:
@@ -183,7 +183,7 @@ class OrderingContractTests(unittest.IsolatedAsyncioTestCase):
             shaped = WavesPartition(kahn.waves(graph))
             shaped.verify(graph)   # raises on any mis-split - the fanning executor's own guard
             flattened = tuple(step for wave in shaped for step in wave)
-            self.assertEqual(flattened, kahn(graph))
+            self.assertEqual(flattened, kahn.flat(graph))
 
     def test_a_planted_cycle_raises_for_every_strategy(self):
         randomness = random.Random(20260711)
@@ -196,7 +196,7 @@ class OrderingContractTests(unittest.IsolatedAsyncioTestCase):
             for ordering in (Kahn(), DFS(), Priority(), Components()):
                 with self.subTest(ordering=ordering.__class__.__name__):
                     with self.assertRaises(ValueError):
-                        ordering(Graph(steps))
+                        ordering.flat(Graph(steps))
             with self.assertRaises(ValueError):
                 Kahn().waves(Graph(steps))
 
@@ -208,24 +208,24 @@ class PriorityOrderingTests(unittest.IsolatedAsyncioTestCase):
     def test_orders_independent_steps_by_key_default_class_name(self):
         # Supplied Z, Y, X - Kahn would keep that order, Priority emits the canonical X, Y, Z by class name.
         steps = (Z([]), Y([]), X([]))
-        order = Priority()(Graph(steps))
+        order = Priority().flat(Graph(steps))
         self.assertEqual([step.__class__.__name__ for step in order], ["X", "Y", "Z"])
 
     def test_after_dominates_the_key(self):
         # C -> B -> A: the key cannot pull a dependency ahead of the thing that depends on it.
         steps = (C([]), A([]), B([]))
-        order = Priority()(Graph(steps))
+        order = Priority().flat(Graph(steps))
         self.assertEqual([step.__class__.__name__ for step in order], ["A", "B", "C"])
 
     def test_injected_key_changes_the_order(self):
         # A reverse key (largest name first) flips the canonical order to Z, Y, X.
         steps = (X([]), Y([]), Z([]))
-        order = Priority(key=lambda step_class: -ord(step_class.__name__[0]))(Graph(steps))
+        order = Priority(key=lambda step_class: -ord(step_class.__name__[0])).flat(Graph(steps))
         self.assertEqual([step.__class__.__name__ for step in order], ["Z", "Y", "X"])
 
     def test_keeps_every_instance_of_a_class(self):
         steps = (B([]), A([]), A([]))
-        order = Priority()(Graph(steps))
+        order = Priority().flat(Graph(steps))
         self.assertEqual([step.__class__.__name__ for step in order], ["A", "A", "B"])
 
     def test_is_flat_only_and_rejected_by_a_fanning_executor(self):
@@ -244,7 +244,7 @@ class PriorityOrderingTests(unittest.IsolatedAsyncioTestCase):
         P.expects = (Q,)  # close the cycle
         steps = (P([]), Q([]))
         with self.assertRaises(ValueError) as ctx:
-            Priority()(Graph(steps))
+            Priority().flat(Graph(steps))
         self.assertIn("P", str(ctx.exception))
         self.assertIn("Q", str(ctx.exception))
 

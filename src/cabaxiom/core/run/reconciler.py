@@ -44,19 +44,13 @@ class Reconciler:
                  vocabulary: Vocabulary | None = None, authority: Authority | None = None,
                  warrant: Warrant | None = None):
         scope = scope or Scope()
-        # ANNOTATED, both of them and only these two. Ordering and BaseRetry are the axes that ARE
-        # callables, so a tool resolving `Kahn()` or `Retry(1)` on a class that carries __call__ can
-        # answer with the call's result instead of an instance. Left inferred, `chosen` read as
-        # `Ordering | tuple[Step, ...]` and the retry as `BaseRetry | (Step, Artifacts) -> ...`. That
-        # second union then travelled into every Write built below it. The annotation says which of the
-        # two readings is meant, once, where the value is made.
-        chosen: Ordering = ordering or Kahn()
+        chosen = ordering or Kahn()
 
         mode = mode or Parallel()
         self._convergence = convergence or Once()
         self._cancellation = cancellation or Cancellation()
         self._observer = observer or Observer()
-        self._retry: BaseRetry = retry or Retry(1)   # the neutral single try, which wraps nothing
+        self._retry = retry or Retry(1)   # the neutral single try, which wraps nothing
         # None means no capacity is asked for, so the write path wraps nothing at all - the same
         # zero-cost neutral the retry takes. A run whose steps declare no `leases` sees no difference
         # either way, so the axis is invisible until somebody wants it.

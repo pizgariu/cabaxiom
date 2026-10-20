@@ -86,7 +86,7 @@ class RetryTests(unittest.IsolatedAsyncioTestCase):
         def do(step, inputs):
             return None
 
-        self.assertIs(Retry(1)(do), do)
+        self.assertIs(Retry(1).around(do), do)
 
     async def test_a_direct_wrap_without_a_retried_hook_still_retries(self):
         # Retry used standalone (no reconciler, no observer). The hook is optional, the loop unchanged. The
@@ -99,7 +99,7 @@ class RetryTests(unittest.IsolatedAsyncioTestCase):
                 raise RuntimeError("transient")
             return None
 
-        self.assertIsNone(await Retry(2)(do)(Step(), {}))
+        self.assertIsNone(await Retry(2).around(do)(Step(), {}))
         self.assertEqual(len(calls), 2)
 
     async def test_a_direct_async_wrap_without_a_retried_hook_still_retries(self):
@@ -115,7 +115,7 @@ class RetryTests(unittest.IsolatedAsyncioTestCase):
             return attempt()
 
         async def drive():
-            return await Retry(3)(do)(Step(), {})
+            return await Retry(3).around(do)(Step(), {})
 
         self.assertIsNone(await drive())
         self.assertEqual(len(calls), 2)

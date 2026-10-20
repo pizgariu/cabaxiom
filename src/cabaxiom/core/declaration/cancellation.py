@@ -124,22 +124,16 @@ class Rule(ABC):
     # How a Quorum combines its members' fired-or-not states into one cancel-or-continue answer. Given a
     # generator of member states, Some and Every short-circuit it, Most must tally all.
     @abstractmethod
-    def __call__(self, fired: Iterable[bool]) -> bool:
+    def holds(self, fired: Iterable[bool]) -> bool:
         ...
 
 
 @final
 class Some(Rule):
     # Cancel as soon as ANY member fired. Quorum's default.
-    def __init__(self) -> None:
-        # Declared and empty on purpose. This axis IS a callable, so a class that leaves its
-        # constructor implicit reads as an invocation of `__call__` to a tool resolving
-        # `Some()` and the strategy that takes nothing is exactly the one that cannot say so
-        # any other way. Stating it is the whole point.
-        super().__init__()
 
     @override
-    def __call__(self, fired: Iterable[bool]) -> bool:
+    def holds(self, fired: Iterable[bool]) -> bool:
         return any(fired)
 
 
@@ -147,30 +141,18 @@ class Some(Rule):
 class Every(Rule):
     # Cancel only when EVERY member fired. Quorum forbids an empty member set, so the all([]) is True
     # trap cannot fire here.
-    def __init__(self) -> None:
-        # Declared and empty on purpose. This axis IS a callable, so a class that leaves its
-        # constructor implicit reads as an invocation of `__call__` to a tool resolving
-        # `Every()` and the strategy that takes nothing is exactly the one that cannot say so
-        # any other way. Stating it is the whole point.
-        super().__init__()
 
     @override
-    def __call__(self, fired: Iterable[bool]) -> bool:
+    def holds(self, fired: Iterable[bool]) -> bool:
         return all(fired)
 
 
 @final
 class Most(Rule):
     # Cancel when MORE members fired than not - a strict majority, a tie does not cancel.
-    def __init__(self) -> None:
-        # Declared and empty on purpose. This axis IS a callable, so a class that leaves its
-        # constructor implicit reads as an invocation of `__call__` to a tool resolving
-        # `Most()` and the strategy that takes nothing is exactly the one that cannot say so
-        # any other way. Stating it is the whole point.
-        super().__init__()
 
     @override
-    def __call__(self, fired: Iterable[bool]) -> bool:
+    def holds(self, fired: Iterable[bool]) -> bool:
         tally = list(fired)
         return sum(tally) * 2 > len(tally)
 
@@ -189,7 +171,7 @@ class Quorum(Cancellation):
 
     @override
     def cancelled(self) -> bool:
-        return self.__rule(cancellation.cancelled() for cancellation in self.__cancellations)
+        return self.__rule.holds(cancellation.cancelled() for cancellation in self.__cancellations)
 
 
 @final

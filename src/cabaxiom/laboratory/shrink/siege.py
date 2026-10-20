@@ -149,7 +149,7 @@ class Siege:
                   evidence: Proof, trials: int) -> Breach:
         # Close the case with the SHARED labeller, over the same RUN order every other reader uses, so a
         # label on a Breach and a label on a drawing are the same step - the lesson the Indictment paid for.
-        labels = Step.labelled(self._ordering(Graph(self._steps, self._vocabulary)))
+        labels = Step.labelled(self._ordering.flat(Graph(self._steps, self._vocabulary)))
         return Breach(tuple(labels[step] for step in breached),
                       tuple(labels[step] for step in survived), evidence, trials)
 

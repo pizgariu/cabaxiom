@@ -683,8 +683,8 @@ class NeutralAxisCostTests(unittest.IsolatedAsyncioTestCase):
 
     def test_the_neutral_retry_wraps_nothing(self):
         write = _Nothing.write
-        self.assertIs(Retry(1)(write), write)
-        self.assertIsNot(Retry(2)(write), write)
+        self.assertIs(Retry(1).around(write), write)
+        self.assertIsNot(Retry(2).around(write), write)
 
     def test_no_authority_wraps_no_permit(self):
         write = _Nothing.write

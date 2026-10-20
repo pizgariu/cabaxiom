@@ -93,7 +93,7 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
         # capability check, yet a fanning executor would run them together and ignore expects. The structural
         # invariant catches the mis-split at construction.
         class OneBigWave(Ordering):
-            def __call__(self, graph):
+            def flat(self, graph):
                 return graph.steps
 
             def waves(self, graph):
@@ -107,7 +107,7 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
         # a step, which would otherwise converge a smaller world with no error. Parallel arranges too, so the
         # guard is universal, not only for the fanning executors.
         class DropsOne(Ordering):
-            def __call__(self, graph):
+            def flat(self, graph):
                 return graph.steps[:-1]   # silently drops the last step
 
             def waves(self, graph):
@@ -299,7 +299,7 @@ class WalkArrangerTests(unittest.IsolatedAsyncioTestCase):
         from cabaxiom.core.plan import Walk
 
         class Drops(Ordering):
-            def __call__(self, graph):
+            def flat(self, graph):
                 return graph.steps[:-1]
 
             def waves(self, graph):
@@ -320,7 +320,7 @@ class InheritedGuardTests(unittest.IsolatedAsyncioTestCase):
         order by BUILDING a WalkPartition, so the rule and the shape cannot disagree."""
 
         def shape(self, ordering, graph):
-            return WalkPartition((tuple(ordering(graph)),))
+            return WalkPartition((tuple(ordering.flat(graph)),))
 
     def _custom(self):
         naive = self._Naive()
@@ -351,7 +351,7 @@ class InheritedGuardTests(unittest.IsolatedAsyncioTestCase):
 
     def test_a_custom_shape_inherits_the_coverage_guard(self):
         class Drops(Ordering):
-            def __call__(self, graph):
+            def flat(self, graph):
                 return graph.steps[:-1]
 
         steps = (A([]), B([]))
@@ -372,7 +372,7 @@ class InheritedGuardTests(unittest.IsolatedAsyncioTestCase):
         # walk (the dependency comes first) and illegal for a fan (the whole group runs at once). The rule
         # rides the Partition the seam RETURNS, so a shape cannot claim one and hand back the other.
         class Flat(Ordering):
-            def __call__(self, graph):
+            def flat(self, graph):
                 return graph.steps
 
             def waves(self, graph):
@@ -380,7 +380,7 @@ class InheritedGuardTests(unittest.IsolatedAsyncioTestCase):
 
         class Fanning(Arranger):
             def shape(self, ordering, graph):
-                return WavesPartition((tuple(ordering(graph)),))
+                return WavesPartition((tuple(ordering.flat(graph)),))
 
         first, second = A([]), B([])   # B declares expects=(A,)
         steps = (first, second)
@@ -393,7 +393,7 @@ class InheritedGuardTests(unittest.IsolatedAsyncioTestCase):
         # applied the steps backwards. The Walk shape verifies now, so a custom dispatcher composing it
         # refuses the reversed declaration at construction.
         class Backwards(Ordering):
-            def __call__(self, graph):
+            def flat(self, graph):
                 return tuple(reversed(graph.steps))
 
             def waves(self, graph):

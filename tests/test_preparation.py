@@ -154,7 +154,7 @@ class PreparationRideTests(unittest.IsolatedAsyncioTestCase):
         Ground.prepares = (Tower,)
         Ground.expects = (Tower,)
         with self.assertRaises(ValueError):
-            Kahn()(Graph((Ground(), Tower())))
+            Kahn().flat(Graph((Ground(), Tower())))
 
 
 class InstancePairTests(unittest.IsolatedAsyncioTestCase):

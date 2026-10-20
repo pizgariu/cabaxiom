@@ -387,7 +387,7 @@ class Ledger:
                 # tries once denied a write whose earlier attempt had already run and broken. This clause
                 # then made the deferral its only fate - the RuntimeError discarded, the failures channel
                 # empty and the sentence below claiming nothing broke. The attempt loop remembers a real
-                # failure and re-raises THAT instead (see BaseRetry.__call__), so a Deferred arriving here
+                # failure and re-raises THAT instead (see BaseRetry.around), so a Deferred arriving here
                 # still carries the meaning this clause reads into it.
                 self.__fates[step] = _DEFERRED
                 self.__deferred.append(DriftItem(Step.named(step), f"step deferred: {exception}"))

@@ -120,7 +120,7 @@ class TheRefusalsAreRaisedByTypeTests(unittest.IsolatedAsyncioTestCase):
 
     def test_an_ordering_that_drops_a_step_raises_coverage(self):
         class Drops(Ordering):
-            def __call__(self, graph):
+            def flat(self, graph):
                 return graph.steps[:-1]
 
             def waves(self, graph):
@@ -131,7 +131,7 @@ class TheRefusalsAreRaisedByTypeTests(unittest.IsolatedAsyncioTestCase):
 
     def test_a_wave_holding_a_dependency_beside_its_dependent_raises_seating(self):
         class OneBigWave(Ordering):
-            def __call__(self, graph):
+            def flat(self, graph):
                 return graph.steps
 
             def waves(self, graph):

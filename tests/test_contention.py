@@ -345,7 +345,7 @@ class ReseatGuardTests(unittest.TestCase):
             contends = frozenset({"db"})
 
         class Backwards(Ordering):
-            def __call__(self, graph):
+            def flat(self, graph):
                 return graph.steps
 
             def waves(self, graph):

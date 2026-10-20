@@ -37,7 +37,7 @@ GUARDED = (
     ("BaseNamed", "select", "narrow"),
     ("BaseTagged", "select", "keeps"),
     ("BaseLooping", "passes", "deciding"),
-    ("BaseRetry", "__call__", "retryable"),
+    ("BaseRetry", "around", "retryable"),
     ("Partition", "verify", "placement"),
     ("WavesDispatcher", "execute", "run_wave"),
     ("Arranger", "arrange", "shape"),
@@ -87,14 +87,14 @@ class GuardAndSeamTests(unittest.IsolatedAsyncioTestCase):
 # rule by the Partition it returns. This test is what keeps it that way, since re-adding the parameter is a
 # one-line edit that every other test in the suite would happily accept.
 SPINE = (
-    ("Ordering", "__call__", ("self", "graph")),
+    ("Ordering", "flat", ("self", "graph")),
     ("Ordering", "waves", ("self", "graph")),
     ("Ordering", "chains", ("self", "graph")),
-    ("Kahn", "__call__", ("self", "graph")),
+    ("Kahn", "flat", ("self", "graph")),
     ("Kahn", "waves", ("self", "graph")),
-    ("DFS", "__call__", ("self", "graph")),
-    ("Priority", "__call__", ("self", "graph")),
-    ("Components", "__call__", ("self", "graph")),
+    ("DFS", "flat", ("self", "graph")),
+    ("Priority", "flat", ("self", "graph")),
+    ("Components", "flat", ("self", "graph")),
     ("Components", "chains", ("self", "graph")),
     ("Arranger", "arrange", ("self", "ordering", "graph")),
     ("Arranger", "shape", ("self", "ordering", "graph")),
@@ -270,7 +270,7 @@ class TheProofCannotBeForgedTests(unittest.IsolatedAsyncioTestCase):
     async def test_a_retry_takes_the_whole_trace_like_every_other_axis(self):
         # It used to be handed `observer.retried`, one hook plucked off another axis by the composer, which
         # put the knowledge of WHICH hook a retry fires in the reconciler rather than in the retry.
-        taken = tuple(inspect.signature(cabaxiom.core.BaseRetry.__call__).parameters)
+        taken = tuple(inspect.signature(cabaxiom.core.BaseRetry.around).parameters)
         self.assertEqual(taken, ("self", "do", "observer"))
 
         seen: list[tuple[str, int]] = []

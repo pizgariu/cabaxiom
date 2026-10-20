@@ -166,7 +166,7 @@ class Write:
         self.__authority = authority
         self.__hook = raw
         self.__raw = self.__permitted(raw)
-        self.__wrapped = retry(self.__raw, observer=observer)
+        self.__wrapped = retry.around(self.__raw, observer=observer)
 
     def __permitted(self, raw: Callable[[Step, Artifacts], AsyncFlowOutcome]) -> Callable[[Step, Artifacts], AsyncFlowOutcome]:
         # The permit sits INSIDE the retry rather than around it, so a capacity is re-asked per attempt and a
@@ -208,7 +208,7 @@ class Write:
     def raw(self) -> Callable[[Step, Artifacts], AsyncFlowOutcome]:
         # The call WITHOUT the retry - the permit layer and the step's own hook, nothing else. For a
         # decorator that must spend the attempts around something of its own, which is rewire()'s other
-        # half. Calling __call__ instead would spend them around the wrong thing.
+        # half. Calling the carrier instead would spend them around the wrong thing.
         #
         # ITS CALLING CONVENTION IS NOT THE HOOK'S. With an authority injected this is a coroutine
         # FUNCTION whatever colour the step's own apply() wears, because the permit layer has to await the
@@ -238,11 +238,11 @@ class Write:
         # a capacity of three was enforced by nobody while every channel read clean. Reach for relay()
         # unless the substituted call must genuinely escape the run's other layers and say why if it
         # must.
-        return self.__retry(raw, observer=self.__observer)
+        return self.__retry.around(raw, observer=self.__observer)
 
     def relay(self, relocate: Callable[[Callable[[Step, Artifacts], AsyncFlowOutcome]], Callable[[Step, Artifacts], AsyncFlowOutcome]]) -> Callable[[Step, Artifacts], AsyncFlowOutcome]:
         # The whole write stack, rebuilt around a RELOCATED hook. A decorator hands in how it moves a call
-        # somewhere else and gets back the same stack __call__ has - the retry outside, the permit inside
+        # somewhere else and gets back the same stack the carrier has - the retry outside, the permit inside
         # it, the relocated hook innermost - so nothing about attempt budgets or capacity changes because
         # the work moved.
         #
@@ -250,7 +250,7 @@ class Write:
         # out invites the caller to rebuild the stack themselves. A caller who rebuilds it from `raw`
         # re-relocates the permit layer instead of the hook. That silently runs the work back on the thread
         # it was being moved off. ThreadDispatcher shipped exactly that bug for the authority axis.
-        return self.__retry(self.__permitted(relocate(self.__hook)), observer=self.__observer)
+        return self.__retry.around(self.__permitted(relocate(self.__hook)), observer=self.__observer)
 
 
 class Dispatcher(BaseDispatcher, ABC):

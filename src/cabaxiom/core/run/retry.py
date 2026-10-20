@@ -71,7 +71,7 @@ class BaseRetry(ABC):
         ...
 
     @final
-    def __call__(self, do: Callable[[Step, Artifacts], AsyncFlowOutcome], *,
+    def around(self, do: Callable[[Step, Artifacts], AsyncFlowOutcome], *,
                  observer: Observer | None = None) -> Callable[[Step, Artifacts], AsyncFlowOutcome]:
         # Wrap the per-step write callable in the attempt loop and hand back the wrapped form. The neutral
         # single try hands back do itself, so the default costs nothing. do carries the data-flow contract:

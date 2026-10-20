@@ -192,7 +192,7 @@ class Isolation:
         # tallied over the supplied order here, claiming to apply "the same rule explain() applies" - it
         # applied the same rule to a different order, so `Web#2` on an indictment and `Web#2` on a drawing
         # were different steps, so painting an indictment's accused onto a map reddened the innocent one.
-        labels = Step.labelled(self._ordering(Graph(self._steps, self._vocabulary)))
+        labels = Step.labelled(self._ordering.flat(Graph(self._steps, self._vocabulary)))
         return Indictment(tuple(labels[step] for step in accused),
                           tuple(labels[step] for step in dismissed), evidence, trials)
 

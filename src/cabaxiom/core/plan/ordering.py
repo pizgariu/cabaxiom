@@ -26,20 +26,20 @@ class Ordering(ABC):
     # stays in supplied order) and raise ValueError on a cycle. The hard-presence rule is NOT the
     # strategy's job. The sealed arrange() fires graph.demand() before any verb runs, so no implementation can forget it.
     @abstractmethod
-    def __call__(self, graph: Graph) -> tuple[Step, ...]:
+    def flat(self, graph: Graph) -> tuple[Step, ...]:
         ...
 
     def waves(self, graph: Graph) -> tuple[tuple[Step, ...], ...]:
         # Topological WAVES. Each inner tuple is a wave of mutually-independent steps, waves in dependency
-        # order. Default is ONE wave equal to the flat __call__ order. A level-capable ordering overrides.
-        return (self(graph),)
+        # order. Default is ONE wave equal to the flat() order. A level-capable ordering overrides.
+        return (self.flat(graph),)
 
     def chains(self, graph: Graph) -> tuple[tuple[Step, ...], ...]:
         # Topological CHAINS. Dual of waves(). Each inner tuple is one chain run in series, the chains
         # mutually independent so a chain-fanning dispatcher runs them concurrently. Default is ONE chain of the
         # whole flat order, the sentinel the Chains arranger rejects since it runs nothing concurrently.
         # A chain-capable ordering overrides.
-        return (self(graph),)
+        return (self.flat(graph),)
 
     @staticmethod
     def _cycle(nodes: Iterable[Step]) -> Cycle:
@@ -68,15 +68,9 @@ class Ordering(ABC):
 class Kahn(Ordering):
     """Default Ordering. Topological sort over the instance graph via stdlib graphlib.TopologicalSorter (Kahn)."""
 
-    def __init__(self) -> None:
-        # Declared and empty on purpose. This axis IS a callable, so a class that leaves its
-        # constructor implicit reads as an invocation of `__call__` to a tool resolving
-        # `Kahn()` and the strategy that takes nothing is exactly the one that cannot say so any
-        # other way. Stating it is the whole point.
-        super().__init__()
 
     @override
-    def __call__(self, graph: Graph) -> tuple[Step, ...]:
+    def flat(self, graph: Graph) -> tuple[Step, ...]:
         # Flat linear order. The waves flattened. Kahn's waves come out in the order static_order() would, so
         # the flat order is just waves() drained, while the cycle check lives once, in _prepared.
         return tuple(step for wave in self.waves(graph) for step in wave)
@@ -84,7 +78,7 @@ class Kahn(Ordering):
     @override
     def waves(self, graph: Graph) -> tuple[tuple[Step, ...], ...]:
         # Real waves. Drain the prepared sorter round by round via get_ready/done. Ready steps come out in
-        # supplied order and flattening the waves equals the flat __call__ order above.
+        # supplied order, so flattening the waves equals the flat() order above.
         sorter = Ordering._prepared(graph)
         waves = []
         while sorter.is_active():
@@ -101,15 +95,9 @@ class DFS(Ordering):
     agrees with Kahn on a linear chain but differs on a diamond. Fully iterative to survive deep
     dependency chains (e.g., 200,000 steps) without hitting Python's recursion limit."""
 
-    def __init__(self) -> None:
-        # Declared and empty on purpose. This axis IS a callable, so a class that leaves its
-        # constructor implicit reads as an invocation of `__call__` to a tool resolving
-        # `DFS()` and the strategy that takes nothing is exactly the one that cannot say so any
-        # other way. Stating it is the whole point.
-        super().__init__()
 
     @override
-    def __call__(self, graph: Graph) -> tuple[Step, ...]:
+    def flat(self, graph: Graph) -> tuple[Step, ...]:
         # Three-state vertex colouring. A node is unvisited (in neither set), visiting (on `onstack`, its
         # subtree still open) or done. `onstack` is an O(1) mirror of the recursion path, so a cycle is a
         # constant-time membership test, not an O(depth) scan. `stack` carries the path itself, walked once
@@ -165,7 +153,7 @@ class Priority(Ordering):
         self.__key = key or Priority.__by_class_name
 
     @override
-    def __call__(self, graph: Graph) -> tuple[Step, ...]:
+    def flat(self, graph: Graph) -> tuple[Step, ...]:
         # Kahn with a PRIORITY-QUEUE frontier (heapq). Pop the ready step with the smallest key, emit it,
         # unlock its dependents, repeat. The heap tuple carries an integer tiebreak so equal keys keep
         # first-ready order and the step is never compared. RAISE ValueError on a cycle, naming the stuck steps.
@@ -191,7 +179,7 @@ class Components(Ordering):
     components (maximal groups with no dependency edge crossing between them), each component internally in
     Kahn topological order. The components share no edge so they are mutually independent, letting a
     dispatcher composing Chains run each as its own serial chain with all chains concurrent - no shipped
-    dispatcher does today, the seam stays open for a custom chain-runner. The flat __call__ concatenates
+    dispatcher does today, the seam stays open for a custom chain-runner. The flat() answer concatenates
     the components into a valid topological order.
 
     Weakly-connected components, not a minimum path cover. Path-cover chains still share edges (a diamond's
@@ -199,15 +187,9 @@ class Components(Ordering):
     edges. A component is the largest group genuinely independent of every other."""
 
     @override
-    def __call__(self, graph: Graph) -> tuple[Step, ...]:
+    def flat(self, graph: Graph) -> tuple[Step, ...]:
         return tuple(step for chain in self.chains(graph) for step in chain)
 
-    def __init__(self) -> None:
-        # Declared and empty on purpose. This axis IS a callable, so a class that leaves its
-        # constructor implicit reads as an invocation of `__call__` to a tool resolving
-        # `Components()` and the strategy that takes nothing is exactly the one that cannot say so
-        # any other way. Stating it is the whole point.
-        super().__init__()
 
     @override
     def chains(self, graph: Graph) -> tuple[tuple[Step, ...], ...]:

@@ -67,7 +67,7 @@ class ChainsGuardTests(unittest.IsolatedAsyncioTestCase):
 
     def test_a_clean_component_is_accepted_and_a_leaky_split_is_refused(self):
         class LeakyChains(Ordering):
-            def __call__(self, graph):
+            def flat(self, graph):
                 return graph.steps
 
             def chains(self, graph):

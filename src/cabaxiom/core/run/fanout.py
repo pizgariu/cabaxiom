@@ -1,5 +1,5 @@
 """Fanout. One step per discovered thing, from a declaration nobody could write in advance."""
-from abc import abstractmethod
+from abc import ABCMeta, abstractmethod
 from typing import cast, final, override
 
 from ..declaration.drift import Artifacts, Assessment, FlowAssessment, FlowOutcome
@@ -7,7 +7,7 @@ from ..declaration.step import Step
 from .reconciler import Reconciler
 
 
-class Fanout(Step):
+class Fanout(Step, metaclass=ABCMeta):
     """A step that lists a world, declares a graph over what it found, then converges that graph as its one write.
 
     The shape every reconciler eventually needs and none of them can write down. A declaration names the

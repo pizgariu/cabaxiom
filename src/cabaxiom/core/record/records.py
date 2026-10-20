@@ -110,8 +110,8 @@ class Residual(Sequence[Drift]):
 
     @override
     def __getitem__(self, index: int | slice) -> Drift | tuple[Drift, ...]:
-        if isinstance(index, slice):
-            return self.__items[index]
+        # One expression for both, because a tuple already answers an int with an element and a
+        # slice with a tuple. The branch that used to stand here had two identical arms.
         return self.__items[index]
 
     @override

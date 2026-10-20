@@ -51,7 +51,7 @@ class DriftItem:
         # which the frozen __setattr__ refuses - and the item MUST cross a process boundary, because the
         # frozen Step's whole wire story ships Changes back from a worker, while Changes is a sequence of
         # exactly these. The constructor path keeps the freeze airtight on both sides of the wire.
-        return (DriftItem, (self.name, self.message))
+        return DriftItem, (self.name, self.message)
 
     def __repr__(self) -> str:
         return f"DriftItem({self.name!r}, {self.message!r})"

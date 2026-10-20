@@ -222,7 +222,7 @@ class Mermaid(Diagram):
 
     @override
     def opening(self) -> tuple[str, ...]:
-        return ((self.__theme, "graph LR") if self.__theme else ("graph LR",))
+        return (self.__theme, "graph LR") if self.__theme else ("graph LR",)
 
     @override
     def grouped(self, title: str, index: int, members: tuple[tuple[str, str, str | None], ...]) -> tuple[str, ...]:

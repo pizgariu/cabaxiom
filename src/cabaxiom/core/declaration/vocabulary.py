@@ -210,8 +210,8 @@ class Roster(Sequence["Step"]):
     def __getitem__(self, position: slice) -> Sequence["Step"]: ...
     @override
     def __getitem__(self, position: int | slice) -> "Step | Sequence[Step]":
-        if isinstance(position, slice):
-            return self.__held[position]
+        # One expression for both, because a tuple already answers an int with an element and a
+        # slice with a tuple. The branch that used to stand here had two identical arms.
         return self.__held[position]
 
     @override

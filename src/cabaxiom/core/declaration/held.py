@@ -18,6 +18,11 @@ class _Held[T](Sequence[T]):
     in an override is sound and both type checkers agree, so the precise one wins. A caller slicing a
     record gets something it can index, compare and hand on without asking what it really is.
 
+    One IDE warns that the slice overload does not match the base. It warns identically on a signature
+    written back to the base's own `Sequence[T]`, measured with the gates green both ways, so the flag is
+    that tool's reading of overloaded overrides and not a price this narrowing pays. Widening would spend
+    the caller's precision and silence nothing.
+
     Storage is `_held`, one underscore, because a subclass reads it. The private slots the subclasses keep
     are their own extra channels, which is the part that genuinely differs between them - and the part
     worth writing three times."""

@@ -37,9 +37,16 @@ class _Held[T](Sequence[T]):
 
     @override
     def __getitem__(self, index: int | slice) -> "T | tuple[T, ...]":
-        # One expression for both. A tuple already answers an int with an element and a slice with a tuple,
-        # so the isinstance check each of the three copies carried decided nothing - both of its arms were
-        # the same line.
+        # THE ARMS ARE IDENTICAL ON PURPOSE, because the guard is for the checker and not for the runtime.
+        # isinstance NARROWS the index, so each return hits ONE overload of tuple.__getitem__ - without it
+        # the argument is the union, so a checker that does not distribute a union over overloads cannot
+        # match the call at all. This is the canonical way to implement an overloaded __getitem__ and an
+        # earlier commit deleted it as a branch that decided nothing, which was wrong about what it decided.
+        # The alternatives are worse, measured rather than assumed - a typing.cast here is a REDUNDANT cast
+        # under mypy --strict (a gate error, since mypy needs no help) and costs the same fifteen
+        # nanoseconds this check does, buying nothing for the price of something.
+        if isinstance(index, slice):
+            return self._held[index]
         return self._held[index]
 
     @override

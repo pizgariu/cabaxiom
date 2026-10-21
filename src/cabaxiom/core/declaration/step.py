@@ -354,6 +354,27 @@ class Step(ABC, metaclass=_Sealed):
         return Assessment(deviation=self.__reported(found)), produced or {}
 
     @final
+    def advised(self, *told: str | Drift, produced: Artifacts | None = None) -> FlowAssessment:
+        """A read of a world already right that still deserves a sentence of attention - the advisory channel.
+
+        Not drifted() with a softer word. The difference is the axiom. Advice must never dirty the
+        proof, so the deviation channel stays empty, the residual stays the verdict and the finding still
+        reaches whoever reads the record. Same naming and spread rules as drifted(). Advising nothing
+        lands exactly where verified() does."""
+        return Assessment(advisory=self.__reported(told)), produced or {}
+
+    @final
+    def owns(self, *held: str | Drift, produced: Artifacts | None = None) -> FlowAssessment:
+        """A read of a world already right that names what this step OWNS in it - the footprint channel.
+
+        The word is the record's own, since Assessment describes footprint as what this step owns, read in
+        teardown order. Ownership is not deviation and must never read as one - a step can stand fully
+        verified and still name the account a teardown would remove, which is what a teardown preview is
+        for. Same naming and spread rules as drifted(). Owning nothing lands exactly where verified()
+        does."""
+        return Assessment(footprint=self.__reported(held)), produced or {}
+
+    @final
     def unchanged(self, *, produced: Artifacts | None = None) -> FlowOutcome:
         """A write that ran and had nothing to change - the clean no-op, the commonest write there is.
 

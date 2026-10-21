@@ -1,4 +1,4 @@
-"""The four named constructors a hook hands its answer back through.
+"""The named constructors a hook hands its answer back through, one per sentence a read or write says.
 
 Before these existed, saying "nothing is out of desired state" cost a record, a keyword, a list and a
 trailing empty dict, which the repository spelled 176 times. The tests below pin the two
@@ -58,6 +58,31 @@ class TheReadHandsBackTests(unittest.TestCase):
         # truth at both lengths, which is what lets one call site serve the clean and dirty world.
         found: list[str] = []
         self.assertEqual(Quiet().drifted(*found), Quiet().verified())
+
+    def test_advised_reaches_the_advisory_channel_and_never_the_proof(self):
+        # The difference from drifted() IS the axiom. Advice must never dirty the proof, so the deviation
+        # channel stays empty and a run reading this still verifies clean.
+        reading, produced = Quiet().advised("a newer git could use native hooks")
+        self.assertEqual(list(reading.advisory), [DriftItem("Quiet", "a newer git could use native hooks")])
+        self.assertEqual(list(reading.deviation), [])
+        self.assertEqual(produced, {})
+
+    def test_owns_reaches_the_footprint_channel_and_never_the_proof(self):
+        reading, produced = Quiet().owns("the AD account", produced={"username": "j.kowalski"})
+        self.assertEqual(list(reading.footprint), [DriftItem("Quiet", "the AD account")])
+        self.assertEqual(list(reading.deviation), [])
+        self.assertEqual(produced, {"username": "j.kowalski"})
+
+    def test_the_new_pair_names_and_passes_through_like_drifted(self):
+        # Same __reported seam, asserted once per constructor rather than re-proven per rule - a declared
+        # identifier wins, while a domain's own Drift keeps its subject.
+        mine = DriftItem("/etc/krb5.conf", "kerberos owns this")
+        self.assertEqual([item.name for item in Loud().advised("tip")[0].advisory], ["the-quartermaster"])
+        self.assertIs(list(Quiet().owns(mine)[0].footprint)[0], mine)
+
+    def test_reporting_no_ownership_or_advice_lands_where_verified_does(self):
+        self.assertEqual(Quiet().owns(), Quiet().verified())
+        self.assertEqual(Quiet().advised(), Quiet().verified())
 
 
 class TheWriteHandsBackTests(unittest.TestCase):

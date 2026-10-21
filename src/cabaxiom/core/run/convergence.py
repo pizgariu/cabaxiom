@@ -144,7 +144,7 @@ class Fibonacci(Backoff):
         # 1, 2, 3, 5, 8, the sequence with its duplicate leading 1 dropped, so the first stall pauses
         # base instead of pausing the same length twice and wasting a retry on a ramp that has not
         # moved. Once the ramp has met the cap, further terms cannot change the answer, so the walk
-        # stops there. That early exit is what keeps an O(n) sequence O(1) in the steady state and it
+        # stops there. That early exit is what keeps an O(n) sequence O(1) in the steady state, so it
         # is why a large stall count costs nothing here.
         previous, current = 1, 1
         for _ in range(stalled - 1):
@@ -214,7 +214,7 @@ class BaseLooping(Convergence, ABC):
         return residual
 
     def opening(self) -> float:
-        # The pause before a pass there is no verdict for yet. The very first one and the one right after
+        # The pause before a pass there is no verdict for yet. The very first one plus the one right after
         # it, since a decision needs two residuals to compare and cannot exist before the second pass has
         # been asked for. Zero by default, which is right for a convergence that reacts to what it sees -
         # Fixpoint cannot know it has stalled until it has stalled. Override it for a pace that is a

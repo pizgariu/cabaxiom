@@ -57,3 +57,22 @@ class _Held[T](Sequence[T]):
     @override
     def __len__(self) -> int:
         return len(self._held)
+
+    @override
+    def __eq__(self, other: object) -> bool:
+        # BY ITEMS, against a record of the same kind or any plain sequence. Every extra channel a subclass
+        # keeps - a residual's failures, a reading's produced map, a roster's index - is context about the
+        # items and never their identity, so two records holding the same items in the same order are equal
+        # whatever else they carry. Residual and Reading each wrote this rule out by hand, seven identical
+        # lines apiece with only the class name differing, which is the exact shape _Held exists to end.
+        # Anything else answers NotImplemented, so Python asks the other side before deciding they differ.
+        if isinstance(other, type(self)):
+            return self._held == other._held
+        if isinstance(other, (list, tuple)):
+            return len(self._held) == len(other) and all(a == b for a, b in zip(self._held, other))
+        return NotImplemented
+
+    # Writing __eq__ silences the inherited __hash__, which is right. A record compared by items cannot be
+    # a set member or a dict key without its hash moving whenever the items would. None of the three
+    # is ever asked for one. Said here rather than left for a reader to infer from the absence.
+    __hash__ = None  # type: ignore[assignment]

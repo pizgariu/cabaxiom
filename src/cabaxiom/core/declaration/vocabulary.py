@@ -1,4 +1,4 @@
-"""Vocabulary - the dependency edge kinds as DATA. One record per kind and every consumer reads it.
+"""Vocabulary - the dependency edge kinds as DATA. One record per kind, read by every consumer.
 
 The kernel used to spell its edge kinds into six different places - the Graph's derivation, its per-name
 matching(), the softness read on a Match, the presence rule in demand(), the drawing's styling table and

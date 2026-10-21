@@ -145,8 +145,7 @@ class Write:
     callable, so every existing dispatcher keeps calling exactly what it always called. It SAYS the
     verb. And relay() rebuilds the whole stack around a RELOCATED hook, so attempts are spent on wire
     crossings and capacity is asked per crossing while retryable()/retried still see the real step.
-    Built by the reconciler, one per write phase and consumed by any dispatcher that needs more than
-    a call.
+    Built by the reconciler, one per write phase, for any dispatcher that needs more than a call.
 
     A dispatcher that does not perform the write HERE but MOVES it - ThreadDispatcher onto a worker
     thread, RemoteDispatcher onto another process - wants relay(), because it needs the layers this
@@ -233,11 +232,10 @@ class Write:
         # whatever it substituted spends an attempt exactly as a transient write does.
         #
         # IT LAYS ONE LAYER, WHICH IS WHY THE WIRE STOPPED USING IT. A dispatcher that substitutes the
-        # call is also substituting everything the stack held below the retry and the permit layer was
-        # one of them - so a step declaring `leases` crossed to a worker with its pool never asked and
-        # a capacity of three was enforced by nobody while every channel read clean. Reach for relay()
-        # unless the substituted call must genuinely escape the run's other layers and say why if it
-        # must.
+        # call is also substituting everything the stack held below the retry. The permit layer was one
+        # of them, so a step declaring `leases` crossed to a worker with its pool never asked. A capacity
+        # of three was enforced by nobody while every channel read clean. Reach for relay() unless the
+        # substituted call must genuinely escape the run's other layers. Say why when it must.
         return self.__retry.around(raw, observer=self.__observer)
 
     def relay(self, relocate: Callable[[Callable[[Step, Artifacts], AsyncFlowOutcome]], Callable[[Step, Artifacts], AsyncFlowOutcome]]) -> Callable[[Step, Artifacts], AsyncFlowOutcome]:
@@ -816,8 +814,7 @@ class ThreadDispatcher(RunMode):
 class Crossing(NamedTuple):
     """One unit of work as it crosses a wire, versioned in the open.
 
-    It replaced an anonymous three-tuple and the reason is the reason every distributed protocol
-    eventually learns. A positional tuple pays for each new field twice - once when the shape changes and
+    It replaced an anonymous three-tuple, for the reason every distributed protocol eventually learns. A positional tuple pays for each new field twice - once when the shape changes and
     once when a peer on the old shape misreads the new one silently - and a lease token is exactly the kind
     of field that must never be misread. So the shape is named, the version rides at the front where a
     reader meets it first and `work()` REFUSES a version it does not know rather than dropping what it

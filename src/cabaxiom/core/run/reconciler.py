@@ -38,11 +38,9 @@ class Reconciler:
     """
 
     def __init__(self, steps: Iterable[Step], ordering: Ordering | None = None, *,
-                 scope: Scope | None = None, mode: RunMode | None = None,
-                 convergence: Convergence | None = None, cancellation: Cancellation | None = None,
-                 observer: Observer | None = None, retry: BaseRetry | None = None,
-                 vocabulary: Vocabulary | None = None, authority: Authority | None = None,
-                 warrant: Warrant | None = None):
+                 scope: Scope | None = None, mode: RunMode | None = None, convergence: Convergence | None = None,
+                 cancellation: Cancellation | None = None, observer: Observer | None = None, retry: BaseRetry | None = None,
+                 vocabulary: Vocabulary | None = None, authority: Authority | None = None, warrant: Warrant | None = None):
         scope = scope or Scope()
         chosen = ordering or Kahn()
 

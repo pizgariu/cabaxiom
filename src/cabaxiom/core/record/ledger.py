@@ -176,14 +176,6 @@ class Reading(_Held[Drift]):
         # The same read-only view Statement gives. Copied once at mint, written through by nobody.
         return MappingProxyType(self.__produced)
 
-    def __eq__(self, other: object) -> bool:
-        # By items, against any sequence. The produced map is context, never identity - Residual's rule.
-        if isinstance(other, Reading):
-            return self._held == other._held
-        if isinstance(other, (list, tuple)):
-            return len(self._held) == len(other) and all(a == b for a, b in zip(self._held, other))
-        return NotImplemented
-
     def __repr__(self) -> str:
         return f"Reading({list(self._held)!r})"
 

@@ -190,7 +190,7 @@ class Dot(Diagram):
     @override
     def contended(self, one: str, other: str, resource: str) -> str:
         # dir=none because the constraint has no direction. constraint=false keeps the link from swaying never sways
-        # the ranking. The layout is the run's ORDER and contention says nothing about order.
+        # the ranking. The layout is the run's ORDER, while contention says nothing about order.
         return (f"    {one} -> {other} [label={self._escaped(resource)}, dir=none, style=dotted, "
                 f"constraint=false, color=gray50, fontcolor=gray50];")
 

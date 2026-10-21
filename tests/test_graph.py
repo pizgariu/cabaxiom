@@ -488,6 +488,21 @@ class RosterTests(unittest.IsolatedAsyncioTestCase):
         graph = Graph((*made, B([])))
         self.assertEqual(graph.dependencies(graph.steps[-1]), tuple(made))
 
+    def test_two_rosters_holding_the_same_steps_are_equal(self):
+        # Equality by items is _Held's rule now rather than something Residual and Reading each wrote out by
+        # hand, so a Roster gets it for free - two indexes over the same steps in the same order are one
+        # answer. A plain sequence compares too, a different order does not and a stranger falls through
+        # to NotImplemented rather than being declared unequal on this side alone.
+        first, second = A([]), A([])
+        self.assertEqual(Roster((first, second)), Roster((first, second)))
+        self.assertEqual(Roster((first, second)), (first, second))
+        self.assertEqual(Roster((first, second)), [first, second])
+        self.assertNotEqual(Roster((first, second)), Roster((second, first)))
+        self.assertNotEqual(Roster((first,)), object())
+        # Unhashable on purpose. A record compared by items cannot sit in a set without its hash moving.
+        with self.assertRaises(TypeError):
+            hash(Roster((first,)))
+
 
 class DataFlowContractTests(unittest.IsolatedAsyncioTestCase):
     """`produces` and `consumes` are the DATA plane, deliberately not a fifth edge kind. Declaring a key

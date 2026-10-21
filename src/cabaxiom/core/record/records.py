@@ -103,14 +103,6 @@ class Residual(_Held[Drift]):
     def applied(self) -> tuple[Drift, ...]:
         return self.__applied
 
-    def __eq__(self, other: object) -> bool:
-        # By items, against any sequence. The channels are context, never identity, exactly as before.
-        if isinstance(other, Residual):
-            return self._held == other._held
-        if isinstance(other, (list, tuple)):
-            return len(self._held) == len(other) and all(a == b for a, b in zip(self._held, other))
-        return NotImplemented
-
     def __repr__(self) -> str:
         return f"Residual({list(self._held)!r}, failures={self.__failures!r}, applied={self.__applied!r})"
 

@@ -302,7 +302,7 @@ class Graph:
         # every dependents() caller does, while a clean run never asks.
         #
         # ONE home, because its two callers must agree. The Ledger blames a failure's fallout under
-        # BestEffort and the counterfactual read forecasts it. Written twice they could drift. The
+        # BestEffort, while the counterfactual read forecasts it. Written twice they could drift. The
         # forecast would quietly stop describing the handling.
         return self.__reached(seeds, self.dependents)
 

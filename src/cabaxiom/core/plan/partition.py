@@ -173,13 +173,15 @@ class Partition(ABC):
         for step, seat in sorted(seat_of.items(), key=lambda pair: pair[1]):
             for label in sorted(step.contends):
                 standing = held.get(label)
-                if standing is not None and self.together(standing[1], seat):
-                    raise Seating(
-                        f"{Step.named(step)} and {Step.named(standing[0])} both contend for "
-                        f"{label!r}, yet this shape seats them at {tuple(standing[1])} and {tuple(seat)}, "
-                        f"which run at the same time. Contention is not an edge and must not be written as "
-                        f"one - the shape has to seat them apart."
-                    )
+                if standing is not None:
+                    occupant, taken = standing
+                    if self.together(taken, seat):
+                        raise Seating(
+                            f"{Step.named(step)} and {Step.named(occupant)} both contend for "
+                            f"{label!r}, yet this shape seats them at {tuple(taken)} and {tuple(seat)}, "
+                            f"which run at the same time. Contention is not an edge and must not be written as "
+                            f"one - the shape has to seat them apart."
+                        )
                 held[label] = (step, seat)
 
     @final

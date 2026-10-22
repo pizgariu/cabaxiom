@@ -6,6 +6,12 @@ from typing import TYPE_CHECKING, NamedTuple, final, override
 
 from ..declaration.vocabulary import EdgeKind, Vocabulary
 
+# ONE MEMBER OF A DRAWN GROUP, as the seam hands it to a format. The node id the format addresses it by
+# (minted positionally by render, so no label can collide), the label a human reads and the mark a
+# forecast painted on it or None. Three abstract formats spelled this by hand and a fourth written by a
+# domain had to reproduce the positions by eye. PUBLIC because grouped() is a seam on an open base.
+type Node = tuple[str, str, str | None]
+
 if TYPE_CHECKING:
     from .records import Explanation
 
@@ -116,7 +122,7 @@ class Diagram(ABC):
         ...
 
     @abstractmethod
-    def grouped(self, title: str, index: int, members: tuple[tuple[str, str, str | None], ...]) -> tuple[str, ...]:
+    def grouped(self, title: str, index: int, members: tuple[Node, ...]) -> tuple[str, ...]:
         # ONE group of the run as a cluster. Its title is the shape's own noun plus the index (`wave 0`
         # runs at once, `chain 0` runs in series), with each member being (node id, displayed label, mark or
         # None). Emit the cluster and the nodes inside it.
@@ -170,7 +176,7 @@ class Dot(Diagram):
                 "    node [shape=box, style=rounded];")
 
     @override
-    def grouped(self, title: str, index: int, members: tuple[tuple[str, str, str | None], ...]) -> tuple[str, ...]:
+    def grouped(self, title: str, index: int, members: tuple[Node, ...]) -> tuple[str, ...]:
         lines = [f"    subgraph cluster_{index} {{",
                  f"        label={self._escaped(title)};",
                  "        style=dashed;"]
@@ -225,7 +231,7 @@ class Mermaid(Diagram):
         return (self.__theme, "graph LR") if self.__theme else ("graph LR",)
 
     @override
-    def grouped(self, title: str, index: int, members: tuple[tuple[str, str, str | None], ...]) -> tuple[str, ...]:
+    def grouped(self, title: str, index: int, members: tuple[Node, ...]) -> tuple[str, ...]:
         lines = [f"    subgraph cluster_{index}[{self._escaped(title)}]"]
         lines.extend(f"        {node}[{self._escaped(label)}]" for node, label, _ in members)
         lines.append("    end")

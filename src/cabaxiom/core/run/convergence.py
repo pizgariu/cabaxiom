@@ -8,6 +8,12 @@ from typing import final, override
 from ..declaration.drift import Drift
 from ..declaration.errors import Misconfigured
 
+# WHAT A LOOPING STRATEGY DECIDES AFTER EACH PASS, named so the seam stops spelling a positional pair.
+# The bool says whether the loop is done, the float how long to pause before the next pass when it is
+# not. deciding() hands back a closure that answers one per pass. Every shipped strategy plus any
+# domain-written one signs the same shape. PUBLIC because deciding() is a seam on an open base.
+type Decision = tuple[bool, float]
+
 
 class Convergence(ABC):
     """Strategy for how many times to repeat the apply -> re-probe cycle.
@@ -224,7 +230,7 @@ class BaseLooping(Convergence, ABC):
         return 0.0
 
     @abstractmethod
-    def deciding(self) -> Callable[[list[Drift], list[Drift]], tuple[bool, float]]:
+    def deciding(self) -> Callable[[list[Drift], list[Drift]], Decision]:
         # Return a FRESH decision for one run. Given the residual BEFORE a pass and the one AFTER it,
         # answer (stop?, the seconds to wait before the next pass). A stateful policy (an oscillation
         # memory, a stall streak) keeps its state in the returned closure, so every run starts clean.
@@ -260,14 +266,14 @@ class Fixpoint(BaseLooping):
         self.__backoff = backoff
 
     @override
-    def deciding(self) -> Callable[[list[Drift], list[Drift]], tuple[bool, float]]:
+    def deciding(self) -> Callable[[list[Drift], list[Drift]], Decision]:
         # Fresh per run. `seen` catches an oscillation (a residual state visited before), `stalled` paces
         # the optional backoff. Both live in this closure, so a second converge() starts clean. Settling is
         # by value. Two residuals are equal when their (name, message) multisets match.
         seen: set[tuple[tuple[str, str], ...]] = set()   # every residual state visited, to catch a loop
         stalled = 0
 
-        def decide(before: list[Drift], after: list[Drift]) -> tuple[bool, float]:
+        def decide(before: list[Drift], after: list[Drift]) -> Decision:
             nonlocal stalled
             previous = tuple(sorted((item.name, item.message) for item in before))
             current = tuple(sorted((item.name, item.message) for item in after))
@@ -310,11 +316,11 @@ class Shrinking(BaseLooping):
     until it clears) wants Fixpoint with a Backoff, not this.
     """
     @override
-    def deciding(self) -> Callable[[list[Drift], list[Drift]], tuple[bool, float]]:
+    def deciding(self) -> Callable[[list[Drift], list[Drift]], Decision]:
         # Stateless. Compare only adjacent sizes. No wait is ever asked for (0.0), since Shrinking MEASURES
         # progress, it does not pace retries - a plateau ends the run rather than being waited through,
         # which is Fixpoint-with-a-Backoff's job. Stop when a pass buys no ground (the count held or grew).
-        def decide(before: list[Drift], after: list[Drift]) -> tuple[bool, float]:
+        def decide(before: list[Drift], after: list[Drift]) -> Decision:
             return len(after) >= len(before), 0.0
 
         return decide

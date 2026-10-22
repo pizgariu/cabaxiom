@@ -14,6 +14,11 @@ from ..declaration.vocabulary import EdgeKind
 from .diagram import Dot, Mermaid
 from .ledger import Statement
 
+# ONE RESOLVED EDGE AS AN EXPLANATION CARRIES IT - the dependent's label, the prerequisite's label and the
+# declaration slot that drew it. A Diagram walks these to draw arrows, a caller reads them to see why an
+# order came out as it did. Named so neither side counts positions.
+type Arrow = tuple[str, str, str]
+
 
 @final
 class Residual(_Held[Drift]):
@@ -148,7 +153,7 @@ class Explanation:
 
     def __init__(self, groups: tuple[tuple[str, ...], ...], *,
                  shape: str,
-                 arrows: tuple[tuple[str, str, str], ...],
+                 arrows: tuple[Arrow, ...],
                  declared: Mapping[str, tuple[tuple[str, tuple[str, ...]], ...]],
                  vocabulary: tuple[EdgeKind, ...]):
         self.__groups = groups
@@ -169,7 +174,7 @@ class Explanation:
         return self.__shape
 
     @property
-    def arrows(self) -> tuple[tuple[str, str, str], ...]:
+    def arrows(self) -> tuple[Arrow, ...]:
         # Every arrow the resolution LANDED, as (dependent, prerequisite, slot) in run order - the edge
         # view with its cause attached, read off the Graph's per-name matching so nothing here is
         # re-derived and already ORIENTED - a `precedes` kind lands with its declarer on the prerequisite

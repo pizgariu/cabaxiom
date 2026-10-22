@@ -167,11 +167,11 @@ _MOVED: dict[str, tuple[str, ...]] = {
         "Seat", "Shift", "Walk", "WalkPartition", "Waves", "WavesPartition", "WithEveryTag",
     ),
     "cabaxiom.core.record": (
-        "Casualty", "Ceiling", "Charter", "Chorus", "Diagram", "Dot", "Explanation", "Logging", "Mermaid",
+        "Arrow", "Casualty", "Ceiling", "Charter", "Chorus", "Diagram", "Dot", "Explanation", "Node", "Logging", "Mermaid",
         "Pass", "Reading", "Span", "Stamp", "Statement", "Timing", "Tone", "Warrant",
     ),
     "cabaxiom.core.run": (
-        "Backoff", "BaseDispatcher", "BaseLooping", "BaseRetry", "Budget", "Convergence", "Crossing",
+        "Backoff", "BaseDispatcher", "BaseLooping", "BaseRetry", "Budget", "Convergence", "Decision", "Crossing",
         "Answered", "Dispatcher", "Fibonacci", "Jitter", "Linear", "Once", "Passage", "Payload", "RunMode", "Settle", "Settled",
         "Severance", "Severed", "Shrinking", "Unpublished", "WavesDispatcher", "Write",
     ),

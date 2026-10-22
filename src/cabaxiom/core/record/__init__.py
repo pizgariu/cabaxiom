@@ -8,13 +8,14 @@ says so.
 Deliberately BELOW the run layer rather than beside it. A record must not be able to reach into the thing
 it records, so this layering is what stops it - the run imports the record, never the other way."""
 
-from .diagram import Diagram, Dot, Mermaid, Tone
+from .diagram import Diagram, Dot, Mermaid, Node, Tone
 from .ledger import Ledger, OnError, Reading, Statement
 from .observer import Chorus, Journal, Logging, Observer, Pass, Span, Stamp, Timing
-from .records import Casualty, Explanation, Residual
+from .records import Arrow, Casualty, Explanation, Residual
 from .warrant import Ceiling, Charter, Warrant
 
 __all__ = [
+    "Arrow",
     "Diagram",
     "Dot",
     "Mermaid",
@@ -33,6 +34,7 @@ __all__ = [
     "Timing",
     "Casualty",
     "Explanation",
+    "Node",
     "Residual",
     "Ceiling",
     "Charter",

@@ -49,7 +49,7 @@ from .errors import (
     Unresolvable,
 )
 from .lease import Authority, Local, Permit
-from .step import Step
+from .step import Answered, Payload, Settled, Step
 from .vocabulary import BY_CLASS, BY_INSTANCE, BY_LABEL, Addressing, EdgeKind, Vocabulary
 
 __all__ = [
@@ -90,6 +90,9 @@ __all__ = [
     "Authority",
     "Local",
     "Permit",
+    "Answered",
+    "Payload",
+    "Settled",
     "Step",
     "Addressing",
     "BY_CLASS",

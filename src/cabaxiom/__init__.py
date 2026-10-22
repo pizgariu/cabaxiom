@@ -172,7 +172,7 @@ _MOVED: dict[str, tuple[str, ...]] = {
     ),
     "cabaxiom.core.run": (
         "Backoff", "BaseDispatcher", "BaseLooping", "BaseRetry", "Budget", "Convergence", "Crossing",
-        "Dispatcher", "Fibonacci", "Jitter", "Linear", "Once", "Passage", "RunMode", "Settle", "Settled",
+        "Answered", "Dispatcher", "Fibonacci", "Jitter", "Linear", "Once", "Passage", "Payload", "RunMode", "Settle", "Settled",
         "Severance", "Severed", "Shrinking", "Unpublished", "WavesDispatcher", "Write",
     ),
     "cabaxiom.laboratory": (

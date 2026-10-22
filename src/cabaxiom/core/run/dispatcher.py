@@ -10,19 +10,17 @@ from contextlib import AsyncExitStack
 from types import MappingProxyType
 from typing import Any, ClassVar, NamedTuple, cast, final, override
 
-from ..declaration.cancellation import Cancellation, Cancelled, Deferred, Fault, Skew
+from ..declaration.cancellation import Cancellation, Cancelled, Deferred, Skew
 from ..declaration.drift import (
     Artifacts,
-    Assessment,
     AsyncFlowAssessment,
     AsyncFlowOutcome,
-    Changes,
     FlowAssessment,
     FlowOutcome,
 )
 from ..declaration.errors import Misconfigured, Pairing
 from ..declaration.lease import Authority, Permit
-from ..declaration.step import Step
+from ..declaration.step import Answered, Payload, Settled, Step
 from ..plan.arranger import Arranger, Walk, Waves
 from ..plan.graph import Graph
 from ..plan.ordering import Ordering
@@ -127,10 +125,6 @@ class RunMode:
         return self._dispatcher
 
 
-# One settled step's outcome inside a wave. It carries the step, what its write returned (Changes or
-# None), the artifacts it produced and the exception it raised - caught into the tuple, never propagated
-# out of the coroutine - or None if it ran clean. PUBLIC, because run_wave is a seam on an open base.
-type Settled = tuple[Step, Changes, Artifacts, Fault | None]
 
 
 @final
@@ -270,7 +264,7 @@ class Dispatcher(BaseDispatcher, ABC):
         ...
 
     @staticmethod
-    def _attempt(do: Callable[[Step, Artifacts], AsyncFlowOutcome]) -> Callable[[tuple[Step, Artifacts]], Coroutine[Any, Any, Settled]]:
+    def _attempt(do: Callable[[Step, Artifacts], AsyncFlowOutcome]) -> Callable[[Payload], Coroutine[Any, Any, Settled]]:
         """The ONE write attempt, lifted off the wave base so a dispatcher that walks its own loop inherits
         it instead of copying it.
 
@@ -281,7 +275,7 @@ class Dispatcher(BaseDispatcher, ABC):
         on the async contract. And it hands the step back beside its outcome and its produce, because a
         gathered wave settles out of order and the Ledger records by step. The narrowing around the
         awaitable is where a hand copy goes wrong, so the copy is retired and this is the only one."""
-        async def attempt(payload: tuple[Step, Artifacts]) -> Settled:
+        async def attempt(payload: Payload) -> Settled:
             unit, inputs = payload
             try:
                 res = do(unit, inputs)
@@ -325,7 +319,7 @@ class WavesDispatcher(Dispatcher, ABC):
         # a caller that wants them, while converge() re-probes for deviation alone.
         artifacts_store: dict[Step, Artifacts] = {}
 
-        async def attempt(payload: tuple[Step, Artifacts]) -> tuple[Step, Assessment, Artifacts]:
+        async def attempt(payload: Payload) -> Answered:
             unit, inputs = payload
             res = read(unit, inputs)
             if inspect.isawaitable(res):
@@ -337,11 +331,11 @@ class WavesDispatcher(Dispatcher, ABC):
         # Every settled read, kept whole for Reading.gathered to fold. All four channels ride along - the fan
         # used to throw three quarters of what every step computed away, which is why no gate could ask
         # about scale. The store is ALSO filled per wave below, because the next wave mounts from it.
-        answered: list[tuple[Step, Assessment, Artifacts]] = []
+        answered: list[Answered] = []
         for group in groups:
             if cancellation.cancelled():
                 raise Cancelled.by(cancellation)
-            payloads: list[tuple[Step, Artifacts]] = []
+            payloads: list[Payload] = []
             for step in group:
                 # The read fan mounts its payloads through the Ledger's ONE merge, so the probe and the
                 # write side cannot disagree about what a step is handed - nor about a collision being
@@ -350,7 +344,7 @@ class WavesDispatcher(Dispatcher, ABC):
                 observer.dispatching(step, MappingProxyType(mounted))
                 payloads.append((step, mounted))
 
-            settled: list[tuple[Step, Assessment, Artifacts] | BaseException] = await self.probe_wave(
+            settled: list[Answered | BaseException] = await self.probe_wave(
                 [attempt(p) for p in payloads], cancellation)
             broken: list[BaseException] = []
             for result in settled:
@@ -362,7 +356,8 @@ class WavesDispatcher(Dispatcher, ABC):
                 if isinstance(result, BaseException):
                     broken.append(result)
                 else:
-                    artifacts_store[result[0]] = result[2]
+                    answerer, _, artifacts = result
+                    artifacts_store[answerer] = artifacts   # the NEXT wave mounts from the store, so it fills per wave
                     answered.append(result)
             if broken:
                 raise BaseExceptionGroup(f"{len(broken)} of the wave's {len(settled)} reads failed", broken)
@@ -397,10 +392,10 @@ class WavesDispatcher(Dispatcher, ABC):
         return ledger.outcome()
 
     @abstractmethod
-    async def run_wave(self, level_payloads: list[tuple[Step, Artifacts]], attempt: Callable[[tuple[Step, Artifacts]], Coroutine[Any, Any, Settled]], cancellation: Cancellation) -> list[Settled]:
+    async def run_wave(self, level_payloads: list[Payload], attempt: Callable[[Payload], Coroutine[Any, Any, Settled]], cancellation: Cancellation) -> list[Settled]:
         ...
 
-    async def probe_wave(self, attempts: list[Coroutine[Any, Any, "tuple[Step, Assessment, Artifacts]"]], cancellation: Cancellation) -> list["tuple[Step, Assessment, Artifacts] | BaseException"]:
+    async def probe_wave(self, attempts: list[Coroutine[Any, Any, Answered]], cancellation: Cancellation) -> list["Answered | BaseException"]:
         # How ONE wave of reads is awaited, the read twin of run_wave. Not abstract, because the honest
         # default exists - gather every read, capture what broke, keep input order - and only a dispatcher
         # that must watch a wave IN FLIGHT (Supervised) overrides it. run_wave has no such default, since
@@ -408,7 +403,7 @@ class WavesDispatcher(Dispatcher, ABC):
         return await asyncio.gather(*attempts, return_exceptions=True)
 
     @staticmethod
-    def _collect(level_payloads: list[tuple[Step, Artifacts]], tasks: "list[asyncio.Task[Settled]]") -> list[Settled]:
+    def _collect(level_payloads: list[Payload], tasks: "list[asyncio.Task[Settled]]") -> list[Settled]:
         # The shared collection at a wave's end. The settled tuples in resolved order, with a task that
         # ended CANCELLED converted into a failure. Both run_wave paths raise before any collection, so a
         # cancelled task HERE is unambiguously a step defect. Either the step cancelled itself or a library
@@ -438,7 +433,7 @@ class _Gather(WavesDispatcher):
     enforceable."""
 
     @override
-    async def run_wave(self, level_payloads: list[tuple[Step, Artifacts]], attempt: Callable[[tuple[Step, Artifacts]], Coroutine[Any, Any, Settled]], cancellation: Cancellation) -> list[Settled]:
+    async def run_wave(self, level_payloads: list[Payload], attempt: Callable[[Payload], Coroutine[Any, Any, Settled]], cancellation: Cancellation) -> list[Settled]:
         # The TaskGroup awaits the whole wave at once, the ordered tasks list keeps collection in resolved
         # order. attempt() catches Exception, so the only escapes left are BaseExceptions - which includes
         # a step RAISING the kernel's Cancelled. On any abort the group cancels the rest of the wave and
@@ -485,7 +480,7 @@ class _Watch(WavesDispatcher):
         self.__grace = grace   # how long (seconds) an abort waits for its cancelled tasks to settle
 
     @override
-    async def run_wave(self, level_payloads: list[tuple[Step, Artifacts]], attempt: Callable[[tuple[Step, Artifacts]], Coroutine[Any, Any, Settled]], cancellation: Cancellation) -> list[Settled]:
+    async def run_wave(self, level_payloads: list[Payload], attempt: Callable[[Payload], Coroutine[Any, Any, Settled]], cancellation: Cancellation) -> list[Settled]:
         # Launch each coroutine as a task and hand the set to the one supervision loop. The ordered tasks
         # list keeps collection in resolved order.
         tasks = [asyncio.create_task(attempt(payload)) for payload in level_payloads]
@@ -493,7 +488,7 @@ class _Watch(WavesDispatcher):
         return self._collect(level_payloads, tasks)
 
     @override
-    async def probe_wave(self, attempts: list[Coroutine[Any, Any, "tuple[Step, Assessment, Artifacts]"]], cancellation: Cancellation) -> list["tuple[Step, Assessment, Artifacts] | BaseException"]:
+    async def probe_wave(self, attempts: list[Coroutine[Any, Any, Answered]], cancellation: Cancellation) -> list["Answered | BaseException"]:
         # The read twin of run_wave, through the SAME supervision loop - which is the whole point of this
         # dispatcher having one. Before this override a hung assess() blocked the probe's fan forever and a
         # Deadline could bound the work but never the proof, so converge under Supervised hung in exactly
@@ -566,7 +561,7 @@ class _Walker(Dispatcher):
         # propagates as itself here rather than as a group, since nothing else in the leg is in flight to
         # settle first - the wave fan's ExceptionGroup exists only because a wave is a barrier.
         produced: dict[Step, Artifacts] = {}
-        answered: list[tuple[Step, Assessment, Artifacts]] = []
+        answered: list[Answered] = []
         for leg in groups:
             for step in leg:
                 if cancellation.cancelled():

@@ -8,9 +8,9 @@ from types import MappingProxyType
 from typing import NamedTuple, final
 
 from ..declaration.cancellation import Cancelled, Deferred, Fault, Skew
-from ..declaration.drift import Artifacts, Assessment, Changes, Drift, DriftItem
+from ..declaration.drift import Artifacts, Changes, Drift, DriftItem
 from ..declaration.held import _Held
-from ..declaration.step import Step
+from ..declaration.step import Answered, Step
 from ..plan.graph import Graph
 from .observer import Observer
 
@@ -133,7 +133,7 @@ class Reading(_Held[Drift]):
         self.__produced = {step: dict(artifacts) for step, artifacts in (produced or {}).items()}
 
     @classmethod
-    def gathered(cls, settled: Iterable[tuple[Step, Assessment, Artifacts]]) -> "Reading":
+    def gathered(cls, answered: Iterable[Answered]) -> "Reading":
         # ONE PROBE'S WORTH OF ASSESSMENTS, FOLDED. Every dispatcher that fans a read ends with the same
         # walk - each step's four channels appended to four lists, each step's artifacts filed by instance -
         # and two of them wrote it out by hand with the five results passed positionally into a constructor
@@ -145,7 +145,7 @@ class Reading(_Held[Drift]):
         advisory: list[Drift] = []
         footprint: list[Drift] = []
         produced: dict[Step, Artifacts] = {}
-        for step, assessment, artifacts in settled:
+        for step, assessment, artifacts in answered:
             deviation.extend(assessment.deviation)
             plan.extend(assessment.plan)
             advisory.extend(assessment.advisory)

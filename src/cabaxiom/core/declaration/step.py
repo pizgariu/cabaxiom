@@ -3,11 +3,13 @@ from abc import ABC, ABCMeta
 from collections.abc import AsyncIterator, Iterable
 from typing import Any, final, override
 
+from .cancellation import Fault
 from .drift import (
     Artifacts,
     Assessment,
     AsyncFlowAssessment,
     AsyncFlowOutcome,
+    Changes,
     Drift,
     DriftItem,
     FlowAssessment,
@@ -395,3 +397,18 @@ class Step(ABC, metaclass=_Sealed):
         # and passes through untouched, which is what keeps a domain's own richer item first-class here -
         # the kernel reads a drift through two fields and never cares which class exposed them.
         return tuple(DriftItem(Step.named(self), one) if isinstance(one, str) else one for one in told)
+
+
+# THE THREE SHAPES ONE UNIT OF WORK TAKES THROUGH A DISPATCHER, named so no seam spells a positional tuple.
+# A Payload goes IN - the step and the inputs its prerequisites produced, mounted by the Ledger. A Settled or
+# an Answered comes OUT, depending on the verb. They live beside Step rather than in the run layer because the
+# record layer folds them too (Reading.gathered) and the layers point one way - record may not import run.
+# All three are PUBLIC, since run_wave and probe_wave are seams on an open base that a custom dispatcher
+# writes against.
+type Payload = tuple[Step, Artifacts]
+# What its write returned (Changes or None), the artifacts it produced and the exception it raised - caught
+# into the tuple, never propagated out of the coroutine - or None if it ran clean.
+type Settled = tuple[Step, Changes, Artifacts, Fault | None]
+# The read twin, minus the fault slot, because a read that breaks raises out of the wave rather than
+# settling as a value.
+type Answered = tuple[Step, Assessment, Artifacts]

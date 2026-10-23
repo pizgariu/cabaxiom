@@ -15,13 +15,11 @@ from pathlib import Path
 
 try:
     from battery.repository import GitHub, RepoSetting
-
     from cabaxiom import Reconciler
     from cabaxiom.laboratory import Isolation, Stall
 except ModuleNotFoundError:  # running from a source checkout without an install
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
     from battery.repository import GitHub, RepoSetting
-
     from cabaxiom import Reconciler
     from cabaxiom.laboratory import Isolation, Stall
 

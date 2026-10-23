@@ -5,7 +5,7 @@ import subprocess
 import sys
 import unittest
 
-_EXAMPLES = sorted((pathlib.Path(__file__).resolve().parents[1] / "examples").glob("*.py"))
+_EXAMPLES = sorted((pathlib.Path(__file__).resolve().parents[2] / "examples").glob("*.py"))
 # A throwaway git identity, so the example that drives a repository works on a runner with no global git config.
 _ENV = {**os.environ, "GIT_AUTHOR_NAME": "smoke", "GIT_AUTHOR_EMAIL": "smoke@example.invalid",
         "GIT_COMMITTER_NAME": "smoke", "GIT_COMMITTER_EMAIL": "smoke@example.invalid"}

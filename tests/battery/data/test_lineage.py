@@ -5,7 +5,6 @@ import json
 import unittest
 
 from battery.data import Lineage
-
 from cabaxiom import OnError, Parallel, Reconciler, Step
 from cabaxiom.core.record import Chorus
 

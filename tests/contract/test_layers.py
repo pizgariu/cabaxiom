@@ -26,7 +26,7 @@ import cabaxiom
 import cabaxiom.laboratory
 
 _SOURCE = pathlib.Path(cabaxiom.__file__).parent
-_ROOT = pathlib.Path(__file__).resolve().parents[1]
+_ROOT = pathlib.Path(__file__).resolve().parents[2]
 _BATTERIES = _ROOT / "examples" / "battery"
 
 # The layers, as pyproject.toml declares them. Named here only so the sweep below can tell a filed module

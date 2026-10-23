@@ -21,7 +21,7 @@ jobs:
         # Skip coverage, the subprocess example smoke tests and the stateful sequences per mutant. They add
         # cost without sharpening the kill. The contract and property tests are the mutant killers.
         env:
-          PYTEST_ADDOPTS: "--no-cov --ignore=tests/test_examples.py --ignore=tests/test_stateful.py"
+          PYTEST_ADDOPTS: "--no-cov --ignore=tests/integration/test_examples.py --ignore=tests/property/test_stateful.py"
         run: mutmut run
       - name: Report survivors
         if: always()

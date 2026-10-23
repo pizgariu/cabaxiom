@@ -16,13 +16,11 @@ from pathlib import Path
 
 try:
     from battery.setup import Directory, File, JsonKey, LineInFile, Symlink
-
     from cabaxiom import Reconciler
     from cabaxiom.laboratory import Idempotence
 except ModuleNotFoundError:  # running from a source checkout without an install
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
     from battery.setup import Directory, File, JsonKey, LineInFile, Symlink
-
     from cabaxiom import Reconciler
     from cabaxiom.laboratory import Idempotence
 

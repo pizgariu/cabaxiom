@@ -9,7 +9,6 @@ from datetime import datetime
 from pathlib import Path
 
 from battery.data import DbtRun
-
 from cabaxiom import Reconciler
 from cabaxiom.laboratory import Idempotence
 

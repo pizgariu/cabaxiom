@@ -8,7 +8,6 @@ import unittest
 from pathlib import Path
 
 from battery.setup import Directory, File, JsonKey, LineInFile, Symlink
-
 from cabaxiom import Parallel, Reconciler
 from cabaxiom.laboratory import Idempotence
 

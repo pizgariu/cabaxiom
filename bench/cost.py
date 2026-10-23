@@ -34,7 +34,6 @@ _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT / "src"))
 sys.path.insert(0, str(_ROOT / "tests"))
 
-from cabaxiom import Graph, Reconciler  # noqa: E402
 from test_cost import (  # noqa: E402
     _Counts,
     _Inversion,
@@ -43,6 +42,8 @@ from test_cost import (  # noqa: E402
     _Shapes,
     _Tally,
 )
+
+from cabaxiom import Graph, Reconciler  # noqa: E402
 
 
 @final

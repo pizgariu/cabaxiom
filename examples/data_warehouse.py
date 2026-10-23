@@ -11,7 +11,6 @@ import io
 import sqlite3
 
 from battery.data import SQLITE, Fresh, Lineage, Loaded, Quality, Schema, Table
-
 from cabaxiom import Journal, Reconciler
 from cabaxiom.core.record import Chorus
 from cabaxiom.laboratory import Idempotence

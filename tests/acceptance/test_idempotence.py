@@ -6,9 +6,9 @@ somebody actually runs the thing twice, which is a different question and one a 
 import asyncio
 import pathlib
 
-from battery.setup import Directory, File
 from pytest_bdd import given, scenarios, then, when
 
+from battery.setup import Directory, File
 from cabaxiom import Reconciler, Residual, Step
 from cabaxiom.laboratory import Idempotence, Proof
 

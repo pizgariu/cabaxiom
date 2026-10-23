@@ -5,7 +5,6 @@ import sqlite3
 import unittest
 
 from battery.data import SQLITE, Fresh, Loaded, Quality, Schema, Table
-
 from cabaxiom import Reconciler
 from cabaxiom.laboratory import Idempotence
 

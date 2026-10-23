@@ -14,7 +14,7 @@ import cabaxiom
 import cabaxiom.core
 import cabaxiom.laboratory
 
-_ROOT = pathlib.Path(__file__).resolve().parents[1]
+_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 _MARKDOWN = [_ROOT / "README.md", *sorted((_ROOT / "docs").glob("*.md"))]
 # THE WHOLE PUBLISHED SURFACE, not the front door. Keyed off `cabaxiom.__all__` this sweep quietly

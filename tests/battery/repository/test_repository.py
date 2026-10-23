@@ -6,9 +6,9 @@ import unittest
 import urllib.request
 from http.client import HTTPMessage
 
-from battery.repository import GitHub, RepoSetting, RepoTopic
 from battery.repository._github import _SameOrigin, _Urllib
 
+from battery.repository import GitHub, RepoSetting, RepoTopic
 from cabaxiom import Reconciler
 
 

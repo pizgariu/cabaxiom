@@ -673,7 +673,7 @@ class FinalMarkingTests(unittest.TestCase):
         # Classes declared INSIDE a test function are the whole point, so this reads the syntax rather than
         # importing modules - a harness defined in a method body exists nowhere an import can see it.
         known = self._kernel_classes()
-        here = pathlib.Path(__file__).parent
+        here = pathlib.Path(__file__).resolve().parents[1]   # the whole suite, every level of it
         offences = []
         for path in sorted(here.rglob("*.py")):
             tree = ast.parse(path.read_text(encoding="utf-8"))

@@ -45,7 +45,7 @@ line. It was checked by breaking the layering three ways and watching each break
 that makes no import cycle, since a violation Python itself rejects proves nothing about the guard.
 
 Two addresses reach the same objects. `cabaxiom` publishes what you DECLARE, RUN and CATCH, which is
-fifty-nine names. `cabaxiom.core.<layer>` publishes all one hundred and forty-three, so an axis base
+fifty-nine names. `cabaxiom.core.<layer>` publishes all one hundred and forty-four, so an axis base
 class, a value the kernel mints rather than takes and the non-default strategy on an axis are one import
 deeper instead of standing in the doorway. Nothing is hidden by that and nothing is private. The layer
 says where a thing lives and saying so is the point.

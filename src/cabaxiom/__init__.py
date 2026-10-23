@@ -167,7 +167,7 @@ _MOVED: dict[str, tuple[str, ...]] = {
         "Seat", "Shift", "Walk", "WalkPartition", "Waves", "WavesPartition", "WithEveryTag",
     ),
     "cabaxiom.core.record": (
-        "Arrow", "Casualty", "Ceiling", "Charter", "Chorus", "Diagram", "Dot", "Explanation", "Node", "Logging", "Mermaid",
+        "Arrow", "Binding", "Casualty", "Ceiling", "Charter", "Chorus", "Diagram", "Dot", "Explanation", "Node", "Logging", "Mermaid",
         "Pass", "Reading", "Span", "Stamp", "Statement", "Timing", "Tone", "Warrant",
     ),
     "cabaxiom.core.run": (

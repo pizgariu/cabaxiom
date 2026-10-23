@@ -18,6 +18,10 @@ from .ledger import Statement
 # declaration slot that drew it. A Diagram walks these to draw arrows, a caller reads them to see why an
 # order came out as it did. Named so neither side counts positions.
 type Arrow = tuple[str, str, str]
+# ONE LABEL AND THE LABELS BOUND TO IT. The same pair carries three facts in an Explanation - a step and its
+# prerequisites, a step and the names it declared in one slot, a resource and the steps contending for it -
+# and every reader turns a run of them into a dict. Named once, so the record reads as the pairs it is.
+type Binding = tuple[str, tuple[str, ...]]
 
 
 @final
@@ -154,7 +158,7 @@ class Explanation:
     def __init__(self, groups: tuple[tuple[str, ...], ...], *,
                  shape: str,
                  arrows: tuple[Arrow, ...],
-                 declared: Mapping[str, tuple[tuple[str, tuple[str, ...]], ...]],
+                 declared: Mapping[str, tuple[Binding, ...]],
                  vocabulary: tuple[EdgeKind, ...]):
         self.__groups = groups
         self.__shape = shape
@@ -185,7 +189,7 @@ class Explanation:
         return self.__arrows
 
     @property
-    def dependencies(self) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    def dependencies(self) -> tuple[Binding, ...]:
         # The resolved edges per step, in run order, duplicates collapsed - a PROJECTION of the arrows
         # above rather than a second stored field. Storing both would be two views of one fact that
         # nothing kept in agreement, a shape this kernel has paid for before.
@@ -201,14 +205,14 @@ class Explanation:
         return self.__vocabulary
 
     @property
-    def declared(self) -> Mapping[str, tuple[tuple[str, tuple[str, ...]], ...]]:
+    def declared(self) -> Mapping[str, tuple[Binding, ...]]:
         # The declarations behind the arrows, keyed by slot - the vocabulary's kinds plus `provides` and
         # `contends`. One mapping instead of fields fixed by name, so a grown vocabulary reads through
         # unchanged.
         return self.__declared
 
     @property
-    def contention(self) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    def contention(self) -> tuple[Binding, ...]:
         # Which resources are contended and by whom - the reason two steps were seated apart. Keyed by
         # RESOURCE rather than by step, since the constraint belongs to the resource and a reader arrives
         # asking "what is holding these two apart". A PROJECTION of declared["contends"], exactly as

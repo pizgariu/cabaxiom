@@ -11,11 +11,12 @@ it records, so this layering is what stops it - the run imports the record, neve
 from .diagram import Diagram, Dot, Mermaid, Node, Tone
 from .ledger import Ledger, OnError, Reading, Statement
 from .observer import Chorus, Journal, Logging, Observer, Pass, Span, Stamp, Timing
-from .records import Arrow, Casualty, Explanation, Residual
+from .records import Arrow, Binding, Casualty, Explanation, Residual
 from .warrant import Ceiling, Charter, Warrant
 
 __all__ = [
     "Arrow",
+    "Binding",
     "Diagram",
     "Dot",
     "Mermaid",

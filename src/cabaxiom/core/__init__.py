@@ -91,6 +91,7 @@ from .plan import (
 )
 from .record import (
     Arrow,
+    Binding,
     Casualty,
     Ceiling,
     Charter,
@@ -239,6 +240,7 @@ __all__ = [
     "Shift",
     "Succession",
     "Arrow",
+    "Binding",
     "Diagram",
     "Dot",
     "Mermaid",

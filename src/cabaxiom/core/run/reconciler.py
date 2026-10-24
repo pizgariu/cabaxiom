@@ -43,8 +43,8 @@ class Reconciler:
                  vocabulary: Vocabulary | None = None, authority: Authority | None = None, warrant: Warrant | None = None):
         scope = scope or Scope()
         chosen = ordering or Kahn()
-
         mode = mode or Parallel()
+
         self._convergence = convergence or Once()
         self._cancellation = cancellation or Cancellation()
         self._observer = observer or Observer()

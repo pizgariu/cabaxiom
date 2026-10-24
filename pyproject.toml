@@ -120,6 +120,10 @@ testpaths = ["tests"]
 # directory as sys.path[0] for free. This is the same import line spelled for the suite.
 pythonpath = ["examples"]
 addopts = "--cov=cabaxiom --cov=battery --cov-report=term-missing --cov-fail-under=100"
+# pytest-bdd 8 registers fixtures through an API pytest 9 deprecates. The noise is the plugin's to fix, so it
+# is filtered by TYPE, since pytest raises it from its own frames on the plugin's behalf. A DeprecationWarning
+# raised from our own tests still fails loudly.
+filterwarnings = ["error::DeprecationWarning:tests", "ignore::pytest.PytestRemovedIn10Warning"]
 
 [tool.coverage.run]
 # The kernel AND the batteries beside it. Moving the batteries out of the wheel must not quietly move

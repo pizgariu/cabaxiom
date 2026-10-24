@@ -2,7 +2,7 @@
 
 **Wall time here is informational. The COUNTS are the gate.**
 
-Every count below is asserted as an exact equality by `tests/test_cost.py`, which fails the suite when one
+Every count below is asserted as an exact equality by `tests/contract/test_cost.py`, which fails the suite when one
 moves. Every millisecond below was measured once, on one machine, on one afternoon and is recorded so a
 human can answer "what does a five thousand step graph cost" without running anything - never so that a
 number in seconds can fail a build. Regenerate the whole page with
@@ -11,7 +11,7 @@ number in seconds can fail a build. Regenerate the whole page with
     python3 bench/cost.py --deep          # the same scaling sweep an order of magnitude larger
     python3 bench/cost.py --json bench/out/cost.json
 
-`bench/cost.py` imports its counters from `tests/test_cost.py`, so this page is produced by the very
+`bench/cost.py` imports its counters from `tests/contract/test_cost.py`, so this page is produced by the very
 instruments the gate asserts and the two cannot drift apart.
 
 ## Read on
@@ -37,8 +37,8 @@ instruments the gate asserts and the two cannot drift apart.
 | `retried` | 0 | nothing failed |
 | dependents map built | no | a clean run never asks for the inversion |
 
-Read at N = 100, 200 and 400. The per-step total is exactly 2 verb entries and 3 unit hooks at every size, and
-the per-run total is exactly 3 pass hooks at every size. A converge that entered a verb more than a small
+Read at N = 100, 200 and 400. The per-step total is exactly 2 verb entries and 3 unit hooks at every size.
+The per-run total is exactly 3 pass hooks at every size. A converge that entered a verb more than a small
 constant times N would be quadratic in disguise and no residual would ever say so.
 
 ### One teardown over N steps
@@ -107,7 +107,7 @@ second for the ordering it fed.
 | authority | none injected | `Write.raw` IS the raw call, with no permit layer |
 | authority | injected, no `leases` declared | 0 acquires, 0 releases |
 | observer | `Observer()` | 0 reads of the residual it is handed, 0 reads of a step's name |
-| warrant | none injected | no leading probe - pinned in `tests/test_warrant.py`, not repeated |
+| warrant | none injected | no leading probe - pinned in `tests/unit/test_warrant.py`, not repeated |
 
 ### Every dispatcher costs the same
 

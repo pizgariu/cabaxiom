@@ -32,7 +32,7 @@ from typing import Any, NamedTuple, final
 
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT / "src"))
-sys.path.insert(0, str(_ROOT / "tests"))
+sys.path.insert(0, str(_ROOT / "tests" / "contract"))   # test_cost lives at the contract level
 
 from test_cost import (  # noqa: E402
     _Counts,

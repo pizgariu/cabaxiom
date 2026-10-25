@@ -14,8 +14,8 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4.2.2
-      - uses: actions/setup-python@v5.3.0
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.0.0
         with:
           python-version: "3.12"
       - name: Install
@@ -24,7 +24,7 @@ jobs:
         run: ruff check .
       - name: Type check
         # No path argument. pyproject already says WHICH trees are checked (the kernel and the batteries
-        # beside it in examples/), and naming one here overrode that setting and quietly dropped the other.
+        # beside it in examples/). Naming one here overrode that setting and quietly dropped the other.
         run: mypy
       - name: Architecture
         # The layers are enforced inside the suite too, so this cannot be the only place it runs - it is
@@ -38,8 +38,8 @@ jobs:
       matrix:
         python-version: ["3.12", "3.13", "3.14"]
     steps:
-      - uses: actions/checkout@v4.2.2
-      - uses: actions/setup-python@v5.3.0
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install
@@ -51,8 +51,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4.2.2
-      - uses: actions/setup-python@v5.3.0
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.0.0
         with:
           python-version: "3.12"
       - name: Install build tooling
@@ -60,13 +60,13 @@ jobs:
       - name: Build distributions
         run: python -m build
       - name: Smoke-test the wheel
-        # Install the BUILT artifact (not the source tree) and import it: a wheel missing py.typed or
+        # Install the BUILT artifact (not the source tree) and import it. A wheel missing py.typed or
         # packaging the wrong directory would otherwise ship green.
         run: |
           pip install dist/*.whl
           python -c "import cabaxiom; print('wheel ok:', cabaxiom.__version__)"
           python -c "import importlib.resources as r; assert r.files('cabaxiom').joinpath('py.typed').is_file(), 'py.typed missing from the wheel'"
-      - uses: actions/upload-artifact@v4.4.3
+      - uses: actions/upload-artifact@v7.0.1
         with:
           name: dist
           path: dist/

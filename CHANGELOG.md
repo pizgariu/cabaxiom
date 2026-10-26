@@ -8,6 +8,30 @@ Every release is a pre-release on the road to the 1.0.0 freeze.
 
 Nothing yet.
 
+## [0.7.0] - 2026-10-26
+
+**The kernel is four layers and three benches. The front door says what you declare, run and catch. Every name that moved says where it went.**
+
+### Added
+- **`cabaxiom.core`, four layers whose arrows point one way.** The kernel was thirty-nine modules in one flat folder, which is a filing decision wearing an architecture's clothes. It is `core.declaration` (what a step IS, importing nobody), `core.plan` (from declarations to a seated partition), `core.record` (what a run says about itself) and `core.run` (turning a plan into a converged world). The arrows are checked by import-linter from three contracts in `pyproject.toml` that a person can read and argue with, so a plan module that reaches into the record layer fails the lint job and not a code review. Every name that left the front door opens on its layer. Nothing is hidden and nothing is private, since the layer says where a thing lives and saying so is the whole point.
+- **`cabaxiom.laboratory`, three benches named after the technique rather than the feature.** `proof` holds `Idempotence`, `Proof`, `Reversibility` and `Roundtrip`. `shrink` holds `Isolation`, `Indictment`, `Charge`, `Churn`, `Stall`, `Siege` and `Breach`. `rig` holds `Adversary`, `Sabotage`, `Targeted`, `ChaosDispatcher` and the test doubles that used to be `cabaxiom.testing`. A delta-debugger and an adversary are superb things to own and are not what a caller reached for when they typed `from cabaxiom import Step`. A separate distribution was weighed and refused. The laboratory imports thirty-four names out of the kernel, so a second wheel would have to pin the first exactly and anyone who upgraded one and forgot the other would meet an ImportError instead of a tool. `import cabaxiom` loads no laboratory module and a test pins that.
+- **Every moved name says where it went.** `from cabaxiom import Waves` used to be answered by the interpreter's own "cannot import name", which names nothing and helps nobody. A module-level `__getattr__` refuses with the line to type instead. It raises `ImportError` rather than `AttributeError` on purpose, because CPython swallows an AttributeError out of a module `__getattr__` and replaces it with its own sentence. The table behind it is plain strings, never resolved at import, so it cannot drag the laboratory into `sys.modules` and break the claim the split was made for.
+- **The four hook return types are exported.** `FlowAssessment`, `FlowOutcome`, `AsyncFlowAssessment` and `AsyncFlowOutcome` are the annotations a typed override cannot be written without. The batteries were reaching past the front door for them, which is how the hole was found.
+- **`Step.advised()` and `Step.owns()`, finishing the constructor vocabulary.** `verified()` and `drifted()` covered two of the record's four channels, so a step reporting a footprint or a piece of advice fell off the ergonomic cliff into `Assessment(footprint=[DriftItem(self.__class__.__name__, ...)])`. Each new constructor fills only its own channel, names the subject through the step and passes a domain's own `Drift` through untouched, under the same rules and the same tests as `drifted()`.
+- **Seven names for shapes that used to be spelled as positional tuples.** `Payload` is what goes into a dispatcher, the step beside the inputs its prerequisites produced. `Settled` and `Answered` are what comes out of a write wave and a read wave. `Decision` is what a `Convergence` strategy answers after each pass. `Node` is one member of a drawn group as a `Diagram` receives it. `Arrow` is one resolved edge as an `Explanation` carries it and `Binding` a label beside the labels bound to it. Pure aliases on `cabaxiom.core`, so nothing about the values moves and every existing tuple still fits. A fan that used to reach into its result by index unpacks by name.
+- **The three records share the frozen sequence they all are.** `Roster`, `Residual` and `Reading` each implemented `Sequence` by hand and the copies had drifted where it is hardest to notice. They inherit one `_Held[T]` now, which holds the tuple, answers the protocol once and compares by items. `Roster` gains an equality it never had, since two indexes over the same steps used to compare by object identity.
+- **The batteries live in `examples/battery/`, as the examples they always were.** `setup`, `repository` and `data` are ready-made steps for real domains that were shipped as public API while being exercised almost entirely by this repository's own suite. A demonstration that ships as public API is a promise nobody asked for. They keep the kernel's gate, strict typing and full branch coverage. A test pins that they reach the kernel only through its public front door.
+- **The suite is sorted by the level of the pyramid each test sits on.** `tests/unit`, `property`, `integration`, `contract`, `battery` and `acceptance`, where `acceptance` reads the idempotence guarantee the way an operator does, as a Gherkin feature run through pytest-bdd against the real batteries and a real disk. Which level a test sits on is now the path a reader opens, not a thing to infer from its imports.
+- **`Reading.gathered()` and the `Residual` factories `refused()`, `converged()` and `pruned()`.** Each verdict a run can close on is minted by the factory named for it, so a site that mints the wrong one reads wrong at a glance. Four sites in the reconciler used to spell those rules out by hand and two read fans folded the four assessment channels each in their own loop. The constructors are unchanged, so a `Residual` or a `Reading` built by hand keeps working.
+
+### BC break
+- The front door is 59 names, not 149. What you DECLARE, what you RUN and what you CATCH stay on `cabaxiom`. An axis's base class, a value the kernel mints rather than takes and the non-default strategy on an axis open one import deeper, at `cabaxiom.core`. `from cabaxiom import Waves` refuses with `from cabaxiom.core.plan import Waves`. Every one of the seventy-nine names its own layer the same way.
+- The fifteen laboratory names open on `cabaxiom.laboratory` and nowhere else - `Idempotence`, `Proof`, `Reversibility`, `Roundtrip`, `Isolation`, `Indictment`, `Charge`, `Churn`, `Stall`, `Siege`, `Breach`, `Adversary`, `Sabotage`, `Targeted` and `ChaosDispatcher`. `cabaxiom.testing` is `cabaxiom.laboratory.rig.testing`.
+- `cabaxiom.setup`, `cabaxiom.repository` and `cabaxiom.data` are no longer in the wheel. Copy them from `examples/battery/`, which is where a reader will find them exercised.
+- Three strategy families answer a named verb instead of `__call__`. An `Ordering` is `flat(graph)` beside its own `waves(graph)` and `chains(graph)`. A retry is `around(do)`, for the thing it lays around a hook. A quorum `Rule` is `holds(fired)`, on the precedent `Placement.holds` set. A custom strategy written against `__call__` renames one method. `Write` and the `_Sealed` metaclass keep `__call__`, since both are genuinely handed where a callable is expected.
+- Slicing a `Residual`, a `Reading` or a `Roster` is annotated as the `tuple` it always returned at runtime. A caller who typed the slice as `Sequence` reads the same values under a narrower name.
+- `Residual`, `Reading` and `Roster` are unhashable by declaration rather than by the accident of writing `__eq__`, which is what a record compared by items has to be.
+
 ## [0.6.2] - 2026-10-18
 
 **The commonest broken step was refused by a hash error instead of by name.**
@@ -253,10 +277,9 @@ Nothing. 0.3.1 is 0.3.0 with two defects removed.
 
 Planned milestones, in rough order. Nothing here is a promise of scope.
 
-- **0.7.0** - Layers a test can enforce. The flat package becomes `cabaxiom.core` in four layers whose arrows a linter checks, the laboratory moves out to `cabaxiom.laboratory` and the front door narrows to what you declare, run and catch. Every name that moves answers with the line to type instead of a bare ImportError.
-- **0.8.0** - The easter egg, kept for last because the kernel came first.
 - **1.0.0** - API stability. Freeze the public surface and commit to Semantic Versioning guarantees for it. The first non-prerelease, cut from the last of the 0.x line.
-[unreleased]: https://github.com/pizgariu/cabaxiom/compare/v0.6.2...HEAD
+[unreleased]: https://github.com/pizgariu/cabaxiom/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/pizgariu/cabaxiom/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/pizgariu/cabaxiom/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/pizgariu/cabaxiom/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/pizgariu/cabaxiom/compare/v0.5.2...v0.6.0

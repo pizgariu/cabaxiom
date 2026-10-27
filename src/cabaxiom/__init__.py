@@ -1,4 +1,4 @@
-"""A domain-agnostic reconciliation kernel: Steps own desired state, a Reconciler resolves their
+"""A domain-agnostic reconciliation kernel. Steps own desired state, a Reconciler resolves their
 order and converges actual -> desired, self-verifying by re-probing for residual drift.
 
 No domain vocabulary lives here. A drift item is read ONLY through the Drift protocol's two
@@ -83,7 +83,16 @@ from .core import (
     WithTag,
 )
 
-__version__ = _metadata.version("cabaxiom")
+# ONE SOURCE OF TRUTH still, beside a package that imports without it. The number lives in the distribution
+# metadata and is never hand-copied here, since a literal beside pyproject.toml is one fact written twice
+# with nothing keeping the two in agreement. What this adds is the case where there IS no distribution - a
+# vendored copy, a checkout on sys.path, a zipapp - where the read raised and took the whole import with it.
+# The fallback says it does not know rather than guessing, because a wrong version is worse than an absent
+# one for anyone deciding whether their bug is fixed.
+try:
+    __version__ = _metadata.version("cabaxiom")
+except _metadata.PackageNotFoundError:
+    __version__ = "0+unknown"
 
 __all__ = [
     "Cancelled",

@@ -1,6 +1,9 @@
 """Reconciler core lifecycle and the reactive watch() standing converge."""
 import asyncio
+import importlib
+import importlib.metadata
 import unittest
+from unittest.mock import patch
 
 from cabaxiom import Assessment, DriftItem, Flag, OnError, Parallel, Reconciler, Residual, Step, Unresolvable
 from cabaxiom.core.plan import Overlap, Walk
@@ -17,8 +20,8 @@ class ExplainTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(explanation, Explanation)
         self.assertEqual(explanation.groups, (("A",), ("B",), ("C",)))
         self.assertEqual(dict(explanation.dependencies), {"B": ("A",), "C": ("B",)})        # the resolved arrows
-        self.assertEqual(dict(explanation.declared["expects"]), {"B": ("A",), "C": ("B",)})   # sparse: A declares no expects
-        self.assertEqual(explanation.declared["needs"], ())                                 # expects-only run: no instance edges to surface
+        self.assertEqual(dict(explanation.declared["expects"]), {"B": ("A",), "C": ("B",)})   # sparse - A declares no expects
+        self.assertEqual(explanation.declared["needs"], ())                                 # expects-only run - no instance edges to surface
         self.assertEqual(explanation.declared["requires"], ())                              # nor any hard requires edges
         self.assertIn("(A) -> (B) -> (C)", repr(explanation))
 
@@ -111,7 +114,7 @@ class ExplainTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(explanation.dependencies, ())
 
     def test_an_explanation_cannot_be_reassigned_in_place(self):
-        # The structural read is a RECORD: tuples all the way down, behind read-only properties, so what a
+        # The structural read is a RECORD of tuples all the way down, behind read-only properties, so what a
         # run resolved cannot be rewritten after the fact.
         explanation = Reconciler(()).explain()
         with self.assertRaises(AttributeError):
@@ -141,7 +144,7 @@ class ConvergeTests(unittest.IsolatedAsyncioTestCase):
     async def test_converge_applies_then_reports_clean_residual(self):
         f = Fixable()
         rec = Reconciler((f,))
-        self.assertEqual(len(await rec.assess()), 1)   # opening status: drift present
+        self.assertEqual(len(await rec.assess()), 1)   # opening status - drift present
         self.assertEqual(await rec.converge(), [])    # apply -> re-probe -> verified clean
         self.assertTrue(f.applied)
 
@@ -367,8 +370,19 @@ class WatchTests(unittest.IsolatedAsyncioTestCase):
 
 class VersionTests(unittest.IsolatedAsyncioTestCase):
     def test_dunder_version_reads_the_installed_distribution(self):
-        # One source of truth: __version__ is read back from packaging metadata, never hand-copied.
+        # One source of truth. __version__ is read back from packaging metadata, never hand-copied.
         import cabaxiom
+        self.assertRegex(cabaxiom.__version__, r"^\d+\.\d+\.\d+$")
+
+    def test_the_package_imports_where_there_is_no_distribution_to_read(self):
+        # A vendored copy, a checkout on sys.path, a zipapp - none of them has installed metadata. The read
+        # raised there and took the whole import down. It says it does not know now, which is the honest
+        # answer, since a number guessed from anywhere would be a claim about code it had not looked at.
+        import cabaxiom
+        with patch("importlib.metadata.version", side_effect=importlib.metadata.PackageNotFoundError("cabaxiom")):
+            importlib.reload(cabaxiom)
+            self.assertEqual(cabaxiom.__version__, "0+unknown")
+        importlib.reload(cabaxiom)   # put the real one back for every test after this
         self.assertRegex(cabaxiom.__version__, r"^\d+\.\d+\.\d+$")
 
 

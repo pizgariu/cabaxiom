@@ -149,7 +149,7 @@ class PublishesTests(unittest.IsolatedAsyncioTestCase):
     def _producer(self, key: str, value: str):
         class Producer(Step):
             def assess(self, inputs):
-                return Assessment(), {key: value}   # the level-triggered mirror: assess shows what apply produces
+                return Assessment(), {key: value}   # the level-triggered mirror - assess shows what apply produces
 
             def apply(self, inputs):
                 return None, {key: value}
@@ -201,8 +201,25 @@ class PublishesTests(unittest.IsolatedAsyncioTestCase):
             await Enclave(inner, publishes=("uri",)).apply({})
         spoken = str(refused.exception)
         self.assertIn("Enclave publishes `uri` and nothing inside produced it this run", spoken)
-        self.assertIn("The run recorded inside: ", spoken)
+        self.assertIn("The run recorded 1 failure inside - ", spoken)
         self.assertIn("step failed: RuntimeError: bucket gone", spoken)
+
+    async def test_the_refusal_samples_the_inner_record_instead_of_carrying_all_of_it(self):
+        # The quote above is worth having and it was the WHOLE record joined into one string, so the message
+        # grew straight with the inner failures, which a nested stack reaches without trying. The sample is
+        # what a reader recognises the cause from. The full record is still on the inner residual.
+        class Dies(Step):
+            def apply(self, inputs):
+                raise RuntimeError("bucket gone")
+
+        made = [type(f"Dies{n}", (Dies,), {})() for n in range(40)]
+        inner = Reconciler(made, mode=Parallel(OnError.BestEffort))
+        with self.assertRaises(Unpublished) as refused:
+            await Enclave(inner, publishes=("uri",)).apply({})
+        spoken = str(refused.exception)
+        self.assertIn("The run recorded 40 failures inside - ", spoken)
+        self.assertIn("and 37 more", spoken)
+        self.assertLess(len(spoken), 900, f"the refusal is carrying the record rather than sampling it, {len(spoken)} chars")
 
     async def test_a_missing_published_key_without_a_casualty_names_the_promise(self):
         # The static case, a typo or a step that never returns the key. No failure to quote, so the

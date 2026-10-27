@@ -94,7 +94,7 @@ class Enclave(Step):
         # of a nested run found it within an hour - a check suite holding a git-hooks reconciler needs the
         # inner run's ADVICE, so dropping it made the enclave lossy in the one direction nothing would
         # ever notice, since advice is precisely what a green run still has to say. There is no double
-        # count to fear either way: the inner steps are not in the parent's graph, so the parent aggregates
+        # count to fear either way. The inner steps are not in the parent's graph, so the parent aggregates
         # this enclave's four channels exactly once. The published keys cross here too, as the GLIMPSE.
         reading = await self._reconciler.assess()
         return Assessment(deviation=reading, plan=reading.plan, advisory=reading.advisory,
@@ -175,11 +175,18 @@ class Enclave(Step):
             producers = self.__claimants(key, produced)
             if not producers:
                 if residual.failures:
-                    told = ", ".join(item.message for item in residual.failures)
+                    # A SAMPLE and a count, never the whole record. Joining every inner message grew the exception
+                    # straight with the inner failures, which is a shape a nested stack reaches easily. Three is
+                    # enough to recognise the cause. The full record is still on the inner residual, which is
+                    # where a reader looks for it.
+                    spoken = [item.message for item in residual.failures[:3]]
+                    beyond = len(residual.failures) - len(spoken)
+                    told = ", ".join(spoken) + (f" and {beyond} more" if beyond else "")
+                    counted = "1 failure" if len(residual.failures) == 1 else f"{len(residual.failures)} failures"
                     raise Unpublished(
                         f"Enclave publishes `{key}` and nothing inside produced it this run. The run "
-                        f"recorded inside: {told}. A published key is the enclave's promise to the parent, "
-                        f"so the promise breaks loudly instead of exporting silence."
+                        f"recorded {counted} inside - {told}. A published key is the enclave's promise to "
+                        f"the parent, so the promise breaks loudly instead of exporting silence."
                     )
                 raise Unpublished(
                     f"Enclave publishes `{key}` yet no step inside produces it. A published key is the "

@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 @final
 class Tone(NamedTuple):
-    # How ONE mark is painted, said once per language: DOT node attributes and a Mermaid classDef body.
+    # How ONE mark is painted, said once per language as DOT node attributes and a Mermaid classDef body.
     # A mark is a plain word (`failed`, `blocked`), so the vocabulary a caller marks with stays free of
     # colours, while the palette that turns those words into paint is the diagram's business alone.
     dot: str
@@ -159,9 +159,11 @@ class Diagram(ABC):
     @staticmethod
     def _escaped(label: str) -> str:
         # A label as a quoted string literal in the backslash convention DOT reads. Mermaid spells the same
-        # escape as an entity and overrides this. A label is minted by the kernel from a class name plus an
-        # optional #n, so the escape is a formality - written anyway, because a domain naming a class with a
-        # quote deserves a diagram rather than a syntax error.
+        # escape as an entity and overrides this. A node label is minted by the kernel from a class name plus
+        # an optional #n, so there the escape is a formality - written anyway, because a domain naming a class
+        # with a quote deserves a diagram rather than a syntax error. A CONTENDED RESOURCE is not a formality.
+        # A slot is an EdgeKind name, refused at construction unless it is an identifier, so it carries no
+        # syntax whatever vocabulary declared it. A resource is whatever string the domain wrote.
         return '"' + label.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
@@ -244,9 +246,9 @@ class Mermaid(Diagram):
 
     @override
     def contended(self, one: str, other: str, resource: str) -> str:
-        # A dotted OPEN link: Mermaid's -.-| |- carries a label with no arrowhead, which is exactly the
+        # A dotted OPEN link. Mermaid's -.-| |- carries a label with no arrowhead, which is exactly the
         # shape of the claim - these two exclude each other and neither comes first.
-        return f"    {one} -.-|{resource}| {other}"
+        return f"    {one} -.-|{self._escaped(resource)}| {other}"
 
     @override
     def closing(self, used: tuple[str, ...]) -> tuple[str, ...]:

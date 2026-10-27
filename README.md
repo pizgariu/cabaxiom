@@ -194,8 +194,8 @@ That last line is why `Backfill` is alone in the second wave. It contends with `
 The drawing tells the two apart. A dependency keeps its arrowhead, contention is an undirected dotted link, because putting a head on it would draw exactly the dependency that was so carefully not declared:
 
 ```
-n0 -->|after| n2          # Migrate runs before Backfill
-n0 -.-|database| n1       # Migrate and Archive merely exclude each other
+n0 -->|expects| n2           # the edge Backfill.expects = (Migrate,) would declare
+n0 -.-|"database"| n2        # Migrate and Backfill merely exclude each other
 ```
 
 ### `Reconciler` - the engine

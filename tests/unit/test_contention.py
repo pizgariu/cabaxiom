@@ -289,7 +289,25 @@ class DrawingTests(unittest.IsolatedAsyncioTestCase):
     def test_mermaid_draws_the_dependency_with_a_head_and_the_contention_without(self):
         drawn = self._drawn().mermaid()
         self.assertIn("-->|expects|", drawn)
-        self.assertIn("-.-|database|", drawn)
+        self.assertIn('-.-|"database"|', drawn)
+
+    def test_a_resource_name_holding_syntax_stays_a_label_in_both_languages(self):
+        # A slot is an EdgeKind name and refused unless it is an identifier. A contended resource is whatever
+        # string the domain wrote and it was pasted into the Mermaid edge raw. A pipe is what ENDS an edge
+        # label there, so a resource built from data closed its own label and spilled the rest of the line
+        # into the drawing as syntax. Dot escaped it from the first day.
+        class One(_Timed):
+            contends = frozenset({'pool|x"y'})
+
+        class Two(_Timed):
+            expects = (One,)
+            contends = frozenset({'pool|x"y'})
+
+        explanation = Reconciler((One(), Two())).explain()
+        drawn = next(line for line in explanation.mermaid().splitlines() if "pool" in line)
+        self.assertEqual(drawn.count("|"), 3, f"the label has to close where the kernel closes it, got {drawn!r}")
+        self.assertIn("#quot;", drawn, "Mermaid reads no backslash escape inside a label, only the entity")
+        self.assertIn('\\"', next(line for line in explanation.dot().splitlines() if "pool" in line))
 
     def test_dot_draws_the_contention_undirected_and_out_of_the_ranking(self):
         drawn = next(line for line in self._drawn().dot().splitlines() if "database" in line)
@@ -300,7 +318,7 @@ class DrawingTests(unittest.IsolatedAsyncioTestCase):
         # Three rivals exclude each other three ways. A chain of two links would claim the ends are free
         # of one another, which is the convenient half-truth this whole plane refuses.
         drawn = Reconciler((Migrate(), Backfill(), Report()), mode=Parallel()).explain().mermaid()
-        self.assertEqual(drawn.count("-.-|database|"), 3)
+        self.assertEqual(drawn.count('-.-|"database"|'), 3)
 
     def test_an_uncontended_run_draws_no_link_at_all(self):
         drawn = Reconciler((Free(),), mode=Parallel()).explain().mermaid()

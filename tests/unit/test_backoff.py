@@ -1,4 +1,4 @@
-"""Backoff pacing for Fixpoint: Fixed and Exponential turn a stalled pass into a paced retry."""
+"""Backoff pacing for Fixpoint. Fixed and Exponential turn a stalled pass into a paced retry."""
 import random
 import unittest
 from unittest.mock import AsyncMock, patch
@@ -76,6 +76,20 @@ class BackoffTests(unittest.IsolatedAsyncioTestCase):
             for stall in range(1, 6):
                 backoff.wait(stall)
         self.assertEqual([call.args[0] for call in slept.call_args_list], [1, 2, 4, 8, 8])
+
+    def test_exponential_holds_at_the_cap_past_the_stall_that_overflowed_a_float(self):
+        # `2 ** 1024` is an int Python builds without complaint and a float base cannot be multiplied by, so
+        # the 1025th stall raised OverflowError where the answer had been the cap since the seventh. A ramp is
+        # meant to flatten, not to break and a Budget convergence has no pass ceiling to stop a run
+        # reaching that count.
+        backoff = Exponential(base=1.0, cap=60.0)
+        self.assertEqual([backoff.delay(stall) for stall in (1024, 1025, 10 ** 6)], [60.0, 60.0, 60.0])
+
+    def test_a_base_of_zero_never_pauses_however_long_the_run_stalls(self):
+        # The clamp answers before the power is built, so the one base that ramps nowhere has to be read
+        # before it and not through it. It used to fall out of the arithmetic for free.
+        backoff = Exponential(base=0, cap=5)
+        self.assertEqual([backoff.delay(stall) for stall in (1, 3, 10 ** 6)], [0, 0, 0])
 
     def test_linear_ramps_by_a_constant_step_then_holds_at_the_cap(self):
         backoff = Linear(step=2, cap=7)

@@ -1,4 +1,5 @@
 """Convergence strategies for how many times to repeat apply -> re-probe. Once, Fixpoint (loop to a settled set), Shrinking (loop while the residual keeps getting smaller), Budget (loop while there is time left on the clock), plus the Backoff family that paces Fixpoint's retries (Fixed, Exponential, Linear, Fibonacci, Jitter)."""
+import math
 import random
 import time
 from abc import ABC, abstractmethod
@@ -88,9 +89,16 @@ class Exponential(Backoff):
             raise Misconfigured(f"Exponential backoff cap must be >= base, got cap={cap}, base={base}")
         self.__base = base
         self.__cap = cap
+        # The stall from which the ramp sits on its cap, so a huge stall count never builds a power too big
+        # for a float. Rounded up with one stall of slack.
+        self.__flat = 0 if base == 0 else math.ceil(math.log2(cap / base)) + 2
 
     @override
     def delay(self, stalled: int) -> float:
+        if self.__base == 0:
+            return 0.0
+        if stalled >= self.__flat:
+            return float(self.__cap)
         return float(min(self.__base * 2 ** (stalled - 1), self.__cap))
 
 
@@ -185,7 +193,7 @@ class BaseLooping(Convergence, ABC):
     so. The open base a custom looping convergence stands on - implement deciding() and inherit the whole
     bounded loop.
 
-    The two built-ins differ only in that decision and in the state it carries: Fixpoint remembers every
+    The two built-ins differ only in that decision and in the state it carries. Fixpoint remembers every
     residual it has seen (to catch an oscillation) and how long it has stalled (to pace a backoff).
     Shrinking carries nothing, comparing only adjacent sizes. That state must be FRESH per run - one
     Convergence instance drives many converge() calls - so the subclass hands back a NEW decision each run
@@ -256,7 +264,7 @@ class Fixpoint(BaseLooping):
     deterministic A<->B loop the way it can drift that is only waiting on external state.
 
     An optional backoff changes what an unchanged (stalled) pass means. Without one it is terminal.
-    With one it becomes a paced retry: Fixpoint waits (growing the wait as stalls repeat) and
+    With one it becomes a paced retry. Fixpoint waits (growing the wait as stalls repeat) and
     re-probes again, up to max_passes, for drift that clears only once external state catches up.
     See Backoff.
     """
@@ -290,7 +298,7 @@ class Fixpoint(BaseLooping):
                 # progress. A deterministic loop that will never converge, one a backoff cannot rescue,
                 # so it is always terminal - stop now instead of spinning to max_passes.
                 return True, 0.0
-            stalled = 0   # a genuinely new state: progress, so a later stall backs off from scratch
+            stalled = 0   # a genuinely new state is progress, so a later stall backs off from scratch
             return False, 0.0
 
         return decide
@@ -298,7 +306,7 @@ class Fixpoint(BaseLooping):
 
 @final
 class Shrinking(BaseLooping):
-    """Repeat the apply -> re-probe cycle only while the residual keeps SHRINKING: stop the moment a
+    """Repeat the apply -> re-probe cycle only while the residual keeps SHRINKING. Stop the moment a
     pass fails to reduce the drift COUNT (a plateau or a growth), the moment it reaches clean or at
     max_passes.
 
@@ -357,7 +365,7 @@ class Budget(Convergence):
       again, so a pass that overruns it overruns it. A Convergence can only decline to ask for more work,
       never interrupt work under way. Where the window is HARD, pair this with cancellation=Deadline,
       which cuts BETWEEN the units of work inside a pass and reports by raising Cancelled. The two are
-      not the same tool wearing different hats: Budget returns a residual for a world that got as far as
+      not the same tool wearing different hats. Budget returns a residual for a world that got as far as
       it got, Deadline raises and leaves the caller to ask what happened, while a run wanting both a soft
       target and a hard stop wants both objects.
     - It refuses to read the residual for anything but emptiness. A stall is not terminal here, unlike

@@ -124,7 +124,7 @@ class Enclosure:
     selection by design. Enclosure asks the cross-level question no verb asks.
 
     It walks the tree through the Enclave seam. For every declared name of every step it finds the
-    steps that would answer it at OTHER levels. Note the "every", not "every unresolved": a name that
+    steps that would answer it at OTHER levels. Note the "every", not "every unresolved". A name that
     matches one instance locally AND another instance a level up is exactly as unguarded on the second one,
     and only counting names that matched NOTHING would miss it. For each such pair it asks the deepest
     common level whether the resolver's representative precedes the leaner's. Ordered means the intent
@@ -150,6 +150,10 @@ class Enclosure:
         self.__labels: dict[Step, str] = {}
         self.__owner: dict[tuple[str, ...], Step] = {}
         self.__fanned: list[str] = []
+        # The two ways a class edge or a capability edge can name something, indexed by the walk rather
+        # than answered by sweeping the tree per declaration. See __elsewhere for what that cost.
+        self.__kinds: dict[type[Step], list[Step]] = {}
+        self.__capabilities: dict[str, list[Step]] = {}
         self.__walk(top, ())
         if len(self.__steps) < 2:
             # A fanout is a boundary this reader genuinely cannot cross, so it is named rather than walked
@@ -178,6 +182,9 @@ class Enclosure:
         for step, label in Step.labelled(steps).items():
             self.__at[step] = path
             self.__labels[step] = "/".join((*path, label))
+            self.__kinds.setdefault(type(step), []).append(step)
+            for offered in step.provides:
+                self.__capabilities.setdefault(offered, []).append(step)
             if isinstance(step, Fanout):
                 self.__fanned.append(self.__labels[step])
             if isinstance(step, Enclave):
@@ -188,20 +195,20 @@ class Enclosure:
     def __elsewhere(self, declared: Match, path: tuple[str, ...]) -> tuple[Step, ...]:
         # Every step in the WHOLE tree that would answer this name, minus the ones at the leaner's own
         # level, which its Graph already resolved (or already knows it did not).
+        #
+        # A LOOKUP rather than a sweep. This used to walk every step in the tree for every declaration of
+        # every step, which is the tree size squared and pays it whether or not anything is severed - a
+        # SOUND nesting with an empty verdict paid it in full. The walk already visits each step once, so
+        # the two indices it fills cost nothing that was not already being paid.
         name = declared.name
-        answering: list[Step] = []
-        for step in self.__at:
-            if self.__at[step] == path:
-                continue
-            if isinstance(name, str):
-                if name in step.provides:
-                    answering.append(step)
-            elif isinstance(name, type):
-                if type(step) is name:
-                    answering.append(step)
-            elif step is name:
-                answering.append(step)
-        return tuple(answering)
+        answering: Sequence[Step]
+        if isinstance(name, str):
+            answering = self.__capabilities.get(name, ())
+        elif isinstance(name, type):
+            answering = self.__kinds.get(name, ())
+        else:
+            answering = (name,) if name in self.__at else ()
+        return tuple(step for step in answering if self.__at[step] != path)
 
     def __representative(self, step: Step, common: tuple[str, ...]) -> Step:
         # The step at the common level that stands for this one. Itself when it lives there, otherwise the
@@ -217,6 +224,16 @@ class Enclosure:
         # means it converges first, which is the intent honoured. The reverse containment is the inverted
         # case. Neither means the boundary simply does not order them.
         severed: list[Severed] = []
+        # The same closure is asked for over and over, once per pair that meets at one level. The tree does
+        # not move while a prove runs. Held for the call rather than on the instance, so a second
+        # prove over a tree somebody edited in between cannot read a stale answer.
+        reached: dict[tuple[tuple[str, ...], Step], frozenset[Step]] = {}
+
+        def closure(common: tuple[str, ...], seed: Step) -> frozenset[Step]:
+            if (common, seed) not in reached:
+                reached[(common, seed)] = self.__graphs[common].closure((seed,))
+            return reached[(common, seed)]
+
         for path, steps in self.__steps.items():
             graph = self.__graphs[path]
             for step in steps:
@@ -237,10 +254,9 @@ class Enclosure:
                         # is the exact inverse of the one job it has.
                         first, second = ((answering, leaning) if declared.kind.precedes
                                          else (leaning, answering))
-                        above = self.__graphs[common]
-                        if second in above.closure((first,)):
+                        if second in closure(common, first):
                             continue                      # the intent survives the boundary
-                        inverted = first in above.closure((second,))
+                        inverted = first in closure(common, second)
                         severed.append(Severed(
                             self.__labels[step], declared.slot, declared.label, self.__labels[resolver],
                             self.__labels[leaning], self.__labels[answering], inverted,

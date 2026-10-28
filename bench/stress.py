@@ -36,16 +36,8 @@ from typing import NamedTuple, final, override
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from cabaxiom import (  # noqa: E402
-    DFS,
-    Components,
-    Drift,
-    Graph,
-    Kahn,
-    Priority,
-    Step,
-    Waves,
-)
+from cabaxiom import Drift, Graph, Kahn, Step  # noqa: E402
+from cabaxiom.core.plan import DFS, Components, Priority, Waves  # noqa: E402
 
 
 @final
@@ -321,8 +313,8 @@ class Stress:
             "derive": min(derived, self.__timed(lambda: Graph(steps), self.__rounds - 1)),
             "demand": self.__timed(graph.demand, self.__rounds),
             "kahn": self.__timed(lambda: Kahn().waves(graph), self.__rounds),
-            "dfs": self.__timed(lambda: DFS()(graph), self.__rounds),
-            "priority": self.__timed(lambda: Priority()(graph), self.__rounds),
+            "dfs": self.__timed(lambda: DFS().flat(graph), self.__rounds),
+            "priority": self.__timed(lambda: Priority().flat(graph), self.__rounds),
             "components": self.__timed(graph.components, self.__rounds),
             "chains": self.__timed(lambda: Components().chains(graph), self.__rounds),
             "closure": self.__timed(lambda: graph.closure(seeds), self.__rounds),
@@ -440,7 +432,7 @@ class Stress:
                 for earlier, later in zip(made, made[1:], strict=False):
                     later.needs = (earlier,)
                 try:
-                    DFS()(Graph(arrange(made)))
+                    DFS().flat(Graph(arrange(made)))
                 except RecursionError:
                     died = length
                     break

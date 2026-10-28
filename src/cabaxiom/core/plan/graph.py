@@ -138,12 +138,12 @@ class Graph:
         if len(present) != len(self.__steps):
             identities = {id(step) for step in self.__steps}
             if len(identities) < len(self.__steps):
-                twice = next(step for index, step in enumerate(self.__steps) if step in self.__steps[:index])
+                twice = Graph.__repeated(self.__steps, id)
                 raise Identity(
                     f"{Step.named(twice)} was handed to this run twice. A step is one concern with one "
                     f"identity, so declare a second instance instead of repeating the first."
                 )
-            collapsed = next(step for index, step in enumerate(self.__steps) if step in set(self.__steps[:index]))
+            collapsed = Graph.__repeated(self.__steps, lambda step: step)
             raise Identity(
                 f"Two distinct {collapsed.__class__.__name__} instances compare EQUAL, so they would collapse "
                 f"into one graph node and the run would derive a smaller world. A Step's identity is the "
@@ -154,7 +154,7 @@ class Graph:
         providers: defaultdict[str, list[Step]] = defaultdict(list)
         for step in self.__steps:
             gathered_by_class[type(step)].append(step)
-            for capability in step.provides:   # instance-read, like tags: a step may provide per instance
+            for capability in step.provides:   # instance-read like tags, so a step may provide per instance
                 providers[capability].append(step)
         self.__instances = {kind: Roster(held) for kind, held in gathered_by_class.items()}
         self.__providers = providers
@@ -182,6 +182,20 @@ class Graph:
         # times. Total by construction (an absent name is an empty match, never an error) and shared by
         # the derivation and by matching(), so the two views cannot disagree about what a name found.
         return kind.addressing.found(name, self.__instances, self.__providers)
+
+    @staticmethod
+    def __repeated(steps: tuple[Step, ...], key: Callable[[Step], object]) -> Step:
+        # The first step whose key was already seen, in one pass. The refusal path must cost what the guard
+        # above cost, linear in the run - a scan of every prefix grew with the square of it. The key is the
+        # identity for a step handed twice and the step itself for two distinct steps that compare equal, so
+        # each sentence names the step it is about even when a run holds both kinds of repeat.
+        seen: set[object] = set()
+        for step in steps:
+            marker = key(step)
+            if marker in seen:
+                return step
+            seen.add(marker)
+        raise AssertionError("A repeat was counted and not found")   # pragma: no cover - the counts above guarantee one
 
     @staticmethod
     def __vet(step: Step, vocabulary: Vocabulary) -> None:

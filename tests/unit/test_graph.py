@@ -3,13 +3,13 @@ and the component split."""
 import unittest
 from dataclasses import dataclass
 
-from cabaxiom import Graph, Step
+from cabaxiom import Graph, Identity, Step
 from cabaxiom.core.declaration.vocabulary import Roster
 from support import A, B, C, X, Y
 
 
 class GraphDerivationTests(unittest.IsolatedAsyncioTestCase):
-    """Derivation is total and instance-keyed: KIND edges fan to every present instance, the INSTANCE edge
+    """Derivation is total and instance-keyed. KIND edges fan to every present instance, the INSTANCE edge
     is scoped to the set, duplicates collapse in first-seen order, where absence is a dead end, not an error."""
 
     def test_a_kind_edge_fans_to_every_present_instance(self):
@@ -57,7 +57,7 @@ class GraphDemandTests(unittest.IsolatedAsyncioTestCase):
         class Needy(Step):
             requires = (A,)
 
-        graph = Graph((Needy(),))   # derivation itself stays total: constructing never raises
+        graph = Graph((Needy(),))   # derivation itself stays total - constructing never raises
         with self.assertRaises(ValueError) as ctx:
             graph.demand()
         self.assertIn("Needy requires A", str(ctx.exception))
@@ -67,14 +67,14 @@ class GraphDemandTests(unittest.IsolatedAsyncioTestCase):
         class Needy(Step):
             requires = (A,)
 
-        Graph((A([]), Needy())).demand()   # no raise: the required kind has an instance present
+        Graph((A([]), Needy())).demand()   # no raise, the required kind has an instance present
 
 
 class GraphDependentsTests(unittest.IsolatedAsyncioTestCase):
     """dependents() is the exact inversion of dependencies(), built lazily and cached."""
 
     def test_dependents_is_the_exact_inversion(self):
-        a, b, c = A([]), B([]), C([])   # the support chain: B after A, C after B
+        a, b, c = A([]), B([]), C([])   # the support chain - B after A, C after B
         graph = Graph((a, b, c))
         self.assertEqual(graph.dependents(a), (b,))
         self.assertEqual(graph.dependents(b), (c,))
@@ -105,7 +105,7 @@ class GraphClosureTests(unittest.IsolatedAsyncioTestCase):
             pass
 
         root, mid, top, bystander = Root(), Mid(), Top(), Bystander()
-        top.needs = (mid,)   # instance edge into a requires edge: the walk crosses both kinds
+        top.needs = (mid,)   # instance edge into a requires edge - the walk crosses both kinds
         graph = Graph((root, mid, top, bystander))
         self.assertEqual(graph.closure((top,)), frozenset({top, mid, root}))   # bystander stays out
 
@@ -113,7 +113,7 @@ class GraphClosureTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(Graph((A([]),)).closure(()), frozenset())
 
     def test_a_prerequisite_already_closed_is_not_walked_twice(self):
-        # Two seeds whose walks meet: C leads back to B, which is already a seed, so the walk skips it
+        # Two seeds whose walks meet. C leads back to B, which is already a seed, so the walk skips it
         # instead of re-frontiering it - the closure terminates on convergent paths, not just on chains.
         a, b, c = A([]), B([]), C([])
         graph = Graph((a, b, c))
@@ -125,7 +125,7 @@ class GraphComponentsTests(unittest.IsolatedAsyncioTestCase):
 
     def test_components_split_where_no_edge_crosses(self):
         a, b, c, x, y = A([]), B([]), C([]), X([]), Y([])
-        graph = Graph((c, a, x, b, y))   # supplied scrambled: membership must not care
+        graph = Graph((c, a, x, b, y))   # supplied scrambled - membership must not care
         names = [tuple(step.__class__.__name__ for step in component) for component in graph.components()]
         self.assertEqual(names, [("C", "A", "B"), ("X",), ("Y",)])   # chain joined, singletons apart, supplied order
 
@@ -160,7 +160,7 @@ class GraphCapabilityTests(unittest.IsolatedAsyncioTestCase):
         api = Api()
         graph = Graph((api,))
         self.assertEqual(graph.dependencies(api), ())
-        graph.demand()   # soft: nothing to insist on
+        graph.demand()   # soft, nothing to insist on
 
     def test_demands_orders_exactly_like_wants_when_provided(self):
         class Db(Step):
@@ -339,7 +339,7 @@ class StepDeclarationGuardTests(unittest.IsolatedAsyncioTestCase):
 
 class IdentityIsTheCurrencyTests(unittest.IsolatedAsyncioTestCase):
     """Every structure the kernel derives is keyed by step INSTANCE, so the identity contract is enforced
-    twice: a hand-written __eq__ or __hash__ is refused where it is written, while the Graph catches what no
+    twice. A hand-written __eq__ or __hash__ is refused where it is written, while the Graph catches what no
     class-definition hook can see - a decorator that rewrote equality after the class was created, which
     used to collapse two steps into one node and blame an innocent Ordering for the shrunken world."""
 
@@ -405,6 +405,21 @@ class IdentityIsTheCurrencyTests(unittest.IsolatedAsyncioTestCase):
         graph = Graph((first, second))
         self.assertEqual(len(graph.steps), 2)   # two concerns, two nodes, no collapse
 
+    def test_a_repeat_beside_an_equal_pair_names_the_step_handed_twice(self):
+        # The search for the repeated instance compared with ==, so a run holding a pair of distinct but equal
+        # steps AND one instance handed twice blamed the equal pair for the repeat. It is found by identity now.
+        @dataclass(frozen=True)
+        class Valued(Step):
+            pass
+
+        class Repeated(Step):
+            pass
+
+        twice = Repeated()
+        with self.assertRaises(Identity) as refused:
+            Graph((Valued(), Valued(), twice, twice))
+        self.assertIn("Repeated was handed to this run twice", str(refused.exception))
+
     def test_the_same_instance_handed_twice_gets_its_own_sentence(self):
         class Solo(Step):
             pass
@@ -459,7 +474,7 @@ class OnePlaneForEveryDeclarationTests(unittest.IsolatedAsyncioTestCase):
 
 
 class RosterTests(unittest.IsolatedAsyncioTestCase):
-    """The instance table's value type: a Sequence that can also be ASKED in constant time.
+    """The instance table's value type, a Sequence that can also be ASKED in constant time.
 
     It exists because `step in instances[cls]` over a list is linear, which made the whole derivation
     quadratic on any declaration addressing by instance - a 200000 step chain took a hundred seconds. The

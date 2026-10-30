@@ -8,6 +8,22 @@ Every release is a pre-release on the road to the 1.0.0 freeze.
 
 Nothing yet.
 
+## [0.7.1] - 2026-10-30
+
+**Seven defects the 0.7.0 tree still carried, each reproduced on it before it was fixed.**
+
+### Fixed
+- **A doubling backoff holds at its cap instead of overflowing.** `Exponential` built `base * 2 ** (stalled - 1)` and clamped it afterwards. With a float base the 1025th stall raised `OverflowError` from inside the pause, long after the ramp had reached its cap. `Budget` has no ceiling on passes, so a long stall can get there. The stall at which the ramp is flat is worked out once in the constructor and the power is never built past it. Every stall from 1 to 1023 answers as before across nine base and cap pairs.
+- **A contended resource stays a label in a Mermaid drawing.** `Mermaid.contended` pasted the resource name into `-.-|...|` raw, so a pipe in it closed the label and left the rest of the line as graph syntax. DOT escaped the same value from the start. The resource now goes through the escape a node label takes, so a contention link reads `-.-|"database"|`. The README's sample drawing named a slot `after` that was renamed in 0.5.0 and paired the wrong two steps. It shows what the run draws now.
+- **The package imports where no distribution is installed.** `__version__` read the distribution metadata and had no other answer, so a vendored copy, a checkout on `sys.path` or a zipapp raised `PackageNotFoundError` at import. It falls back to `0+unknown`, which says it does not know rather than guessing.
+- **An enclave refusal samples the inner record.** When a published key is missing and inner failures explain it, the refusal joined every inner message into one string, thirty-three thousand characters at a thousand failures. It names the count and the first three now. The full record is still on the inner residual.
+- **The identity refusal costs one pass and names the right step.** The searches for a repeated instance and for an equal pair tested every step against the prefix before it, 313 ms for one duplicate at ten thousand steps. The first also compared with `==`, so a run holding an equal pair beside one instance handed twice blamed the pair. One pass with a seen set now, 73 ms at fifty thousand.
+- **`Enclosure.prove` indexes the tree once.** It swept every step in the tree for every declaration and re-derived the same closure per pair, so a sound twenty-level nesting of 4220 steps took 1.67 s with nothing to report. Two indices filled by the walk replace the sweep and the closure is memoised for one call, 0.025 s on the same tree. The verdicts are identical on six seeded trees with real severances.
+- **The stress benchmark runs again.** `bench/stress.py` imported four names the 0.7.0 door moved to `cabaxiom.core.plan` and called an `Ordering` as a function. It imports along the door and calls `flat()`. `--check` exits clean with every operation inside the ratio its complexity allows.
+
+### BC break
+Nothing.
+
 ## [0.7.0] - 2026-10-26
 
 **The kernel is four layers and three benches. The front door says what you declare, run and catch. Every name that moved says where it went.**
@@ -278,7 +294,8 @@ Nothing. 0.3.1 is 0.3.0 with two defects removed.
 Planned milestones, in rough order. Nothing here is a promise of scope.
 
 - **1.0.0** - API stability. Freeze the public surface and commit to Semantic Versioning guarantees for it. The first non-prerelease, cut from the last of the 0.x line.
-[unreleased]: https://github.com/pizgariu/cabaxiom/compare/v0.7.0...HEAD
+[unreleased]: https://github.com/pizgariu/cabaxiom/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/pizgariu/cabaxiom/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/pizgariu/cabaxiom/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/pizgariu/cabaxiom/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/pizgariu/cabaxiom/compare/v0.6.0...v0.6.1

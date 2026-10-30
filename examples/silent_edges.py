@@ -35,11 +35,15 @@ import sys
 from pathlib import Path
 
 try:
-    from cabaxiom import Assessment, DriftItem, Enclave, Enclosure, Reconciler, Step, Succession, Transition
+    from cabaxiom import Assessment, DriftItem, Reconciler, Step
+    from cabaxiom.core.plan import Succession
+    from cabaxiom.core.run import Enclave, Enclosure, Transition
     from cabaxiom.laboratory import Idempotence
 except ModuleNotFoundError:  # running from a source checkout without an install
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-    from cabaxiom import Assessment, DriftItem, Enclave, Enclosure, Reconciler, Step, Succession, Transition
+    from cabaxiom import Assessment, DriftItem, Reconciler, Step
+    from cabaxiom.core.plan import Succession
+    from cabaxiom.core.run import Enclave, Enclosure, Transition
     from cabaxiom.laboratory import Idempotence
 
 world: set[str] = set()

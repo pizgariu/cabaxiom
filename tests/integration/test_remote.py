@@ -17,18 +17,15 @@ from cabaxiom import (
     Graph,
     OnError,
     Parallel,
-    Permit,
     Reconciler,
-    RemoteDispatcher,
     Retry,
     Skew,
     Step,
     Supervised,
-    ThreadDispatcher,
 )
-from cabaxiom.core.declaration import Authority, Cancellation, Local
+from cabaxiom.core.declaration import Authority, Cancellation, Local, Permit
 from cabaxiom.core.record import Observer
-from cabaxiom.core.run import Crossing, Write
+from cabaxiom.core.run import Crossing, RemoteDispatcher, ThreadDispatcher, Write
 from cabaxiom.laboratory import Adversary, ChaosDispatcher, Sabotage
 
 

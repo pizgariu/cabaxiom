@@ -38,20 +38,9 @@ from collections.abc import Callable
 from multiprocessing.connection import Connection
 from multiprocessing.pool import Pool
 
-from cabaxiom import (
-    Assessment,
-    Cancelled,
-    DriftItem,
-    OnError,
-    Parallel,
-    Reconciler,
-    RemoteDispatcher,
-    Retry,
-    Skew,
-    Step,
-)
+from cabaxiom import Assessment, Cancelled, DriftItem, OnError, Parallel, Reconciler, Retry, Skew, Step
 from cabaxiom.core.record import Observer
-from cabaxiom.core.run import Crossing
+from cabaxiom.core.run import Crossing, RemoteDispatcher
 
 # The one deliberate context. See the module docstring for why it is not the platform's default.
 CONTEXT = multiprocessing.get_context("spawn")

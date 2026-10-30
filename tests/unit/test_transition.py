@@ -2,7 +2,8 @@
 import asyncio
 import unittest
 
-from cabaxiom import Assessment, DriftItem, Reconciler, Step, Transition
+from cabaxiom import Assessment, DriftItem, Reconciler, Step
+from cabaxiom.core.run import Transition
 
 
 class _Owned(Step):

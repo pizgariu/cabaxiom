@@ -3,8 +3,8 @@ verify() rejects their mis-splits, the Ledger blocks through them, Only pulls pr
 run, Components join through them, then demand() fires at resolution. Not one guard learned a new kind."""
 import unittest
 
-from cabaxiom import Graph, OnError, Only, Parallel, Reconciler, Step
-from cabaxiom.core.plan import Components, WavesPartition
+from cabaxiom import Graph, OnError, Parallel, Reconciler, Step
+from cabaxiom.core.plan import Components, Only, WavesPartition
 
 
 class CapabilityRideTests(unittest.IsolatedAsyncioTestCase):

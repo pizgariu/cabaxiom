@@ -9,9 +9,10 @@ import threading
 import time
 import unittest
 
-from cabaxiom import Assessment, DriftItem, Parallel, Reconciler, Step, ThreadDispatcher
+from cabaxiom import Assessment, DriftItem, Parallel, Reconciler, Step
 from cabaxiom.core.plan import Components, Ordering, Seat
 from cabaxiom.core.record import Reading, Statement
+from cabaxiom.core.run import ThreadDispatcher
 
 
 class _Timed(Step):

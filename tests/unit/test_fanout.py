@@ -1,7 +1,8 @@
 """Fanout. A step that lists its world each pass and converges a graph over what it found."""
 import unittest
 
-from cabaxiom import Assessment, DriftItem, Enclave, Enclosure, Fanout, Fixpoint, Reconciler, Retry, Step
+from cabaxiom import Assessment, DriftItem, Fixpoint, Reconciler, Retry, Step
+from cabaxiom.core.run import Enclave, Enclosure, Fanout
 from cabaxiom.laboratory import Idempotence
 
 

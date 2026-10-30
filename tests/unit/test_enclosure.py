@@ -3,7 +3,8 @@ selection, so a step that leans across an enclave boundary gets a silent dead en
 level can see it. Pure structure, no world touched."""
 import unittest
 
-from cabaxiom import Enclave, Enclosure, Reconciler, Step
+from cabaxiom import Reconciler, Step
+from cabaxiom.core.run import Enclave, Enclosure
 
 
 class Network(Step):

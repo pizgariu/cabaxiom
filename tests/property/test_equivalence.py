@@ -2,17 +2,8 @@
 come out the same whichever of them drives it - clean or broken."""
 import unittest
 
-from cabaxiom import (
-    Assessment,
-    DriftItem,
-    Kahn,
-    OnError,
-    Parallel,
-    Reconciler,
-    Step,
-    Supervised,
-    ThreadDispatcher,
-)
+from cabaxiom import Assessment, DriftItem, Kahn, OnError, Parallel, Reconciler, Step, Supervised
+from cabaxiom.core.run import ThreadDispatcher
 
 
 class _Written(Step):

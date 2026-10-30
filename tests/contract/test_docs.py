@@ -199,6 +199,22 @@ class DocumentedAttributeTests(unittest.IsolatedAsyncioTestCase):
                     )
 
 
+# The two counts docs/architecture.md writes out in words. A page cannot compute, so the number it spells
+# drifts the day a name lands - it said a hundred and thirty-eight where the layers published a hundred and
+# forty-four. Pinned here rather than left to a reader counting for themselves.
+_SPELLED = {43: "forty-three", 144: "one hundred and forty-four"}
+
+
+class DocumentedCountTests(unittest.IsolatedAsyncioTestCase):
+    def test_the_counts_the_page_spells_out_are_the_counts_that_ship(self):
+        page = (_ROOT / "docs" / "architecture.md").read_text(encoding="utf-8")
+        for named, counted in (("cabaxiom", len(cabaxiom.__all__)), ("cabaxiom.core", len(cabaxiom.core.__all__))):
+            with self.subTest(module=named):
+                self.assertIn(counted, _SPELLED, f"{named}.__all__ holds {counted} names and nothing spells it")
+                self.assertIn(_SPELLED[counted], page,
+                              f"{named}.__all__ holds {counted} and the page stopped saying {_SPELLED[counted]}")
+
+
 class ReadmeBlockTests(unittest.IsolatedAsyncioTestCase):
     """The README's blocks are the first code anyone reads. A fragment cannot be run, yet a fragment
     that is not even Python is simply wrong, which the parser settles for free."""

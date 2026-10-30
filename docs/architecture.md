@@ -44,11 +44,16 @@ imports it actually contains and fails on any arrow that points the wrong way, n
 line. It was checked by breaking the layering three ways and watching each break get caught, including one
 that makes no import cycle, since a violation Python itself rejects proves nothing about the guard.
 
-Two addresses reach the same objects. `cabaxiom` publishes what you DECLARE, RUN and CATCH, which is
-fifty-nine names. `cabaxiom.core.<layer>` publishes all one hundred and forty-four, so an axis base
-class, a value the kernel mints rather than takes and the non-default strategy on an axis are one import
-deeper instead of standing in the doorway. Nothing is hidden by that and nothing is private. The layer
-says where a thing lives and saying so is the point.
+Two addresses reach the same objects. `cabaxiom` publishes what you DECLARE, RUN, READ and CATCH, which is
+forty-three names. `cabaxiom.core.<layer>` publishes all one hundred and forty-four, so an axis base class,
+a value the kernel mints rather than takes and the non-default strategy on an axis are one import deeper
+instead of standing in the doorway. Nothing is hidden by that and nothing is private. The layer says where
+a thing lives and saying so is the point.
+
+The two addresses carry different PROMISES since 1.0.0. The door is frozen for the 1.x line. The layers are
+public and documented. They are not frozen, so a name there can move in a minor. A name graduates to the
+door when it has earned that, which is what the minors after the freeze are for. `MIGRATING.md` says it in
+the words an upgrade needs.
 
 The ready-made `Step`s for real domains - a development machine, a repository fleet, a warehouse - are
 NOT in the wheel. They live in `examples/battery/`, held to the same strict typing and full branch

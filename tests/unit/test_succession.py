@@ -2,7 +2,8 @@
 vote - a soft edge whose whole match set left, plus a comparison that recognised nothing at all."""
 import unittest
 
-from cabaxiom import Graph, Step, Succession
+from cabaxiom import Graph, Step
+from cabaxiom.core.plan import Succession
 
 
 class Database(Step):

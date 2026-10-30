@@ -30,11 +30,13 @@ import sys
 from pathlib import Path
 
 try:
-    from cabaxiom import Assessment, DriftItem, Enclave, Reconciler, Step
+    from cabaxiom import Assessment, DriftItem, Reconciler, Step
+    from cabaxiom.core.run import Enclave
     from cabaxiom.laboratory import Idempotence
 except ModuleNotFoundError:  # running from a source checkout without an install
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-    from cabaxiom import Assessment, DriftItem, Enclave, Reconciler, Step
+    from cabaxiom import Assessment, DriftItem, Reconciler, Step
+    from cabaxiom.core.run import Enclave
     from cabaxiom.laboratory import Idempotence
 
 

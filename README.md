@@ -348,7 +348,8 @@ The Step surface and the reconciler surface align verb for verb and `Enclave` cl
 ```python
 import asyncio
 
-from cabaxiom import Enclave, Parallel, Reconciler
+from cabaxiom import Parallel, Reconciler
+from cabaxiom.core.run import Enclave
 from cabaxiom.laboratory import Idempotence
 
 database = Reconciler(db_steps, mode=Parallel())    # a whole stack...
@@ -368,7 +369,8 @@ An `Enclave` holds a stack you already built. A `Fanout` builds one **per pass**
 the moment, which is how a declaration naming one concern answers for however many things exist today.
 
 ```python
-from cabaxiom import Fanout, Reconciler
+from cabaxiom import Reconciler
+from cabaxiom.core.run import Fanout
 
 class SweepBuckets(Fanout):
     async def explore(self, inputs):                      # the listing goes in a verb, never a constructor
@@ -389,7 +391,7 @@ it twice, once for the write and once for the re-probe that proves the write.
 Fractal nesting has one hazard and it is silent. Each reconciler derives its structure over its OWN steps, so a step inside an enclave that declares `expects=(Network,)` while the `Network` lives in the parent gets a dead end - an absent name is trusted to the world, nothing raises - and the parent orders the enclave only by the enclave's own declarations. The inner step can genuinely run first and neither level's `explain()` can see it, because every read is scoped to one reconciler by design.
 
 ```python
-from cabaxiom import Enclosure
+from cabaxiom.core.run import Enclosure
 
 severance = Enclosure(top).prove()
 assert severance.airtight                     # no declared ordering dies at a boundary
@@ -408,7 +410,7 @@ A step removed from the desired set just stops being mentioned - and whatever it
 ```python
 import asyncio
 
-from cabaxiom import Transition
+from cabaxiom.core.run import Transition
 
 cutover = asyncio.run(Transition(previous_steps, desired_steps).converge())
 assert cutover.clean         # the leavers are gone AND the new declaration converged
@@ -466,7 +468,7 @@ The [`examples/`](examples/) directory holds four runnable, self-contained progr
 `Transition` moves the world. `Succession` reads the same two declarations and tells you what the move does to the STRUCTURE, before anything runs - the only member of the proof family that touches nothing at all, so it belongs in a pre-commit hook or a review, not a sandbox.
 
 ```python
-from cabaxiom import Succession
+from cabaxiom.core.plan import Succession
 
 rift = Succession(previous_steps, desired_steps).compare()
 if rift.torn:                                    # a soft edge lost its whole match set
@@ -493,7 +495,7 @@ A staged rollout is just several declarations of one world at growing amplitude 
 ```python
 import asyncio
 
-from cabaxiom import Itinerary
+from cabaxiom.core.run import Itinerary
 
 itinerary = Itinerary([(), baseline, canary, fleet])   # start from () to build from scratch
 passage = asyncio.run(itinerary.converge())

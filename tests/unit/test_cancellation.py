@@ -8,7 +8,6 @@ from cabaxiom import (
     Cancelled,
     Deadline,
     DriftItem,
-    Every,
     Flag,
     Kahn,
     OnError,
@@ -16,9 +15,9 @@ from cabaxiom import (
     Reconciler,
     Step,
     Supervised,
-    ThreadDispatcher,
 )
-from cabaxiom.core.declaration import AllOf, AnyOf, Cancellation, Majority, Most, Quorum
+from cabaxiom.core.declaration import AllOf, AnyOf, Cancellation, Every, Majority, Most, Quorum
+from cabaxiom.core.run import ThreadDispatcher
 from support import A, B, C
 
 

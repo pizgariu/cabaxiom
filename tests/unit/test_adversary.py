@@ -4,9 +4,10 @@ failure the Ledger records, a delay just slows the step so a Deadline can catch 
 import random
 import unittest
 
-from cabaxiom import Cancelled, DriftItem, OnError, Parallel, Permit, Reconciler, Retry, Step, ThreadDispatcher
-from cabaxiom.core.declaration import Authority
+from cabaxiom import Cancelled, DriftItem, OnError, Parallel, Reconciler, Retry, Step
+from cabaxiom.core.declaration import Authority, Permit
 from cabaxiom.core.record import Observer
+from cabaxiom.core.run import ThreadDispatcher
 from cabaxiom.laboratory import ChaosDispatcher, Sabotage
 
 

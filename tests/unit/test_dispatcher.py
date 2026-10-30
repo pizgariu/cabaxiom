@@ -6,7 +6,6 @@ from cabaxiom import (
     Assessment,
     Cancelled,
     DriftItem,
-    Flow,
     Graph,
     Kahn,
     Ledger,
@@ -19,7 +18,7 @@ from cabaxiom import (
 )
 from cabaxiom.core.plan import DFS, Arranger, Ordering, Overlap, Walk, WalkPartition, Waves, WavesPartition
 from cabaxiom.core.record import Observer, Reading, Statement
-from cabaxiom.core.run import Dispatcher, RunMode
+from cabaxiom.core.run import Dispatcher, Flow, RunMode
 from support import A, B, Boom, C, X, Y, Z
 
 
@@ -645,7 +644,8 @@ class OverlapPairingTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("runs the groups at the same time", str(refused.exception))
 
     def test_every_shipped_pairing_is_honest(self):
-        from cabaxiom import Supervised, ThreadDispatcher
+        from cabaxiom import Supervised
+        from cabaxiom.core.run import ThreadDispatcher
 
         for executor in (Parallel(), Supervised(), ThreadDispatcher()):
             with self.subTest(mode=executor.__class__.__name__):
@@ -658,8 +658,8 @@ class OverlapPairingTests(unittest.IsolatedAsyncioTestCase):
         # the thread bridge walked a CHAIN shape, ran a step beside its own prerequisite, handed it an empty
         # payload and reported the run clean - while the identical BARE pairing was correctly refused. The
         # decorator answers for the pair now, so wrapping cannot launder a mismatch.
-        from cabaxiom import ThreadDispatcher
         from cabaxiom.core.plan import Chains, Components
+        from cabaxiom.core.run import ThreadDispatcher
         from cabaxiom.core.run.dispatcher import _Gather
         from cabaxiom.laboratory import ChaosDispatcher, Sabotage
 

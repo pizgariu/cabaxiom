@@ -13,8 +13,8 @@ nobody can see. These pin that choice at every place it shows.
 import asyncio
 import unittest
 
-from cabaxiom import Assessment, Deferred, DriftItem, OnError, Parallel, Permit, Reconciler, Retry, Step, Supervised
-from cabaxiom.core.declaration import Authority, Local
+from cabaxiom import Assessment, Deferred, DriftItem, OnError, Parallel, Reconciler, Retry, Step, Supervised
+from cabaxiom.core.declaration import Authority, Local, Permit
 
 
 class Counted(Step):

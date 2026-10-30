@@ -182,7 +182,7 @@ class EveryMovedNameSaysWhereItWentTests(unittest.TestCase):
         # table's agreement with reality, so this is where that is caught.
         from cabaxiom import _MOVED
 
-        listed = {name for names in _MOVED.values() for name in names}
+        listed = set(_MOVED)
         dropped = (set(cabaxiom.core.__all__) | set(cabaxiom.laboratory.__all__)) - set(cabaxiom.__all__)
         self.assertEqual(dropped - listed, set(), "left the door with no forwarding address")
         self.assertEqual(listed - dropped, set(), "listed as moved and still in the door")
@@ -192,15 +192,51 @@ class EveryMovedNameSaysWhereItWentTests(unittest.TestCase):
 
         from cabaxiom import _MOVED
 
-        for where, names in _MOVED.items():
-            module = importlib.import_module(where)
-            for name in names:
-                with self.subTest(name=name, where=where):
-                    self.assertTrue(hasattr(module, name), f"{where} does not hold {name}")
+        for name, (where, _window) in _MOVED.items():
+            with self.subTest(name=name, where=where):
+                self.assertTrue(hasattr(importlib.import_module(where), name), f"{where} does not hold {name}")
+
+    def test_every_name_a_published_door_carried_still_answers(self):
+        # 0.4.2 and 0.7.1 both went out to PyPI, so each list is a surface a real upgrade arrives from. Every
+        # name on them must meet a SENTENCE - either the layer it moved to or what replaced it. A name in
+        # neither table falls through to a bare AttributeError, which CPython rewrites into "cannot import
+        # name", naming nothing. Three of them did exactly that until 1.0.0.
+        #
+        # HARDCODED on purpose. It is the published past and cannot change, so deriving it from anything in
+        # the tree would only let the tree edit its own history.
+        published = {
+            "0.4.2": {
+                "AllOf", "AnyOf", "Assessment", "Backoff", "BaseDispatcher", "Cancellation", "Cancelled", "Chains",
+                "Changes", "Chorus", "Clean", "Components", "Convergence", "DFS", "Deadline", "Dispatcher", "Drift",
+                "DriftItem", "Every", "Explanation", "Exponential", "Fixed", "Fixpoint", "Flag", "Jitter", "Kahn",
+                "Levels", "Majority", "Most", "Observer", "OnError", "Once", "Only", "Ordering", "Outcome", "Parallel",
+                "Partition", "Pipeline", "Placement", "Priority", "Quorum", "Reconciler", "Residual", "Retry", "Rule",
+                "Scope", "Serial", "Settle", "Skip", "Some", "Stable", "Step", "ThreadDispatcher", "Write",
+            },
+            "0.7.1": {
+                "Artifacts", "Assessment", "AsyncFlowAssessment", "AsyncFlowOutcome", "Cancelled", "Changes", "Clean",
+                "Coverage", "Cutover", "Cycle", "DataFlow", "Deadline", "Deferred", "Drift", "DriftItem", "Enclave",
+                "Enclosure", "Every", "Exponential", "Fanout", "Fault", "Fixed", "Fixpoint", "Flag", "Flow",
+                "FlowAssessment", "FlowOutcome", "Graph", "Identity", "Itinerary", "Journal", "Kahn", "Ledger",
+                "Malformed", "Misconfigured", "Observer", "OnError", "Only", "Pairing", "Parallel", "Permit",
+                "Presence", "Reconciler", "RemoteDispatcher", "Residual", "Retry", "Seating", "Serial", "Skew", "Skip",
+                "Stable", "Step", "Succession", "Supervised", "ThreadDispatcher", "Transition", "Unresolvable",
+                "WithTag", "WithoutTag",
+            },
+        }
+        from cabaxiom import _MOVED, _SEALED
+
+        for release, door in published.items():
+            for name in sorted(door):
+                with self.subTest(release=release, name=name):
+                    if name in cabaxiom.__all__:
+                        continue
+                    self.assertTrue(name in _MOVED or name in _SEALED,
+                                    f"{name} stood on the {release} door and now answers with nothing")
 
     def test_the_refusal_names_the_line_to_type(self):
         for name, where in (("Waves", "cabaxiom.core.plan"), ("Siege", "cabaxiom.laboratory"),
-                            ("RunMode", "cabaxiom.core.run"), ("Vocabulary", "cabaxiom.core.declaration")):
+                            ("Enclave", "cabaxiom.core.run"), ("Permit", "cabaxiom.core.declaration")):
             with self.subTest(name=name):
                 with self.assertRaises(ImportError) as refused:
                     getattr(cabaxiom, name)

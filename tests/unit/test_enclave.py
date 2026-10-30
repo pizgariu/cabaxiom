@@ -2,8 +2,8 @@
 import asyncio
 import unittest
 
-from cabaxiom import Assessment, DriftItem, Enclave, OnError, Parallel, Reconciler, Step
-from cabaxiom.core.run import Unpublished
+from cabaxiom import Assessment, DriftItem, OnError, Parallel, Reconciler, Step
+from cabaxiom.core.run import Enclave, Unpublished
 from cabaxiom.laboratory import Idempotence
 from support import Fixable, ReportOnly
 

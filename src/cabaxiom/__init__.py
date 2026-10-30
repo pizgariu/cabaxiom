@@ -26,61 +26,45 @@ from .core import (
     Assessment,
     AsyncFlowAssessment,
     AsyncFlowOutcome,
+    Cancellation,
     Cancelled,
     Changes,
-    Clean,
     Coverage,
-    Cutover,
     Cycle,
     DataFlow,
     Deadline,
     Deferred,
     Drift,
     DriftItem,
-    Enclave,
-    Enclosure,
-    Every,
     Exponential,
-    Fanout,
     Fault,
     Fixed,
     Fixpoint,
     Flag,
-    Flow,
     FlowAssessment,
     FlowOutcome,
     Graph,
     Identity,
-    Itinerary,
-    Journal,
     Kahn,
     Ledger,
     Malformed,
     Misconfigured,
     Observer,
     OnError,
-    Only,
     Pairing,
     Parallel,
-    Permit,
     Presence,
+    Reading,
     Reconciler,
-    RemoteDispatcher,
     Residual,
     Retry,
     Seating,
     Serial,
     Skew,
-    Skip,
-    Stable,
     Step,
-    Succession,
     Supervised,
-    ThreadDispatcher,
-    Transition,
     Unresolvable,
-    WithoutTag,
-    WithTag,
+    Vocabulary,
 )
 
 # ONE SOURCE OF TRUTH still, beside a package that imports without it. The number lives in the distribution
@@ -95,24 +79,45 @@ except _metadata.PackageNotFoundError:
     __version__ = "0+unknown"
 
 __all__ = [
-    "Cancelled",
-    "Deadline",
-    "Deferred",
-    "Every",
-    "Fault",
-    "Flag",
-    "Skew",
-    "Artifacts",
-    "AsyncFlowAssessment",
-    "AsyncFlowOutcome",
-    "FlowAssessment",
-    "FlowOutcome",
+    # what you DECLARE
+    "Step",
     "Assessment",
     "Changes",
     "Drift",
     "DriftItem",
-    "Coverage",
+    "Artifacts",
+    "FlowAssessment",
+    "FlowOutcome",
+    "AsyncFlowAssessment",
+    "AsyncFlowOutcome",
+    "Vocabulary",
+    # what you RUN
+    "Reconciler",
+    "Graph",
+    "Kahn",
+    "Serial",
+    "Parallel",
+    "Supervised",
+    "OnError",
+    "Fixpoint",
+    "Retry",
+    "Fixed",
+    "Exponential",
+    "Cancellation",
+    "Deadline",
+    "Flag",
+    # what you READ
+    "Residual",
+    "Reading",
+    "Ledger",
+    "Observer",
+    # what you CATCH
+    "Cancelled",
+    "Deferred",
+    "Fault",
+    "Skew",
     "Cycle",
+    "Coverage",
     "DataFlow",
     "Identity",
     "Malformed",
@@ -121,39 +126,6 @@ __all__ = [
     "Presence",
     "Seating",
     "Unresolvable",
-    "Permit",
-    "Step",
-    "Graph",
-    "Kahn",
-    "Only",
-    "Skip",
-    "WithTag",
-    "WithoutTag",
-    "Succession",
-    "Ledger",
-    "Observer",
-    "OnError",
-    "Journal",
-    "Residual",
-    "Exponential",
-    "Fixed",
-    "Fixpoint",
-    "Flow",
-    "Parallel",
-    "RemoteDispatcher",
-    "Serial",
-    "Supervised",
-    "ThreadDispatcher",
-    "Enclave",
-    "Enclosure",
-    "Fanout",
-    "Itinerary",
-    "Reconciler",
-    "Retry",
-    "Clean",
-    "Stable",
-    "Cutover",
-    "Transition",
 ]
 
 # WHERE A NAME WENT, so an upgrade meets a sentence instead of a dead end. The 0.7.0 window narrowed this
@@ -165,29 +137,139 @@ __all__ = [
 # STRINGS, not imports. Resolving this map at import time would drag the laboratory into sys.modules and
 # break the very claim the split was made for, so nothing here is imported until somebody asks by name.
 # A test walks it against the live packages, which is where that check belongs.
-_MOVED: dict[str, tuple[str, ...]] = {
-    "cabaxiom.core.declaration": (
-        "Addressing", "AllOf", "AnyOf", "Authority", "BY_CLASS", "BY_INSTANCE", "BY_LABEL", "Cancellation",
-        "EdgeKind", "Local", "Majority", "Most", "Quorum", "Rule", "Some", "Vocabulary",
-    ),
-    "cabaxiom.core.plan": (
-        "Arranger", "BaseFan", "BaseNamed", "BaseTagged", "Chains", "ChainsPartition", "Components", "DFS",
-        "Declared", "Match", "Ordering", "Overlap", "Partition", "Placement", "Priority", "Rift", "Scope",
-        "Seat", "Shift", "Walk", "WalkPartition", "Waves", "WavesPartition", "WithEveryTag",
-    ),
-    "cabaxiom.core.record": (
-        "Arrow", "Binding", "Casualty", "Ceiling", "Charter", "Chorus", "Diagram", "Dot", "Explanation", "Node", "Logging", "Mermaid",
-        "Pass", "Reading", "Span", "Stamp", "Statement", "Timing", "Tone", "Warrant",
-    ),
-    "cabaxiom.core.run": (
-        "Backoff", "BaseDispatcher", "BaseLooping", "BaseRetry", "Budget", "Convergence", "Decision", "Crossing",
-        "Answered", "Dispatcher", "Fibonacci", "Jitter", "Linear", "Once", "Passage", "Payload", "RunMode", "Settle", "Settled",
-        "Severance", "Severed", "Shrinking", "Unpublished", "WavesDispatcher", "Write",
-    ),
-    "cabaxiom.laboratory": (
-        "Adversary", "Breach", "ChaosDispatcher", "Charge", "Churn", "Idempotence", "Indictment",
-        "Isolation", "Proof", "Reversibility", "Roundtrip", "Sabotage", "Siege", "Stall", "Targeted",
-    ),
+# WHERE A NAME LIVES and WHEN it left, one row per name so a refusal can name the window it belongs
+# to. The table was keyed by layer, which forced one version on a whole layer - true while every
+# name left in the same window and false the moment 1.0.0 narrowed the door a second time.
+#
+# STRINGS, not imports. Resolving this at import time would drag the laboratory into sys.modules and
+# break the very claim the split was made for, so nothing here is imported until somebody asks by
+# name. A contract test walks it against the live packages, which is where that check belongs.
+_MOVED: dict[str, tuple[str, str]] = {
+    # cabaxiom.core.declaration, 0.7.0
+    "Addressing": ("cabaxiom.core.declaration", "0.7.0"),
+    "AllOf": ("cabaxiom.core.declaration", "0.7.0"),
+    "AnyOf": ("cabaxiom.core.declaration", "0.7.0"),
+    "Authority": ("cabaxiom.core.declaration", "0.7.0"),
+    "BY_CLASS": ("cabaxiom.core.declaration", "0.7.0"),
+    "BY_INSTANCE": ("cabaxiom.core.declaration", "0.7.0"),
+    "BY_LABEL": ("cabaxiom.core.declaration", "0.7.0"),
+    "EdgeKind": ("cabaxiom.core.declaration", "0.7.0"),
+    "Local": ("cabaxiom.core.declaration", "0.7.0"),
+    "Majority": ("cabaxiom.core.declaration", "0.7.0"),
+    "Most": ("cabaxiom.core.declaration", "0.7.0"),
+    "Quorum": ("cabaxiom.core.declaration", "0.7.0"),
+    "Rule": ("cabaxiom.core.declaration", "0.7.0"),
+    "Some": ("cabaxiom.core.declaration", "0.7.0"),
+    # cabaxiom.core.declaration, 1.0.0
+    "Every": ("cabaxiom.core.declaration", "1.0.0"),
+    "Permit": ("cabaxiom.core.declaration", "1.0.0"),
+    # cabaxiom.core.plan, 0.7.0
+    "Arranger": ("cabaxiom.core.plan", "0.7.0"),
+    "BaseFan": ("cabaxiom.core.plan", "0.7.0"),
+    "BaseNamed": ("cabaxiom.core.plan", "0.7.0"),
+    "BaseTagged": ("cabaxiom.core.plan", "0.7.0"),
+    "Chains": ("cabaxiom.core.plan", "0.7.0"),
+    "ChainsPartition": ("cabaxiom.core.plan", "0.7.0"),
+    "Components": ("cabaxiom.core.plan", "0.7.0"),
+    "DFS": ("cabaxiom.core.plan", "0.7.0"),
+    "Declared": ("cabaxiom.core.plan", "0.7.0"),
+    "Match": ("cabaxiom.core.plan", "0.7.0"),
+    "Ordering": ("cabaxiom.core.plan", "0.7.0"),
+    "Overlap": ("cabaxiom.core.plan", "0.7.0"),
+    "Partition": ("cabaxiom.core.plan", "0.7.0"),
+    "Placement": ("cabaxiom.core.plan", "0.7.0"),
+    "Priority": ("cabaxiom.core.plan", "0.7.0"),
+    "Rift": ("cabaxiom.core.plan", "0.7.0"),
+    "Scope": ("cabaxiom.core.plan", "0.7.0"),
+    "Seat": ("cabaxiom.core.plan", "0.7.0"),
+    "Shift": ("cabaxiom.core.plan", "0.7.0"),
+    "Walk": ("cabaxiom.core.plan", "0.7.0"),
+    "WalkPartition": ("cabaxiom.core.plan", "0.7.0"),
+    "Waves": ("cabaxiom.core.plan", "0.7.0"),
+    "WavesPartition": ("cabaxiom.core.plan", "0.7.0"),
+    "WithEveryTag": ("cabaxiom.core.plan", "0.7.0"),
+    # cabaxiom.core.plan, 1.0.0
+    "Only": ("cabaxiom.core.plan", "1.0.0"),
+    "Skip": ("cabaxiom.core.plan", "1.0.0"),
+    "Succession": ("cabaxiom.core.plan", "1.0.0"),
+    "WithTag": ("cabaxiom.core.plan", "1.0.0"),
+    "WithoutTag": ("cabaxiom.core.plan", "1.0.0"),
+    # cabaxiom.core.record, 0.7.0
+    "Arrow": ("cabaxiom.core.record", "0.7.0"),
+    "Binding": ("cabaxiom.core.record", "0.7.0"),
+    "Casualty": ("cabaxiom.core.record", "0.7.0"),
+    "Ceiling": ("cabaxiom.core.record", "0.7.0"),
+    "Charter": ("cabaxiom.core.record", "0.7.0"),
+    "Chorus": ("cabaxiom.core.record", "0.7.0"),
+    "Diagram": ("cabaxiom.core.record", "0.7.0"),
+    "Dot": ("cabaxiom.core.record", "0.7.0"),
+    "Explanation": ("cabaxiom.core.record", "0.7.0"),
+    "Logging": ("cabaxiom.core.record", "0.7.0"),
+    "Mermaid": ("cabaxiom.core.record", "0.7.0"),
+    "Node": ("cabaxiom.core.record", "0.7.0"),
+    "Pass": ("cabaxiom.core.record", "0.7.0"),
+    "Span": ("cabaxiom.core.record", "0.7.0"),
+    "Stamp": ("cabaxiom.core.record", "0.7.0"),
+    "Statement": ("cabaxiom.core.record", "0.7.0"),
+    "Timing": ("cabaxiom.core.record", "0.7.0"),
+    "Tone": ("cabaxiom.core.record", "0.7.0"),
+    "Warrant": ("cabaxiom.core.record", "0.7.0"),
+    # cabaxiom.core.record, 1.0.0
+    "Journal": ("cabaxiom.core.record", "1.0.0"),
+    # cabaxiom.core.run, 0.7.0
+    "Answered": ("cabaxiom.core.run", "0.7.0"),
+    "Backoff": ("cabaxiom.core.run", "0.7.0"),
+    "BaseDispatcher": ("cabaxiom.core.run", "0.7.0"),
+    "BaseLooping": ("cabaxiom.core.run", "0.7.0"),
+    "BaseRetry": ("cabaxiom.core.run", "0.7.0"),
+    "Budget": ("cabaxiom.core.run", "0.7.0"),
+    "Convergence": ("cabaxiom.core.run", "0.7.0"),
+    "Crossing": ("cabaxiom.core.run", "0.7.0"),
+    "Decision": ("cabaxiom.core.run", "0.7.0"),
+    "Dispatcher": ("cabaxiom.core.run", "0.7.0"),
+    "Fibonacci": ("cabaxiom.core.run", "0.7.0"),
+    "Jitter": ("cabaxiom.core.run", "0.7.0"),
+    "Linear": ("cabaxiom.core.run", "0.7.0"),
+    "Once": ("cabaxiom.core.run", "0.7.0"),
+    "Passage": ("cabaxiom.core.run", "0.7.0"),
+    "Payload": ("cabaxiom.core.run", "0.7.0"),
+    "RunMode": ("cabaxiom.core.run", "0.7.0"),
+    "Settle": ("cabaxiom.core.run", "0.7.0"),
+    "Settled": ("cabaxiom.core.run", "0.7.0"),
+    "Severance": ("cabaxiom.core.run", "0.7.0"),
+    "Severed": ("cabaxiom.core.run", "0.7.0"),
+    "Shrinking": ("cabaxiom.core.run", "0.7.0"),
+    "Unpublished": ("cabaxiom.core.run", "0.7.0"),
+    "WavesDispatcher": ("cabaxiom.core.run", "0.7.0"),
+    "Write": ("cabaxiom.core.run", "0.7.0"),
+    # cabaxiom.core.run, 1.0.0
+    "Clean": ("cabaxiom.core.run", "1.0.0"),
+    "Cutover": ("cabaxiom.core.run", "1.0.0"),
+    "Enclave": ("cabaxiom.core.run", "1.0.0"),
+    "Enclosure": ("cabaxiom.core.run", "1.0.0"),
+    "Fanout": ("cabaxiom.core.run", "1.0.0"),
+    "Flow": ("cabaxiom.core.run", "1.0.0"),
+    "Itinerary": ("cabaxiom.core.run", "1.0.0"),
+    "RemoteDispatcher": ("cabaxiom.core.run", "1.0.0"),
+    "Stable": ("cabaxiom.core.run", "1.0.0"),
+    "ThreadDispatcher": ("cabaxiom.core.run", "1.0.0"),
+    "Transition": ("cabaxiom.core.run", "1.0.0"),
+    # cabaxiom.laboratory, 0.7.0
+    "Adversary": ("cabaxiom.laboratory", "0.7.0"),
+    "Breach": ("cabaxiom.laboratory", "0.7.0"),
+    "ChaosDispatcher": ("cabaxiom.laboratory", "0.7.0"),
+    "Charge": ("cabaxiom.laboratory", "0.7.0"),
+    "Churn": ("cabaxiom.laboratory", "0.7.0"),
+    "Idempotence": ("cabaxiom.laboratory", "0.7.0"),
+    "Indictment": ("cabaxiom.laboratory", "0.7.0"),
+    "Isolation": ("cabaxiom.laboratory", "0.7.0"),
+    "Proof": ("cabaxiom.laboratory", "0.7.0"),
+    "Reversibility": ("cabaxiom.laboratory", "0.7.0"),
+    "Roundtrip": ("cabaxiom.laboratory", "0.7.0"),
+    "Sabotage": ("cabaxiom.laboratory", "0.7.0"),
+    "Siege": ("cabaxiom.laboratory", "0.7.0"),
+    "Stall": ("cabaxiom.laboratory", "0.7.0"),
+    "Targeted": ("cabaxiom.laboratory", "0.7.0"),
 }
 
 # Names that did not MOVE, they went private, so a caller who reaches for one is reaching for a mistake
@@ -198,6 +280,16 @@ _SEALED: dict[str, str] = {
     "Watch": "every valid pairing of it is a shipped run mode. Use Supervised() or compose your own "
              "worker with RunMode(arranger, worker) from cabaxiom.core.run",
     "ident": "Step.identifier is the name since 0.6.0 and Step.ident was never one. It was never a module-level name either",
+    # THE THREE THAT WERE REALLY OUT THERE. Every other row above left a door only a reader of the
+    # development notes ever saw. These three stood on 0.4.2, a door that went out to PyPI, so an upgrade
+    # that met them bare met the one refusal this table exists to prevent - CPython's "cannot import name",
+    # which names nothing and helps nobody. A contract test walks every published door against this file.
+    "Levels": "the partition is WavesPartition since the plan layer split. Write "
+              "`from cabaxiom.core.plan import WavesPartition`",
+    "Outcome": "a write answers FlowOutcome or AsyncFlowOutcome, which gained the artifacts half - a hook "
+               "hands back `(changes, artifacts)` rather than changes alone. Both are on the front door",
+    "Pipeline": "running independent chains is an ARRANGER rather than a dispatcher. Write "
+                "`Reconciler(..., arranger=Chains())`, importing Chains from cabaxiom.core.plan",
 }
 
 
@@ -218,14 +310,15 @@ def __getattr__(name: str) -> object:
     # Anything not in the two tables gets a plain AttributeError and that clause is load-bearing rather
     # than tidy. The import machinery probes a module for __path__ and other dunders, so an ImportError
     # raised at one of those breaks importing this package at all. Found by doing exactly that.
-    for where, names in _MOVED.items():
-        if name in names:
-            raise ImportError(
-                f"cabaxiom.{name} moved to {where} in 0.7.0. Write `from {where} import {name}`. The front "
-                f"door publishes what you DECLARE, RUN and CATCH. An axis base class, a value the "
-                f"kernel mints rather than takes and the non-default strategy on an axis all live one "
-                f"import deeper. Nothing was removed and nothing is private - see the 0.7.0 section of CHANGELOG.md."
-            )
+    if name in _MOVED:
+        where, window = _MOVED[name]
+        raise ImportError(
+            f"cabaxiom.{name} moved to {where} in {window}. Write `from {where} import {name}`. The front "
+            f"door publishes what you DECLARE, RUN, READ and CATCH. That is the surface 1.0.0 froze. An axis "
+            f"base class, a value the kernel mints rather than takes and the non-default strategy on an "
+            f"axis all live one import deeper. Nothing was removed and nothing is private - see the "
+            f"{window} section of CHANGELOG.md."
+        )
     if name in _SEALED:
         raise ImportError(f"cabaxiom.{name} is not a name this package exports - {_SEALED[name]}.")
     raise AttributeError(f"module 'cabaxiom' has no attribute {name!r}")

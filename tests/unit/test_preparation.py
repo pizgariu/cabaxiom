@@ -5,8 +5,8 @@ the Ledger blocks through them, Only pulls a preparer into a targeted run, deman
 and explain() lands the arrow with the preparer on the prerequisite side. Not one guard learned a kind."""
 import unittest
 
-from cabaxiom import Graph, Kahn, OnError, Only, Parallel, Reconciler, Step
-from cabaxiom.core.plan import WavesPartition
+from cabaxiom import Graph, Kahn, OnError, Parallel, Reconciler, Step
+from cabaxiom.core.plan import Only, WavesPartition
 
 
 class PreparationRideTests(unittest.IsolatedAsyncioTestCase):

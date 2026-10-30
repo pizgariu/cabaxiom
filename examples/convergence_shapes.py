@@ -27,11 +27,13 @@ import sys
 from pathlib import Path
 
 try:
-    from cabaxiom import Assessment, DriftItem, Fixpoint, Journal, Reconciler, Step
+    from cabaxiom import Assessment, DriftItem, Fixpoint, Reconciler, Step
+    from cabaxiom.core.record import Journal
     from cabaxiom.core.run import BaseLooping, Linear, Shrinking
 except ModuleNotFoundError:  # running from a source checkout without an install
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-    from cabaxiom import Assessment, DriftItem, Fixpoint, Journal, Reconciler, Step
+    from cabaxiom import Assessment, DriftItem, Fixpoint, Reconciler, Step
+    from cabaxiom.core.record import Journal
     from cabaxiom.core.run import BaseLooping, Linear, Shrinking
 
 

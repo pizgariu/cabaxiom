@@ -3,19 +3,9 @@ import logging
 import time
 import unittest
 
-from cabaxiom import (
-    Assessment,
-    DriftItem,
-    Fixpoint,
-    Journal,
-    OnError,
-    Parallel,
-    Reconciler,
-    Retry,
-    Step,
-    ThreadDispatcher,
-)
-from cabaxiom.core.record import Chorus, Logging, Observer, Span, Stamp, Timing
+from cabaxiom import Assessment, DriftItem, Fixpoint, OnError, Parallel, Reconciler, Retry, Step
+from cabaxiom.core.record import Chorus, Journal, Logging, Observer, Span, Stamp, Timing
+from cabaxiom.core.run import ThreadDispatcher
 
 # The new observability leaves are imported from their module, not the package root: __init__.py is wired
 # once, afterwards, so three parallel authors never collide on it.
@@ -534,7 +524,8 @@ class TheReadPhaseIsTracedTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(seen.dispatched, [step, step])   # announced twice, once per phase
 
     async def test_every_shipped_mode_announces_its_reads(self):
-        from cabaxiom import Serial, Supervised, ThreadDispatcher
+        from cabaxiom import Serial, Supervised
+        from cabaxiom.core.run import ThreadDispatcher
 
         class Looks(Step):
             def assess(self, inputs):

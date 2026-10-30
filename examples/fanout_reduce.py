@@ -26,7 +26,8 @@ Two rules ride along and both are load-bearing.
 """
 import asyncio
 
-from cabaxiom import Assessment, DriftItem, Fanout, Reconciler, Step
+from cabaxiom import Assessment, DriftItem, Reconciler, Step
+from cabaxiom.core.run import Fanout
 from cabaxiom.laboratory import Idempotence
 
 # The world. Objects landed in a bucket, each waiting to be counted. In a real domain this is an S3

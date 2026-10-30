@@ -31,10 +31,12 @@ import sys
 from pathlib import Path
 
 try:
-    from cabaxiom import Only, Reconciler, Skip, Step, WithoutTag, WithTag
+    from cabaxiom import Reconciler, Step
+    from cabaxiom.core.plan import Only, Skip, WithoutTag, WithTag
 except ModuleNotFoundError:  # running from a source checkout without an install
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-    from cabaxiom import Only, Reconciler, Skip, Step, WithoutTag, WithTag
+    from cabaxiom import Reconciler, Step
+    from cabaxiom.core.plan import Only, Skip, WithoutTag, WithTag
 
 
 class Deploy(Step):

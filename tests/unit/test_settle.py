@@ -3,7 +3,8 @@ clean pass, Stable(k) only after k CONSECUTIVE clean ones - the difference betwe
 "stayed converged", which is what a flapping world exists to fake."""
 import unittest
 
-from cabaxiom import Clean, DriftItem, Stable
+from cabaxiom import DriftItem
+from cabaxiom.core.run import Clean, Stable
 
 
 class CleanTests(unittest.TestCase):

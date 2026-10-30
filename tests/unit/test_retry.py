@@ -3,20 +3,9 @@ import asyncio
 import threading
 import unittest
 
-from cabaxiom import (
-    Assessment,
-    Cancelled,
-    DriftItem,
-    Kahn,
-    OnError,
-    Parallel,
-    Reconciler,
-    Retry,
-    Step,
-    ThreadDispatcher,
-)
+from cabaxiom import Assessment, Cancelled, DriftItem, Kahn, OnError, Parallel, Reconciler, Retry, Step
 from cabaxiom.core.record import Observer
-from cabaxiom.core.run import BaseRetry
+from cabaxiom.core.run import BaseRetry, ThreadDispatcher
 from support import RecordingBackoff
 
 

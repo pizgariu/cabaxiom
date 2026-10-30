@@ -45,10 +45,12 @@ import time
 from pathlib import Path
 
 try:
-    from cabaxiom import Assessment, DriftItem, Fixpoint, Graph, Kahn, Reconciler, Step, ThreadDispatcher
+    from cabaxiom import Assessment, DriftItem, Fixpoint, Graph, Kahn, Reconciler, Step
+    from cabaxiom.core.run import ThreadDispatcher
 except ModuleNotFoundError:  # running from a source checkout without an install
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-    from cabaxiom import Assessment, DriftItem, Fixpoint, Graph, Kahn, Reconciler, Step, ThreadDispatcher
+    from cabaxiom import Assessment, DriftItem, Fixpoint, Graph, Kahn, Reconciler, Step
+    from cabaxiom.core.run import ThreadDispatcher
 
 
 class Cluster:

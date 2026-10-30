@@ -92,7 +92,7 @@ class ForecastShapeTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("not in this run", str(ctx.exception))
 
     def test_a_scope_narrowing_a_step_away_makes_it_unforeseeable(self):
-        from cabaxiom import Skip  # noqa: PLC0415 - only this test narrows the run
+        from cabaxiom.core.plan import Skip  # noqa: PLC0415 - only this test narrows the run
 
         spare = Unrelated()
         reconciler = Reconciler((Network(), spare), scope=Skip(Network))

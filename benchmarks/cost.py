@@ -4,9 +4,9 @@ tests/test_cost.py ASSERTS the counts. This prints them, beside the wall time th
 them - the number a gate must never assert and the number a human still wants to see once. Run it when a
 change is meant to make the kernel cheaper or when the baseline is being refreshed on new hardware.
 
-    python3 bench/cost.py                the counts, the timings and the growth
-    python3 bench/cost.py --deep         the scaling sweep an order of magnitude larger
-    python3 bench/cost.py --json out.json the readings as data
+    python3 benchmarks/cost.py                the counts, the timings and the growth
+    python3 benchmarks/cost.py --deep         the scaling sweep an order of magnitude larger
+    python3 benchmarks/cost.py --json out.json the readings as data
 
 It imports its instruments FROM the test, deliberately. The baseline is then produced by the very counters
 the gate asserts, so a recorded number and a gated number cannot drift apart - the failure mode of every
@@ -255,7 +255,7 @@ class Cost:
                 "largest": largest,
             }, indent=1), encoding="utf-8")
             print(f"\nwritten -> {args.json}")
-        print("\nwall time is informational. The counts above are the gate - see bench/COST-BASELINE.md")
+        print("\nwall time is informational. The counts above are the gate - see benchmarks/COST-BASELINE.md")
         return 0
 
 

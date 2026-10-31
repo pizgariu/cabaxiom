@@ -27,4 +27,4 @@ coverage.xml
 .vscode/
 .DS_Store
 demo/out/
-bench/out/
+benchmarks/out/

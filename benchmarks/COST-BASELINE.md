@@ -7,11 +7,11 @@ moves. Every millisecond below was measured once, on one machine, on one afterno
 human can answer "what does a five thousand step graph cost" without running anything - never so that a
 number in seconds can fail a build. Regenerate the whole page with
 
-    python3 bench/cost.py                 # the counts, the timings and the growth
-    python3 bench/cost.py --deep          # the same scaling sweep an order of magnitude larger
-    python3 bench/cost.py --json bench/out/cost.json
+    python3 benchmarks/cost.py                 # the counts, the timings and the growth
+    python3 benchmarks/cost.py --deep          # the same scaling sweep an order of magnitude larger
+    python3 benchmarks/cost.py --json benchmarks/out/cost.json
 
-`bench/cost.py` imports its counters from `tests/contract/test_cost.py`, so this page is produced by the very
+`benchmarks/cost.py` imports its counters from `tests/contract/test_cost.py`, so this page is produced by the very
 instruments the gate asserts and the two cannot drift apart.
 
 ## Read on

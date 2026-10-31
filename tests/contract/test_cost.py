@@ -1,6 +1,6 @@
 """The deterministic cost gate - what a run COSTS, counted in operations rather than measured in seconds.
 
-bench/stress.py measures time and reads growth back out of it, which is the right tool for a sweep a human
+benchmarks/stress.py measures time and reads growth back out of it, which is the right tool for a sweep a human
 runs and reads. It cannot be a gate. A ceiling in seconds passes on a fast laptop and fails on a loaded CI
 box, so the number nobody dares assert is the number nobody defends. Until now not one cost in this kernel
 was pinned anywhere. Nothing watched for the regression that makes a converge quadratic in its steps or
@@ -20,7 +20,7 @@ What the counts are read through and why each seam was chosen.
   - the Addressing lookup, injected as a Vocabulary of counting rows, which counts literally how many times
     the graph was asked to resolve a declared name
 
-Wall time stays informational and lives in bench/COST-BASELINE.md beside these counts, with the interpreter
+Wall time stays informational and lives in benchmarks/COST-BASELINE.md beside these counts, with the interpreter
 and the machine it was read on. The counts are the gate.
 """
 import asyncio
@@ -334,7 +334,7 @@ class _Shapes:
 
     Each shape says what it builds in vertices and declared names, with every gate below asserting those numbers
     before it asserts a cost - a cost attributed to the wrong graph reads exactly like a real one, which is the
-    guard bench/stress.py already keeps for its own shapes."""
+    guard benchmarks/stress.py already keeps for its own shapes."""
 
     @staticmethod
     def independent(count: int, counts: _Counts) -> tuple[Step, ...]:
@@ -729,7 +729,7 @@ class LargeGraphCostTests(unittest.IsolatedAsyncioTestCase):
     Those gates are read on small declarations, where a squared cost is cheap enough to pass unnoticed. This is
     the same arithmetic at a size where a square would take minutes instead of milliseconds, so it is the
     end-to-end proof and the hang guard at once. The bound is around a hundred times the measured cost
-    (recorded in bench/COST-BASELINE.md), because a timeout here is only ever meant to catch a run that stopped
+    (recorded in benchmarks/COST-BASELINE.md), because a timeout here is only ever meant to catch a run that stopped
     finishing, never to grade the machine it runs on."""
 
     async def test_a_thousand_step_graph_resolves_and_converges_at_the_pinned_cost(self):

@@ -46,7 +46,6 @@ include = [
   "/src",
   "/tests",
   "/examples",
-  "/bench",
   "/docs/architecture.md",
   "/README.md",
   "/CHANGELOG.md",
@@ -139,7 +138,7 @@ exclude_lines = ["pragma: no cover", "raise NotImplementedError", "if TYPE_CHECK
 
 [tool.mutmut]
 source_paths = ["src/cabaxiom"]
-also_copy = ["README.md", "CHANGELOG.md", "MIGRATING.md", "docs", "examples", "bench"]
+also_copy = ["README.md", "CHANGELOG.md", "MIGRATING.md", "docs", "examples", "benchmarks"]
 
 # The architecture, stated once and checked by a tool that resolves the import graph properly. The
 # hand-rolled AST walk this replaces read only RELATIVE imports, so `from cabaxiom.core.record.diagram

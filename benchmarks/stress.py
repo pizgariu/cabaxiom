@@ -5,10 +5,10 @@ on generated declarations of several SHAPES, at doubling sizes and reads the gro
 O(V + E) that doubles when the size doubles passes. One that quadruples does not, whatever the docstring
 says next to it.
 
-    python3 bench/stress.py                 the default sweep, a minute or so
-    python3 bench/stress.py --deep          the same shapes an order of magnitude larger
-    python3 bench/stress.py --check         exit non-zero when an operation outgrows its claim
-    python3 bench/stress.py --json out.json the readings as data
+    python3 benchmarks/stress.py                 the default sweep, a minute or so
+    python3 benchmarks/stress.py --deep          the same shapes an order of magnitude larger
+    python3 benchmarks/stress.py --check         exit non-zero when an operation outgrows its claim
+    python3 benchmarks/stress.py --json out.json the readings as data
 
 Nothing here is a ceiling in seconds, so the same run means the same thing on a fast laptop and a slow CI
 box. Each operation is scored by fitting its measured time against its OWN claimed cost, over every size

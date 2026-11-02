@@ -668,7 +668,7 @@ A few more boundaries, stated plainly:
 
 ## Development
 
-The kernel's internal composition - who holds whom and how a converge runs - is mapped in [docs/architecture.md](docs/architecture.md).
+The kernel's internal composition - who holds whom and how a converge runs - is mapped in [docs/architecture.md](docs/architecture.md). The gate a change has to pass and the house rules for comments and commits are in [CONTRIBUTING.md](CONTRIBUTING.md). To report something exploitable, read [SECURITY.md](SECURITY.md) first, since it says what is in scope and where to send it privately.
 
 ```
 pip install -e ".[dev]"

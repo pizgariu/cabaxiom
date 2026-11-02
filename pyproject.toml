@@ -43,13 +43,15 @@ packages = ["src/cabaxiom"]
 # run from a developer's checkout would otherwise ship editor settings, local caches and untracked
 # notes alongside the source. Naming what belongs makes the artifact the same whoever builds it.
 include = [
+  "/docs/architecture.md",
+  "/examples",
   "/src",
   "/tests",
-  "/examples",
-  "/docs/architecture.md",
-  "/README.md",
   "/CHANGELOG.md",
+  "/CONTRIBUTING.md",
   "/LICENSE",
+  "/README.md",
+  "/SECURITY.md",
 ]
 
 [tool.ruff]
@@ -138,7 +140,7 @@ exclude_lines = ["pragma: no cover", "raise NotImplementedError", "if TYPE_CHECK
 
 [tool.mutmut]
 source_paths = ["src/cabaxiom"]
-also_copy = ["README.md", "CHANGELOG.md", "MIGRATING.md", "docs", "examples", "benchmarks"]
+also_copy = ["README.md", "CHANGELOG.md", "CONTRIBUTING.md", "MIGRATING.md", "SECURITY.md", "docs", "examples", "benchmarks"]
 
 # The architecture, stated once and checked by a tool that resolves the import graph properly. The
 # hand-rolled AST walk this replaces read only RELATIVE imports, so `from cabaxiom.core.record.diagram

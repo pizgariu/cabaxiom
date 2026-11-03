@@ -429,6 +429,30 @@ class WireProtocolGuardTests(unittest.IsolatedAsyncioTestCase):
             await Reconciler((Producer(),), mode=RemoteDispatcher(pump)).converge()
         self.assertIn("instead of an exception", str(refused.exception))
 
+    async def test_a_reply_that_cannot_be_decoded_is_skew_rather_than_a_failure(self):
+        # The hook already RAN, so nothing about the reply may cross as a retryable failure - a retry would
+        # re-ship a landed write. A pump answering bytes that are no pickle at all used to raise straight
+        # out of `pickle.loads`, outside every catch in the wave, killing the whole run's Statement.
+        def pump(payload: bytes) -> bytes:
+            return b"not a pickle at all"
+
+        with self.assertRaises(Skew) as refused:
+            await Reconciler((Producer(),), mode=RemoteDispatcher(pump)).converge()
+        self.assertIn("cannot be decoded", str(refused.exception))
+
+    async def test_an_outcome_in_the_wrong_shape_is_skew_rather_than_believed(self):
+        # The local attempt vets the hook's reply. The wire has to vet the same shape or the two sides
+        # disagree about the contract. A bare cast let a malformed outcome through to the Ledger, where it
+        # broke inside `record` with nothing naming the step and after its own write had landed.
+        def pump(payload: bytes) -> bytes:
+            return pickle.dumps(("outcome", "set to fast"))
+
+        with self.assertRaises(Skew) as refused:
+            await Reconciler((Producer(),), mode=RemoteDispatcher(pump)).converge()
+        spoken = str(refused.exception)
+        self.assertIn("a pair of (result, artifacts) with a mapping of artifacts", spoken)
+        self.assertIn("wrong shape is skew", spoken)
+
     async def test_a_reply_that_cannot_pickle_tells_the_truth(self):
         # The write LANDED and only its reply refused to cross. The error must say exactly that, never
         # impersonate the hook - a "step failed" for a step that succeeded would hand retry a landed write.

@@ -5,7 +5,7 @@ import asyncio
 import inspect
 import pickle
 from abc import ABC, abstractmethod
-from collections.abc import Awaitable, Callable, Coroutine
+from collections.abc import Awaitable, Callable, Coroutine, Mapping, Sequence
 from contextlib import AsyncExitStack
 from types import MappingProxyType
 from typing import Any, ClassVar, NamedTuple, cast, final, override
@@ -13,6 +13,7 @@ from typing import Any, ClassVar, NamedTuple, cast, final, override
 from ..declaration.cancellation import Cancellation, Cancelled, Deferred, Skew
 from ..declaration.drift import (
     Artifacts,
+    Assessment,
     AsyncFlowAssessment,
     AsyncFlowOutcome,
     FlowAssessment,
@@ -278,11 +279,15 @@ class Dispatcher(BaseDispatcher, ABC):
         async def attempt(payload: Payload) -> Settled:
             unit, inputs = payload
             try:
-                res = do(unit, inputs)
-                if inspect.isawaitable(res):
-                    out_produced, out_artifacts = await res
-                else:
-                    out_produced, out_artifacts = res
+                response = do(unit, inputs)
+                outcome = await response if inspect.isawaitable(response) else response
+                if (told := Dispatcher._misshapen(outcome, read=False)) is not None:
+                    raise TypeError(
+                        f"{Step.named(unit)} handed back {Dispatcher._quoted(outcome)} from its write, not {told}. "
+                        f"The Ledger reads the reply in exactly that shape, so a wrong one is refused where it "
+                        f"comes back rather than spreading into the record or breaking where nothing names it."
+                    )
+                out_produced, out_artifacts = outcome
                 return unit, out_produced, out_artifacts, None
             except (Deferred, Skew, Exception) as failure:
                 # Skew and Deferred are named because both are BaseExceptions and this clause would
@@ -294,6 +299,28 @@ class Dispatcher(BaseDispatcher, ABC):
                 # Ledger are two different questions. The answer differs.
                 return unit, None, {}, failure
         return attempt
+
+    @staticmethod
+    def _misshapen(payload: object, *, read: bool) -> str | None:
+        # A reply is believed only in the shape the Ledger will read. Answers what it SHOULD have been. None
+        # when it is that. Shared by the local attempt and the wire, so the two cannot disagree about the
+        # contract. Mapping and Sequence rather than dict and list, so a domain's own carriers pass.
+        if not isinstance(payload, tuple) or len(payload) != 2 or not isinstance(payload[1], Mapping):
+            return "a pair of (result, artifacts) with a mapping of artifacts"
+        if read and not isinstance(payload[0], Assessment):
+            return "an Assessment as the result of an assess"
+        if not read and payload[0] is not None and (isinstance(payload[0], str | bytes) or not isinstance(payload[0], Sequence)):
+            return "None or a sequence of changes as the result of a write"
+        return None
+
+    @staticmethod
+    def _quoted(value: object) -> str:
+        # repr() of a hostile object can raise. A raise inside a refusal sentence turned the non-retryable
+        # fate into a retryable RuntimeError. The sentence is spoken whatever the object thinks of it.
+        try:
+            return repr(value)
+        except Exception as mute:
+            return f"<{type(value).__name__} whose repr raised {type(mute).__name__}>"
 
 
 class WavesDispatcher(Dispatcher, ABC):
@@ -321,11 +348,14 @@ class WavesDispatcher(Dispatcher, ABC):
 
         async def attempt(payload: Payload) -> Answered:
             unit, inputs = payload
-            res = read(unit, inputs)
-            if inspect.isawaitable(res):
-                out_assessment, out_arts = await res
-            else:
-                out_assessment, out_arts = res
+            response = read(unit, inputs)
+            answer = await response if inspect.isawaitable(response) else response
+            if (told := Dispatcher._misshapen(answer, read=True)) is not None:
+                raise TypeError(
+                    f"{Step.named(unit)} handed back {Dispatcher._quoted(answer)} from its assess, not {told}. "
+                    f"The kernel reads the reply in exactly that shape and nothing else."
+                )
+            out_assessment, out_arts = answer
             return unit, out_assessment, out_arts
 
         # Every settled read, kept whole for Reading.gathered to fold. All four channels ride along - the fan
@@ -568,8 +598,14 @@ class _Walker(Dispatcher):
                     raise Cancelled.by(cancellation)
                 mounted = Ledger.mounted(step, graph.dependencies(step), produced)
                 observer.dispatching(step, MappingProxyType(mounted))
-                answer = read(step, mounted)
-                assessment, artifacts = await answer if inspect.isawaitable(answer) else answer
+                response = read(step, mounted)
+                answer = await response if inspect.isawaitable(response) else response
+                if (told := Dispatcher._misshapen(answer, read=True)) is not None:
+                    raise TypeError(
+                        f"{Step.named(step)} handed back {Dispatcher._quoted(answer)} from its assess, not {told}. "
+                        f"The kernel reads the reply in exactly that shape and nothing else."
+                    )
+                assessment, artifacts = answer
                 produced[step] = artifacts      # mounted into the NEXT step's payload, so it stays live here
                 answered.append((step, assessment, artifacts))
         return Reading.gathered(answered)
@@ -1048,22 +1084,42 @@ class _RemoteWorker(Dispatcher):
                 f"limit of {self._limit}. Artifacts carry pointers, not payloads - hand back a URI and "
                 f"let the data plane move the data."
             )
-        fate, payload = cast(tuple[str, object], pickle.loads(reply))
+        # THE HOOK ALREADY RAN. Everything below is about a reply that arrived, so nothing here may become a
+        # retryable failure - a retry would re-ship a landed write. A reply this side cannot decode or does
+        # not recognise crosses as Skew, exactly as the oversized reply above does.
+        try:
+            fate, payload = cast(tuple[str, object], pickle.loads(reply))
+        except Exception as undecodable:
+            raise Skew(
+                f"The {verb} ran on the worker and its reply cannot be decoded ({self._quoted(undecodable)}). "
+                f"A reply that arrived and cannot be read is skew, never a failure to retry."
+            ) from None
         if fate == "outcome":
-            return payload
+            return self.__shaped(verb, payload)
         if fate == "raised":
             if isinstance(payload, BaseException):
                 raise payload
             raise Skew(
-                f"The reply says the {verb} raised but ferries {payload!r} instead of an exception - "
+                f"The reply says the {verb} raised but ferries {self._quoted(payload)} instead of an exception - "
                 f"protocol skew between the two sides."
             )
         if fate == "skew":
             raise Skew(str(payload))
         raise Skew(
-            f"The reply names fate {fate!r}, which is no fate of the wire protocol (outcome, raised, "
+            f"The reply names fate {self._quoted(fate)}, which is no fate of the wire protocol (outcome, raised, "
             f"skew) - version skew between the two sides."
         )
+
+    def __shaped(self, verb: str, payload: object) -> object:
+        # An outcome is believed only in the shape the Ledger will read. A bare cast let a malformed reply
+        # through to `MappingProxyType` inside `Ledger.record`, outside every catch in the wave, so one bad
+        # reply killed the whole run's Statement after its own write had landed.
+        if (told := self._misshapen(payload, read=(verb == "assess"))) is not None:
+            raise Skew(
+                f"The {verb} ran on the worker and its reply is not {told} but {self._quoted(payload)}. "
+                f"A reply in the wrong shape is skew, never a failure to retry."
+            )
+        return payload
 
     @override
     async def execute(self, groups: tuple[tuple[Step, ...], ...], graph: Graph, do: Callable[[Step, Artifacts], AsyncFlowOutcome], cancellation: Cancellation, observer: Observer) -> Statement:

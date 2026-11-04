@@ -233,8 +233,10 @@ class Graph:
         # The label SETS, which carry no addressing and so get no row in the registry. A bare string is the
         # silent one - it iterates into single characters, so `provides = "database"` would offer six
         # capabilities named d, a, t, b, s and e. Every match would miss without a word.
-        for slot, noun in (("provides", "capability labels"), ("produces", "artifact keys"),
-                           ("consumes", "artifact keys")):
+        #
+        # The list is Step's, not a copy. This held its own and the two drifted, which is how a bare string
+        # in `contends` walked past the instance gate and cost a run its only mutual exclusion.
+        for slot, noun in Step._LABELLED:
             declared = getattr(step, slot)
             if isinstance(declared, str):
                 raise Malformed(

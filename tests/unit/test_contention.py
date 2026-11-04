@@ -9,7 +9,7 @@ import threading
 import time
 import unittest
 
-from cabaxiom import Assessment, DriftItem, Parallel, Reconciler, Step
+from cabaxiom import Assessment, DriftItem, Malformed, Parallel, Reconciler, Step
 from cabaxiom.core.plan import Components, Ordering, Seat
 from cabaxiom.core.record import Reading, Statement
 from cabaxiom.core.run import ThreadDispatcher
@@ -87,6 +87,36 @@ class DeclarationTests(unittest.IsolatedAsyncioTestCase):
         spoken = str(refused.exception)
         self.assertIn("must be a set of resource labels", spoken)
         self.assertIn("frozenset({'database'})", spoken)
+
+    def test_a_bare_string_written_on_the_instance_is_refused_too(self):
+        # The class gate above and the Graph's per-instance gate were two copies of one list. The instance
+        # copy was missing `contends`. So a constructor writing `self.contends = "database"` sailed
+        # past both and iterated into the characters d, a, t, b, s and e, with `explain().contention`
+        # reporting no constraint at all. Two writes the declaration said may never overlap ran together under ThreadDispatcher,
+        # measured at a peak of two in flight on one resource.
+        class Careless(Step):
+            def __init__(self):
+                self.contends = "database"
+
+        with self.assertRaises(Malformed) as refused:
+            Reconciler((Careless(),))
+        self.assertIn("must be a set of resource labels", str(refused.exception))
+
+    def test_a_bare_tag_is_refused_at_both_gates(self):
+        # `tags` was in neither list. It did not go quietly wrong - it reached the scope filter and raised a
+        # bare TypeError about `&` between a str and a frozenset, naming no step, no slot and no fix.
+        with self.assertRaises(Malformed) as at_class:
+            class OnTheClass(Step):
+                tags = "destructive"
+
+        class OnTheInstance(Step):
+            def __init__(self):
+                self.tags = "destructive"
+
+        with self.assertRaises(Malformed) as at_instance:
+            Reconciler((OnTheInstance(),))
+        for refused in (at_class, at_instance):
+            self.assertIn("tags must be a set of labels", str(refused.exception))
 
 
 class SeatingTests(unittest.IsolatedAsyncioTestCase):

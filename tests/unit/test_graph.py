@@ -328,6 +328,21 @@ class StepDeclarationGuardTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("Api.requires must be a tuple, got list.", str(ctx.exception))
 
+    def test_the_retired_dependency_slot_is_refused_by_name(self):
+        # `after` was the dependency slot on the last published door and nothing reads it now, so a step
+        # carrying it declares an edge the Graph never draws. Two steps that must run in order came back as
+        # one wave and ran at once, residual empty, the run calling that verified. Every other name that
+        # left that door answers from the front door's table. A class attribute is never looked up there.
+        class Db(Step):
+            pass
+
+        with self.assertRaises(TypeError) as ctx:
+            class Api(Step):
+                after = (Db,)
+
+        self.assertIn("Api declares `after`", str(ctx.exception))
+        self.assertIn("Write `expects` instead", str(ctx.exception))
+
     def test_a_class_level_string_in_provides_is_refused(self):
         with self.assertRaises(TypeError) as ctx:
             class Db(Step):

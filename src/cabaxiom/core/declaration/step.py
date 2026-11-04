@@ -160,14 +160,39 @@ class Step(ABC, metaclass=_Sealed):
             entry = value.__name__ if isinstance(value, type) else repr(value) if isinstance(value, str) else None
             hint = f" A single entry still needs a trailing comma - write {kind.slot} = ({entry},)." if entry else ""
             raise Malformed(f"{cls.__name__}.{kind.slot} must be a tuple, got {value.__class__.__name__}.{hint}")
-        for slot, noun in (("provides", "capability labels"), ("contends", "resource labels"),
-                           ("produces", "artifact keys"), ("consumes", "artifact keys")):
+        # THE ONE RETIRED SLOT, refused by name because silence here is a WRONG RUN and not a missing
+        # feature. `after` was the dependency slot on the last published door, 0.4.2. Nothing reads it now,
+        # so a step carrying it declared an edge the Graph never drew - measured, two steps that must run in
+        # order came back as one wave and ran at once, residual empty, the run reporting verified. Every
+        # other name that left that door answers from the front door's own table. This one could not, since
+        # a class attribute is never looked up there.
+        if "after" in vars(cls):
+            raise Malformed(
+                f"{cls.__name__} declares `after`, which is the dependency slot's old name and is read by "
+                f"nobody. Write `expects` instead. Left standing it declares an edge the run never draws, so "
+                f"the steps it orders would run at once and the run would call that verified."
+            )
+        for slot, noun in Step._LABELLED:
             declared = getattr(cls, slot)
             if isinstance(declared, str):
                 raise Malformed(
                     f"{cls.__name__}.{slot} must be a set of {noun}, got the string {declared!r}. "
                     f"Wrap it - {slot} = frozenset({{{declared!r}}})."
                 )
+
+    # The slots that take a SET OF STRINGS rather than step addresses, named once because two gates read
+    # them. This list lived twice - here for the class body and again in the Graph for the instance - and
+    # the two drifted. The instance copy was missing `contends`, so `self.contends = "db"` in a constructor
+    # iterated into the characters d and b, every match missed and two writes the declaration said may never
+    # overlap ran together with `explain().contention` reporting no constraint at all. `tags` was in neither
+    # copy and crashed in the scope filter instead, naming no step and no slot.
+    _LABELLED: tuple[tuple[str, str], ...] = (
+        ("provides", "capability labels"),
+        ("contends", "resource labels"),
+        ("produces", "artifact keys"),
+        ("consumes", "artifact keys"),
+        ("tags", "labels"),
+    )
 
     # The declaration slots stay assignable after construction, because they are DECLARATIONS, not runtime
     # state. Every docstring above promises a slot is "overridable per instance". A run reads them once

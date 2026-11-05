@@ -761,6 +761,25 @@ class WireCeilingTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("reply is", str(refused.exception))
         self.assertIn("let the data plane move the data", str(refused.exception))
 
+    async def test_a_reply_that_cannot_be_measured_is_a_skew_under_a_ceiling_too(self):
+        # The measurement used to sit ABOVE the invariant it belongs under, so a reply with no length raised
+        # a plain retryable TypeError from `len(reply)` and the landed write re-shipped. It fired only with
+        # a limit SET, which handed the duplicate writes to the caller who had bounded their wire while the
+        # caller on the default fell through to the decode and got the correct Skew. Both answer alike now.
+        landed: list[int] = []
+
+        def mute(envelope: bytes) -> None:
+            landed.append(1)
+            return None   # a transport that answers with nothing measurable
+
+        for limit in (10_000, None):
+            with self.subTest(limit=limit):
+                landed.clear()
+                with self.assertRaises(Skew):
+                    await Reconciler((Chatty(),), mode=RemoteDispatcher(mute, limit=limit),
+                                     retry=Retry(3)).converge()
+                self.assertEqual(len(landed), 1, "the write re-shipped, which is what the invariant forbids")
+
     async def test_no_limit_means_unlimited_and_a_bad_limit_is_refused(self):
         residual = await Reconciler((Chatty(),), mode=RemoteDispatcher(RemoteDispatcher.work)).converge()
         self.assertEqual(residual, [])   # the default carries what it always carried

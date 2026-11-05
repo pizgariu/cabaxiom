@@ -5,7 +5,7 @@ import asyncio
 import inspect
 import pickle
 from abc import ABC, abstractmethod
-from collections.abc import Awaitable, Callable, Coroutine, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Coroutine, Mapping, Sequence, Sized
 from contextlib import AsyncExitStack
 from types import MappingProxyType
 from typing import Any, ClassVar, NamedTuple, cast, final, override
@@ -1075,6 +1075,20 @@ class _RemoteWorker(Dispatcher):
         reply = self._transport(envelope)
         if inspect.isawaitable(reply):
             reply = await reply
+        # THE HOOK ALREADY RAN. Everything from here down is about a reply that arrived, so nothing here may
+        # become a retryable failure - a retry would re-ship a landed write. A reply this side cannot measure,
+        # cannot decode or does not recognise all cross as Skew.
+        #
+        # MEASURING IS PART OF THAT, which it was not. `len(reply)` sat above this line and a reply with no
+        # length raised a plain retryable TypeError from it, so the write re-shipped. It fired ONLY with a
+        # limit set, which put the duplicate writes on the careful caller who bounded their wire while the
+        # caller on the default fell through to the decode below and got the correct Skew. Measured at three
+        # landed writes against one.
+        if not isinstance(reply, Sized):
+            raise Skew(
+                f"The {verb} ran on the worker and its reply has no length, so this side cannot measure "
+                f"what came back. A reply that arrived and cannot be read is skew, never a failure to retry."
+            )
         if self._limit is not None and len(reply) > self._limit:
             # The hook ALREADY RAN on the worker - only its reply exceeds the ceiling - so this crosses
             # as Skew, the fate a retry structurally cannot spend. Re-shipping would re-run a landed
@@ -1084,9 +1098,6 @@ class _RemoteWorker(Dispatcher):
                 f"limit of {self._limit}. Artifacts carry pointers, not payloads - hand back a URI and "
                 f"let the data plane move the data."
             )
-        # THE HOOK ALREADY RAN. Everything below is about a reply that arrived, so nothing here may become a
-        # retryable failure - a retry would re-ship a landed write. A reply this side cannot decode or does
-        # not recognise crosses as Skew, exactly as the oversized reply above does.
         try:
             fate, payload = cast(tuple[str, object], pickle.loads(reply))
         except Exception as undecodable:

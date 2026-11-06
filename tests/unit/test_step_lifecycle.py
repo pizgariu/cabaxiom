@@ -3,6 +3,7 @@ import unittest
 from dataclasses import dataclass
 
 from cabaxiom import Assessment, DriftItem, OnError, Parallel, Reconciler, Step
+from cabaxiom.core.declaration import Permit
 
 
 class FrozenStepTests(unittest.IsolatedAsyncioTestCase):
@@ -10,6 +11,24 @@ class FrozenStepTests(unittest.IsolatedAsyncioTestCase):
     is what these pin, because both of its failure modes shipped once. An __init__ wrapper sealed a
     derived step at its super().__init__() call, where the same wrapper occupied cls.__dict__ so @dataclass
     skipped generating the constructor its fields needed."""
+
+    def test_the_slots_a_run_re_reads_are_sealed_after_construction(self):
+        # Each is read while the run RUNS, so a sibling that emptied one mid-run switched the guard behind
+        # it off. Flow reads `contends` per unit and every write asks `leases` per attempt, measured at
+        # three writers in a pool of one. Ledger.record re-reads `produces` when it holds a producer to its
+        # declaration, so `self.produces = frozenset()` inside an apply let a run close VERIFIED while the
+        # consumer downstream improvised on a default nobody supplied.
+        class Capped(Step):
+            leases = (Permit("db", 1),)
+            contends = frozenset({"db"})
+            produces = frozenset({"dataset_uri"})
+
+        step = Capped()
+        for slot, value in (("leases", ()), ("contends", frozenset()), ("produces", frozenset())):
+            with self.subTest(slot=slot):
+                with self.assertRaises(TypeError) as refused:
+                    setattr(step, slot, value)
+                self.assertIn("is frozen", str(refused.exception))
 
     def test_a_dataclass_step_with_a_constructor_field_builds_and_freezes(self):
         # The dataclass form takes its argument. Nothing occupies __init__ at class-definition time, so

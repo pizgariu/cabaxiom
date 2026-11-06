@@ -197,12 +197,26 @@ class Step(ABC, metaclass=_Sealed):
     # The declaration slots stay assignable after construction, because they are DECLARATIONS, not runtime
     # state. Every docstring above promises a slot is "overridable per instance". A run reads them once
     # when the Reconciler resolves, before anything executes - so setting `step.uses = (other,)` on a built
-    # step is configuration a worker would receive intact, never state hidden mid-run. Everything else is
-    # sealed.
+    # step is configuration a worker would receive intact, never state hidden mid-run.
+    #
+    # WHAT IS NOT HERE. One rule decides it - a slot any part of a RUN re-reads while the run is in flight
+    # cannot stay settable, whatever else it is. `contends` went first, because Flow reads it per
+    # unit, then `leases`, because every write asks it per attempt - a step that emptied a sibling's tuple
+    # mid-run made a capped write run with no permit asked and two rivals run at once, measured at three
+    # writers in a pool of one. `produces` is the third and it was found the same way. Ledger.record re-reads
+    # it when it holds a producer to its declaration, so `self.produces = frozenset()` inside an apply
+    # disarmed the data-plane guard: the honest run is refused with DataFlow and the run with that one line
+    # closed clean while the consumer improvised on its own default. The mirror was worse - an unrelated step
+    # could ADD a key to an honest producer's slot and fail it for a declaration it never wrote.
+    #
+    # The enumeration is the fragile part rather than the list. It was a comment claiming a run reads these
+    # once. It was one short of the truth twice. Before adding a slot here, grep the run and the record
+    # layers for a read of it, because a promise about when something is read is only worth what the search
+    # behind it was worth.
     _SLOTS = frozenset({
         "expects", "requires", "prepares", "mandates",
-        "wants", "demands", "provides", "contends", "leases",
-        "uses", "needs", "tags", "produces", "consumes"
+        "wants", "demands", "provides",
+        "uses", "needs", "tags", "consumes"
     })
 
     @staticmethod

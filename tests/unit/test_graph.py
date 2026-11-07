@@ -3,7 +3,7 @@ and the component split."""
 import unittest
 from dataclasses import dataclass
 
-from cabaxiom import Graph, Identity, Step
+from cabaxiom import Cycle, Graph, Identity, Reconciler, Step
 from cabaxiom.core.declaration.vocabulary import Roster
 from support import A, B, C, X, Y
 
@@ -48,6 +48,56 @@ class GraphDerivationTests(unittest.IsolatedAsyncioTestCase):
         b = B([])   # B declares expects = (A,), with no A supplied
         graph = Graph((b,))
         self.assertEqual(graph.dependencies(b), ())
+
+
+class GraphSubclassAddressingTests(unittest.IsolatedAsyncioTestCase):
+    """A class edge names a KIND. A subclass is that kind, though this used to name one exact type.
+
+    `expects = (Database,)` drew no edge whatever against a `PostgresDatabase(Database)` instance, so the
+    API deployed before the migration and the run reported one wave, no arrows and no failures. Nothing in
+    the kernel said the match was exact. The Graph's docstring says a kind edge is "fanned to every present
+    instance of the named class" and the front page teaches the same, while the hard twin was loud and
+    false - `requires = (Database,)` refused with "no Database is in the run" against a run holding one."""
+
+    def setUp(self):
+        class Database(Step):
+            pass
+
+        class Postgres(Database):
+            pass
+
+        self.Database, self.Postgres = Database, Postgres
+
+    def test_a_soft_class_edge_reaches_an_instance_of_a_subclass(self):
+        class Api(Step):
+            expects = (self.Database,)
+
+        graph = Graph((Api(), self.Postgres()))
+        api = next(step for step in graph.steps if type(step).__name__ == "Api")
+        self.assertEqual([type(one).__name__ for one in graph.dependencies(api)], ["Postgres"])
+
+    def test_a_hard_class_edge_is_satisfied_by_a_subclass(self):
+        # The loud half of the same defect. This refused a run that genuinely held what it demanded.
+        class HardApi(Step):
+            requires = (self.Database,)
+
+        graph = Graph((HardApi(), self.Postgres()))
+        graph.demand()
+        hard = next(step for step in graph.steps if type(step).__name__ == "HardApi")
+        self.assertEqual([type(one).__name__ for one in graph.dependencies(hard)], ["Postgres"])
+
+    def test_naming_a_base_the_declaring_step_shares_is_the_cycle_it_always_was(self):
+        # The one shape widening the match could have made surprising, which it does not. A step naming its
+        # OWN class already matched itself and already ended as a Cycle, so a step naming a base it also
+        # inherits from ends the same way. Same rule reaching further, never a new case.
+        class Sibling(self.Database):
+            expects = (self.Database,)
+
+        graph = Graph((Sibling(), self.Postgres()))
+        sibling = next(step for step in graph.steps if type(step).__name__ == "Sibling")
+        self.assertIn("Sibling", [type(one).__name__ for one in graph.dependencies(sibling)])
+        with self.assertRaises(Cycle):
+            Reconciler((Sibling(), self.Postgres())).explain()
 
 
 class GraphDemandTests(unittest.IsolatedAsyncioTestCase):

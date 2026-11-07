@@ -153,7 +153,19 @@ class Graph:
         gathered_by_class: defaultdict[type[Step], list[Step]] = defaultdict(list)
         providers: defaultdict[str, list[Step]] = defaultdict(list)
         for step in self.__steps:
-            gathered_by_class[type(step)].append(step)
+            # EVERY Step class the step IS, not only the one it was built from. `expects = (Database,)` used
+            # to draw no edge at all against a PostgresDatabase(Database) instance, so the API deployed
+            # before the migration and the run called that clean. Nothing said the match was exact - the
+            # Graph's own docstring says "fanned to every present instance of the named class" and the front
+            # page teaches the same. The hard twin was loud and WRONG, refusing `requires = (Database,)` with
+            # "no Database is in the run" against a run holding one of its subclasses.
+            #
+            # Registering up the MRO rather than widening the lookup keeps the read O(1) and keeps the
+            # supplied order, which several verdicts are sorted by. `Step` itself is registered too, so a
+            # declaration naming it means every step, which is what naming the base of everything asks for.
+            for ancestor in type(step).__mro__:
+                if issubclass(ancestor, Step):
+                    gathered_by_class[ancestor].append(step)
             for capability in step.provides:   # instance-read like tags, so a step may provide per instance
                 providers[capability].append(step)
         self.__instances = {kind: Roster(held) for kind, held in gathered_by_class.items()}

@@ -2,7 +2,7 @@
 import unittest
 from dataclasses import dataclass
 
-from cabaxiom import Assessment, DriftItem, OnError, Parallel, Reconciler, Step
+from cabaxiom import Assessment, DriftItem, Malformed, OnError, Parallel, Reconciler, Step
 from cabaxiom.core.declaration import Permit
 
 
@@ -77,6 +77,41 @@ class FrozenStepTests(unittest.IsolatedAsyncioTestCase):
         for sealed in (outer, outer.inner):
             with self.assertRaises(TypeError):
                 sealed.token = "rewritten"
+
+
+class SelfNamingCollisionTests(unittest.IsolatedAsyncioTestCase):
+    """A step may call itself anything except the shape the labeller mints for it."""
+
+    class Web(Step):
+        def __init__(self, named: str | None = None) -> None:
+            self.__named = named
+
+        @property
+        def identifier(self) -> str | None:
+            return self.__named
+
+    def test_an_identifier_in_the_minted_form_is_refused(self):
+        # `Step.labelled` numbers the second and later instance of a kind as `Name#2`. A caller naming a
+        # step `Web#2` collided with a label the run generated for a DIFFERENT step, so two steps shared
+        # one name - the drawing emitted `n4["Web#2"]` twice and never emitted `n3`, dropping a step out of
+        # the picture entirely. The forecast then reported the survivor blocked by a failure that never
+        # reached it. One label meaning two steps was closed here once before, from the other side.
+        with self.assertRaises(Malformed) as refused:
+            Reconciler((self.Web("Web#2"),))
+        self.assertIn("the form the labeller mints", str(refused.exception))
+        self.assertIn("Name it for what it IS", str(refused.exception))
+
+    def test_the_form_is_refused_rather_than_the_collision(self):
+        # No collision here - one instance, nothing generated. It is still refused, because whether a name
+        # collides depends on how many instances of the kind the run happens to hold, so a declaration that
+        # read fine today would start lying the moment somebody added one.
+        with self.assertRaises(Malformed):
+            Reconciler((self.Web("shard#7"),))
+
+    def test_an_ordinary_identifier_is_untouched(self):
+        for named in ("tenant-acme", "shard-7", "Web#2a", "web#", None):
+            with self.subTest(identifier=named):
+                Reconciler((self.Web(named),))
 
 
 class AssessmentChannelTests(unittest.IsolatedAsyncioTestCase):

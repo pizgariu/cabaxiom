@@ -1,5 +1,6 @@
 """The Graph - the kernel-owned home of the dependency structure. Every edge kind derived once. Every
 question the kernel asks of that structure (invert it, close over it, split it) answered in one place."""
+import re
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Sequence
 from typing import final
@@ -11,6 +12,10 @@ from ..declaration.vocabulary import MODES, EdgeKind, Roster, Vocabulary
 # The three shapes a declared name takes. A step CLASS (`expects`, `requires`, `prepares`, `mandates`), a
 # capability LABEL (`wants`, `demands`) or a step INSTANCE (`uses`, `needs`). One alias, because every per-name read carries it.
 type Declared = type[Step] | str | Step
+
+# The tail Step.labelled mints for the second and later instance of a kind. Written here as one
+# pattern rather than re-derived, since the refusal below and the labeller must mean the same thing.
+_MINTED = re.compile(r"#\d+$")
 
 @final
 class Match:
@@ -217,6 +222,7 @@ class Graph:
         # the identity contract's own two-gate doctrine.
         Graph.__slotted(step, vocabulary)
         Graph.__labelled(step)
+        Graph.__identified(step)
 
     @staticmethod
     def __slotted(step: Step, vocabulary: Vocabulary) -> None:
@@ -239,6 +245,28 @@ class Graph:
                         f"{kind.addressing.takes}. {first.stray} belongs in {vocabulary.slots_for(first)} and "
                         f"{second.stray.lower()} in {vocabulary.slots_for(second)}."
                     )
+
+    @staticmethod
+    def __identified(step: Step) -> None:
+        # A step may call itself anything EXCEPT the shape the labeller mints. `Step.labelled` numbers the
+        # second and later instance of a kind as `Name#2`, so a caller naming a step `Web#2` collides with a
+        # label the run generates for a different step. Two steps then share one name and everything keyed
+        # by it silently keeps one of them - the drawing emitted `n4["Web#2"]` twice and never emitted `n3`
+        # at all, so a step vanished from the picture. `foresee` then reported the survivor as blocked by
+        # a failure that never touched it.
+        #
+        # The FORM is refused rather than the collision. A collision depends on how many instances of a kind
+        # the run happens to hold, so a declaration that reads fine today would start lying when somebody
+        # adds one. One label meaning two steps has been closed here once before, from the other side, which
+        # is the argument for closing the shape rather than the instance.
+        named = step.identifier
+        if named is not None and _MINTED.search(named):
+            raise Malformed(
+                f"{type(step).__name__} calls itself {named!r}, which is the form the labeller mints for "
+                f"the second and later instance of a kind. A run holding one would put two steps under one "
+                f"name. Name it for what it IS - the row, the host, the tenant - rather than for its "
+                f"position."
+            )
 
     @staticmethod
     def __labelled(step: Step) -> None:

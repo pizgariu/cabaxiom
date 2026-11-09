@@ -31,6 +31,22 @@ class WriteShapeTests(unittest.IsolatedAsyncioTestCase):
             await Reconciler((Forgets(),)).converge()
         self.assertIn("Forgets handed back None from its write", str(refused.exception))
 
+    async def test_items_that_are_not_drift_are_refused_with_the_container(self):
+        # The gate read the container and never its items, so a double-wrapped return passed - a sequence is
+        # a sequence. That put None and {} into the proof set. The proof set is the whole claim - a teardown
+        # that tore nothing down and broke nothing came back with a two-item residual, reading the founding
+        # axiom backwards, since empty IS verified. Those items answer to neither `name` nor
+        # `message`, so anything rendering the record raises far from the step that caused it.
+        class DoubleWrapped(_Drifts):
+            def prune(self, inputs):
+                return [None, {}], {}
+
+        with self.assertRaises(TypeError) as refused:
+            await Reconciler((DoubleWrapped(),)).prune()
+        spoken = str(refused.exception)
+        self.assertIn("DoubleWrapped handed back", spoken)
+        self.assertIn("name and message", spoken)
+
     async def test_none_is_a_legal_write_result(self):
         class Quiet(_Drifts):
             def apply(self, inputs):

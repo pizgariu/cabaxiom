@@ -311,6 +311,15 @@ class Dispatcher(BaseDispatcher, ABC):
             return "an Assessment as the result of an assess"
         if not read and payload[0] is not None and (isinstance(payload[0], str | bytes) or not isinstance(payload[0], Sequence)):
             return "None or a sequence of changes as the result of a write"
+        # THE ITEMS, not only the container. A double-wrapped return is a sequence, so it passed the line
+        # above and put None and {} straight into the proof set - a teardown that tore nothing down and broke
+        # nothing came back with a two-item residual, which reads the kernel's founding axiom backwards since
+        # empty IS verified. Worse, those items answer to neither `name` nor `message`, so whatever renders
+        # the record raises far from the step that caused it. The Ledger already vets artifact KEY types one
+        # channel over, for this reason.
+        if not read and isinstance(payload[0], Sequence) and not isinstance(payload[0], str | bytes):
+            if any(not hasattr(item, "name") or not hasattr(item, "message") for item in payload[0]):
+                return "None or a sequence of changes, each answering to the Drift protocol's name and message"
         return None
 
     @staticmethod

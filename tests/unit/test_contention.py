@@ -320,7 +320,8 @@ class DrawingTests(unittest.IsolatedAsyncioTestCase):
     def test_mermaid_draws_the_dependency_with_a_head_and_the_contention_without(self):
         drawn = self._drawn().mermaid()
         self.assertIn("-->|expects|", drawn)
-        self.assertIn('-.-|"database"|', drawn)
+        self.assertIn('(("database"))', drawn)
+        self.assertIn("-.- ", drawn, "an open link, since neither of them comes first")
 
     def test_a_resource_name_holding_syntax_stays_a_label_in_both_languages(self):
         # A slot is an EdgeKind name and refused unless it is an identifier. A contended resource is whatever
@@ -334,29 +335,35 @@ class DrawingTests(unittest.IsolatedAsyncioTestCase):
             expects = (One,)
             contends = frozenset({'pool|x"y'})
 
-        explanation = Reconciler((One(), Two())).explain()
+        explanation = Reconciler((One(), Two()), mode=Parallel()).explain()
         drawn = next(line for line in explanation.mermaid().splitlines() if "pool" in line)
-        self.assertEqual(drawn.count("|"), 3, f"the label has to close where the kernel closes it, got {drawn!r}")
         self.assertIn("#quot;", drawn, "Mermaid reads no backslash escape inside a label, only the entity")
+        self.assertNotIn('|x"y', drawn, f"the label spilled into syntax, got {drawn!r}")
         self.assertIn('\\"', next(line for line in explanation.dot().splitlines() if "pool" in line))
 
     def test_dot_draws_the_contention_undirected_and_out_of_the_ranking(self):
-        drawn = next(line for line in self._drawn().dot().splitlines() if "database" in line)
-        self.assertIn("dir=none", drawn)
-        self.assertIn("constraint=false", drawn, "the layout is the run's order, so this says nothing about order")
+        lines = self._drawn().dot().splitlines()
+        hub = next(line for line in lines if "database" in line)
+        self.assertIn("shape=point", hub, "the hub is a constraint rather than a step")
+        for link in (line for line in lines if "-> " in line and "dotted" in line):
+            self.assertIn("dir=none", link)
+            self.assertIn("constraint=false", link, "the layout is the run's order, so this says nothing about order")
 
-    def test_every_pair_is_drawn_rather_than_a_chain(self):
-        # Three rivals exclude each other three ways. A chain of two links would claim the ends are free
-        # of one another, which is the convenient half-truth this whole plane refuses.
+    def test_one_hub_holds_every_rival_rather_than_a_chain(self):
+        # Three rivals exclude each other three ways. A chain of two links would claim the ends are free of
+        # one another, which is the convenient half-truth this whole plane refuses. The hub says the true
+        # thing in three edges instead of the true thing in three pairs - and in n rather than n squared,
+        # which is what a fan of shards on one pool needs. 1000 of them drew 53 MB the pairwise way.
         drawn = Reconciler((Migrate(), Backfill(), Report()), mode=Parallel()).explain().mermaid()
-        self.assertEqual(drawn.count('-.-|"database"|'), 3)
+        self.assertEqual(drawn.count("-.-"), 3, "every rival touches the hub, so none is claimed free")
+        self.assertEqual(drawn.count('(("database"))'), 1, "the resource is named once, on the hub")
 
     def test_an_uncontended_run_draws_no_link_at_all(self):
         drawn = Reconciler((Free(),), mode=Parallel()).explain().mermaid()
         self.assertNotIn("-.-", drawn)
 
     def test_a_format_written_before_this_release_still_renders(self):
-        # THE NON-BREAKING GUARANTEE. contended() is the one seam on this axis with a default, so a Diagram
+        # THE NON-BREAKING GUARANTEE. contending() is the one seam on this axis with a default, so a Diagram
         # that never heard of contention keeps working and simply says nothing about it.
         from cabaxiom.core.record import Diagram
 

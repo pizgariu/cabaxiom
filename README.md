@@ -191,11 +191,13 @@ explanation.contention          # (('database', ('Migrate', 'Backfill')),
 
 That last line is why `Backfill` is alone in the second wave. It contends with `Migrate` over the database and with `Archive` over the tape and those two share the first. A resource only one step names constrains nothing and is left out.
 
-The drawing tells the two apart. A dependency keeps its arrowhead, contention is an undirected dotted link, because putting a head on it would draw exactly the dependency that was so carefully not declared:
+The drawing tells the two apart. A dependency keeps its arrowhead. Contention is a round node named after the resource with an undirected dotted link to every step holding it, because putting a head on it would draw exactly the dependency that was so carefully not declared:
 
 ```
 n0 -->|expects| n2           # the edge Backfill.expects = (Migrate,) would declare
-n0 -.-|"database"| n2        # Migrate and Backfill merely exclude each other
+x0(("database"))             # the resource, named once
+x0 -.- n0                    # Migrate and Backfill merely exclude each other
+x0 -.- n2
 ```
 
 ### `Reconciler` - the engine

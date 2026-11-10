@@ -1,7 +1,6 @@
 """Diagram - HOW a resolved run becomes a drawing. Graphviz DOT, Mermaid or a format of your own."""
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
-from itertools import combinations
 from typing import TYPE_CHECKING, NamedTuple, final, override
 
 from ..declaration.vocabulary import EdgeKind, Vocabulary
@@ -26,7 +25,7 @@ class Tone(NamedTuple):
 
     @classmethod
     def speaking(cls, kind: EdgeKind) -> "Tone":
-        # How ONE edge kind is drawn, derived from what the kind IS rather than listed beside it. A hard
+        # How ONE edge kind is drawn, derived from what the kind IS rather than listed beside it: a hard
         # edge is bold (the resolution enforces it), a soft INDIRECT lean is dashed (it reaches its steps
         # through providers and trusts the world for them). Everything else is a plain arrow. The
         # kind's own colour rides through. The vocabulary knows no drawing syntax and the walk knows no
@@ -64,7 +63,7 @@ class Diagram(ABC):
     """The open axis for HOW a resolved run becomes a drawing. Subclass it, implement four small seams and
     render any Explanation your own way - the kernel ships Dot and Mermaid on exactly this base.
 
-    render() is CONCRETE and owns the WALK, which is the whole point of the axis existing. Which nodes there
+    render() is CONCRETE and owns the WALK, which is the whole point of the axis existing: which nodes there
     are, which group each sits in, what identity each is given and in what order the arrows come are facts
     about the RUN, not about a file format, so they are settled once here and no format can answer them
     differently. What genuinely differs between DOT and Mermaid is syntax and syntax is the four seams.
@@ -77,7 +76,7 @@ class Diagram(ABC):
     A drawing is READ-ONLY tooling over what explain() already resolved. Nothing here re-derives an edge or
     re-resolves an order, so a picture that disagreed with its run would mean explain() disagreed with it.
 
-    `marks` paints a run's state onto the drawing - a mapping of label to a plain word this diagram's palette
+    `marks` paints a run's state onto the drawing: a mapping of label to a plain word this diagram's palette
     knows (`failed`, `blocked`, `skipped`, `settling`). A Casualty hands its own straight over, so a failure
     forecast reads as colour, so an unmarked node is exactly a node a recovery may stand on."""
 
@@ -92,7 +91,7 @@ class Diagram(ABC):
         painted = {} if marks is None else marks
         identity = {label: f"n{position}" for position, label
                     in enumerate(label for group in explanation.groups for label in group)}
-        # The arrows are toned from the RUN's own vocabulary, not from a table frozen at import. The
+        # The arrows are toned from the RUN's own vocabulary, not from a table frozen at import: the
         # reading says which kinds it spoke, so a grown kind arrives already styled and a format never
         # holds a second vocabulary that could disagree with the derivation's.
         tones = {kind.slot: Tone.speaking(kind) for kind in explanation.vocabulary}
@@ -102,53 +101,62 @@ class Diagram(ABC):
             lines.extend(self.grouped(f"{explanation.shape} {index}", index, members))
         for dependent, prerequisite, slot in explanation.arrows:
             lines.append(self.arrow(identity[prerequisite], identity[dependent], slot, tones[slot]))
-        # Contention, drawn as what it is - a LINK, not an arrow. Every pair, because every pair of
-        # contenders genuinely excludes the other and a chain of consecutive links would claim the ends do
-        # not - which is the sort of convenient half-truth the whole plane exists to refuse. A format that
-        # says nothing here draws nothing, since a drawing that is silent about a constraint is honest in a
-        # way that a directed arrow standing in for an undirected one would not be.
-        for resource, holders in explanation.contention:
-            for first, other in combinations(holders, 2):
-                drawn = self.contended(identity[first], identity[other], resource)
-                if drawn:
-                    lines.append(drawn)
+        # Contention, drawn as what it is - a LINK and never an arrow, since an arrow would say one runs
+        # before the other and put back the exact false dependency `contends` exists to avoid.
+        #
+        # ONE HUB PER RESOURCE rather than one link per pair. Drawing every pair was the honest reading of
+        # the claim and it is quadratic in the holders of one resource. A step per shard all naming one pool
+        # is the fan-in shape this kernel advertises. A thousand of them rendered 53 MB of DOT over half a
+        # million lines, which no renderer finishes and no reader wants. A chain of consecutive links would
+        # have been the cheap lie, claiming the ends do not exclude each other. A hub tells the whole truth
+        # in n edges: everything touching this node excludes everything else touching it.
+        for index, (resource, holders) in enumerate(explanation.contention):
+            lines.extend(self.contending(f"x{index}", resource, tuple(identity[held] for held in holders)))
         used = tuple(dict.fromkeys(mark for mark in painted.values() if mark in self._tones))
         lines.extend(self.closing(used))
         return "\n".join(lines)
 
     @abstractmethod
     def opening(self) -> tuple[str, ...]:
-        # The document's first lines - the graph declaration and whatever defaults this format sets once.
+        # The document's first lines: the graph declaration and whatever defaults this format sets once.
         ...
 
     @abstractmethod
     def grouped(self, title: str, index: int, members: tuple[Node, ...]) -> tuple[str, ...]:
-        # ONE group of the run as a cluster. Its title is the shape's own noun plus the index (`wave 0`
+        # ONE group of the run as a cluster: its title is the shape's own noun plus the index (`wave 0`
         # runs at once, `chain 0` runs in series), with each member being (node id, displayed label, mark or
         # None). Emit the cluster and the nodes inside it.
         ...
 
     @abstractmethod
     def arrow(self, prerequisite: str, dependent: str, slot: str, tone: Tone) -> str:
-        # ONE landed arrow, drawn in run order - the prerequisite's node id, the dependent's, the
+        # ONE landed arrow, drawn in run order: the prerequisite's node id, the dependent's, the
         # declaration slot that produced the edge plus the tone the walk derived for that slot from the
         # run's own vocabulary - handed in, so a format renders a kind it has never heard of.
         ...
 
-    def contended(self, one: str, other: str, resource: str) -> str:
-        """ONE pair of steps that may never run at the same time plus the resource that holds them apart.
+    def contending(self, hub: str, resource: str, holders: tuple[str, ...]) -> tuple[str, ...]:
+        """ONE resource and every step it holds apart, as a hub node the holders all touch.
 
-        Undirected on purpose, which is why it is not arrow(). An arrow says one thing runs before another
-        and this says neither may run BESIDE the other, in any order - drawing it with a head would put back
-        exactly the false dependency `contends` exists to avoid, this time in the picture rather than in the
-        derivation.
+        Undirected on purpose, which is why this is not arrow(). An arrow says one thing runs before
+        another. This says none of them may run BESIDE any other, in any order. Drawing it with a head would
+        put back exactly the false dependency `contends` exists to avoid, in the picture this time
+        rather than in the derivation.
 
-        DEFAULTED, unlike the four seams above. The default draws nothing. Those four are abstract
-        because a format that cannot do them is not a diagram. This one is different. A format may have no
-        syntax for an undirected link at all, so a drawing that stays silent about a constraint tells no
-        lie, where one that borrowed an arrow would. It also keeps every Diagram written before this release
-        working untouched, which is what a defaulted hook on an open axis is for."""
-        return ""
+        A HUB rather than a link per pair. The pairwise form said the same thing and said it n squared
+        times, which a fan of shards on one pool reaches without trying - 1000 of them drew 53 MB. A chain
+        of consecutive links would have been the cheap way out and a lie, since it claims the ends do not
+        exclude each other. The hub claims what is true, that everything touching it excludes everything
+        else touching it, in one node and n edges.
+
+        `hub` is a node id minted by render, distinct from every member id, so a format addresses the node
+        without inventing a name that could collide with a label.
+
+        DEFAULTED, unlike the four seams above. The default draws nothing. Those four are abstract because
+        a format that cannot do them is not a diagram. This one is different - a format may have no syntax
+        for an undirected link at all, so a drawing that stays silent about a constraint tells no lie where
+        one that borrowed an arrow would."""
+        return ()
 
     @abstractmethod
     def closing(self, used: tuple[str, ...]) -> tuple[str, ...]:
@@ -196,11 +204,15 @@ class Dot(Diagram):
         return f"    {prerequisite} -> {dependent} [label={self._escaped(slot)}, {tone.dot}];"
 
     @override
-    def contended(self, one: str, other: str, resource: str) -> str:
-        # dir=none because the constraint has no direction. constraint=false keeps the link from swaying never sways
-        # the ranking. The layout is the run's ORDER, while contention says nothing about order.
-        return (f"    {one} -> {other} [label={self._escaped(resource)}, dir=none, style=dotted, "
-                f"constraint=false, color=gray50, fontcolor=gray50];")
+    def contending(self, hub: str, resource: str, holders: tuple[str, ...]) -> tuple[str, ...]:
+        # dir=none because the constraint has no direction. constraint=false keeps the links out of the
+        # ranking, since the layout is the run's ORDER and contention says nothing about order. The hub is
+        # drawn small and grey so it reads as a constraint rather than as a step.
+        return (
+            f"    {hub} [label={self._escaped(resource)}, shape=point, width=0.12, color=gray50];",
+            *(f"    {hub} -> {held} [dir=none, style=dotted, constraint=false, color=gray50];"
+              for held in holders),
+        )
 
     @override
     def closing(self, used: tuple[str, ...]) -> tuple[str, ...]:
@@ -216,17 +228,17 @@ class Mermaid(Diagram):
     An optional `theme` is emitted as Mermaid's init directive before the graph, so a caller restyles the
     whole drawing without subclassing anything. That is the seam CABAL's tactical map stands on."""
 
+    @override
+    @staticmethod
+    def _escaped(label: str) -> str:
+        # Mermaid knows no backslash escape inside a quoted label, only entity codes, so the shared DOT rule
+        # closed the label at the first quote and spilled the rest of an identifier into the diagram as
+        # syntax. A step built from data carries whatever name the data had.
+        return '"' + label.replace('"', "#quot;") + '"'
+
     def __init__(self, tones: Mapping[str, Tone] | None = None, *, theme: str = ""):
         super().__init__(tones)
         self.__theme = theme
-
-    @staticmethod
-    @override
-    def _escaped(label: str) -> str:
-        # Mermaid reads no backslash escape inside a quoted label, so the quote goes in as the entity Mermaid
-        # spells it with. Quoting at all is what carries a pipe through, the character that would otherwise
-        # close an edge label and leave the rest of the line standing as syntax.
-        return '"' + label.replace('"', "#quot;") + '"' 
 
     @override
     def opening(self) -> tuple[str, ...]:
@@ -245,10 +257,14 @@ class Mermaid(Diagram):
         return f"    {prerequisite} {tone.mermaid}|{slot}| {dependent}"
 
     @override
-    def contended(self, one: str, other: str, resource: str) -> str:
-        # A dotted OPEN link. Mermaid's -.-| |- carries a label with no arrowhead, which is exactly the
-        # shape of the claim - these two exclude each other and neither comes first.
-        return f"    {one} -.-|{self._escaped(resource)}| {other}"
+    def contending(self, hub: str, resource: str, holders: tuple[str, ...]) -> tuple[str, ...]:
+        # A dotted OPEN link, Mermaid's -.- , which carries no arrowhead - exactly the shape of the claim,
+        # since these exclude each other and none comes first. The hub wears the resource name in a round
+        # node, so the label is said once instead of once per link.
+        return (
+            f"    {hub}(({self._escaped(resource)}))",
+            *(f"    {hub} -.- {held}" for held in holders),
+        )
 
     @override
     def closing(self, used: tuple[str, ...]) -> tuple[str, ...]:

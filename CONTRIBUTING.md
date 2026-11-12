@@ -15,7 +15,7 @@ Everything below has to pass before a commit lands.
 
 ```
 ruff check .
-mypy --strict src
+mypy                               # strict, the kernel and the batteries, set in pyproject
 lint-imports                       # the four layers point one way
 pytest                             # 100% coverage is enforced, not aspired to
 ```

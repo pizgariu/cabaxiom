@@ -32,7 +32,7 @@ asyncio.run(Reconciler([
 ]).converge())
 ```
 
-That is the whole surface. Steps declare what they depend on, the `Reconciler` resolves the order, applies what is missing and re-probes to prove the result. Everything else in this README - dispatchers, retries, cancellation, the reactive `watch()` loop - is an optional strategy plugged into exactly this loop.
+That is the whole surface. Steps declare what they depend on, the `Reconciler` resolves the order, lets each step close its own gap and re-probes to prove the result. Everything else in this README - dispatchers, retries, cancellation, the reactive `watch()` loop - is an optional strategy plugged into exactly this loop.
 
 ---
 
@@ -136,6 +136,8 @@ class Config(Step):
         return self.drifted(f"want {self.want!r}, have {have!r}")
 
     def apply(self, inputs):
+        if read_config(self.key) == self.want:        # already right
+            return self.unchanged()
         write_config(self.key, self.want)             # ACT
         return self.changed(f"set to {self.want!r}")
 ```
@@ -478,7 +480,7 @@ if rift.torn:                                    # a soft edge lost its whole ma
         print(f"{shift.step.__class__.__name__}.{shift.slot} no longer resolves")
 ```
 
-The finding it exists for is the **silent** one. When the only step providing `"database"` leaves, a survivor's `wants` does not fail - it goes quiet and the run simply stops waiting for something. `requires` and `demands` are already loud (`demand()` raises the moment membership is final), so `quieted` is precisely the class nothing else reports and it is the only channel that votes. A `Rift` is truthy exactly when torn.
+The finding it exists for is the **silent** one. When the only step providing `"database"` leaves, a survivor's `wants` does not fail - it goes quiet and the run simply stops waiting for something. `requires` and `demands` are already loud (`demand()` raises the moment membership is final), so `quieted` is precisely the class nothing else reports. A `Rift` is truthy exactly when torn.
 
 The other channels read the same delta in the other directions - `materialised` (a name that matched nothing now matches something), `widened` and `narrowed` (a fan-in that grew or thinned but still resolves) and `standing` (every name this declaration leans on the world to have already satisfied). That makes the one read answer three questions:
 
@@ -488,7 +490,7 @@ Succession(ours, (*ours, *theirs)).compare()           # what merging two declar
 Succession((), mine).compare().standing                # what my declaration assumes the world provides
 ```
 
-Survivors are matched by `Step.paired`, the one home `Transition` reads to pick its leavers, so a pre-flight cannot disagree with the move it precedes. A step is recognised by the `ident` it calls itself where it has one and by object identity where it does not, which is what makes a declaration **rebuilt from data** comparable at all while leaving every older declaration matching exactly as it did. When not one step is recognised and both sides hold kinds in common, `rift.estranged` names those kinds and the Rift is torn, because the empty verdict that shape used to produce read as a clean bill over a declaration whose every edge was in fact remade.
+Survivors are matched by `Step.paired`, the one home `Transition` reads to pick its leavers, so a pre-flight cannot disagree with the move it precedes. A step is recognised by the `identifier` it calls itself where it has one and by object identity where it does not, which is what makes a declaration **rebuilt from data** comparable at all while leaving every older declaration matching exactly as it did. When not one step is recognised and both sides hold kinds in common, `rift.estranged` names those kinds and the Rift is torn, because the empty verdict that shape used to produce read as a clean bill over a declaration whose every edge was in fact remade.
 
 ### Walking a path of declarations
 
@@ -512,7 +514,7 @@ The walk advances only on a clean `Cutover`, so the world never leaves a waypoin
 
 ## Batteries - declare a dev environment
 
-A setup script that breaks on its second run is dead. `battery.setup` ships ready-made `Step`s for the most common desired state a developer declares - directories, files, symlinked dotfiles, a line in a shell profile, a key in a JSON config - so you get value without writing a single `drift`/`apply` yourself.
+A setup script that breaks on its second run is dead. `battery.setup` ships ready-made `Step`s for the most common desired state a developer declares - directories, files, symlinked dotfiles, a line in a shell profile, a key in a JSON config - so you get value without writing a single `assess`/`apply` yourself.
 
 ```python
 import asyncio
@@ -651,7 +653,7 @@ Converge (ThreadDispatcher, Fixpoint convergence):
 pip install cabaxiom
 ```
 
-Nothing else is pulled in. The kernel leans on the standard library alone and everything you need is re-exported from the top-level package.
+Nothing else is pulled in. The kernel leans on the standard library alone. The forty-three frozen names sit on the top-level package and everything else is imported from the layer it lives in.
 
 ---
 

@@ -21,14 +21,14 @@ This is a reconciliation kernel with no runtime dependencies. It runs whatever a
 `Step` that deletes a disk is the caller's decision rather than a defect here. What IS in scope is the
 kernel doing something the caller did not declare. Or reporting that it did something it did not do.
 
-Worth reporting:
+These are worth reporting.
 
 - a run that reports VERIFIED against a world it did not reach or hides a failure from the record
 - a declaration guard that can be walked past, so an edge, a seating or a data-plane rule stops holding
 - anything crossing `RemoteDispatcher` that a peer can use to make the local side act outside the protocol
 - a refusal that can be turned into arbitrary execution, a read outside the process or an unbounded resource
 
-Out of scope:
+These are out of scope.
 
 - what a caller's own `Step` does when it runs
 - resource use that follows from a declaration, such as a fan-in of n steps drawing n edges

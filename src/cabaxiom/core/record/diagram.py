@@ -25,7 +25,7 @@ class Tone(NamedTuple):
 
     @classmethod
     def speaking(cls, kind: EdgeKind) -> "Tone":
-        # How ONE edge kind is drawn, derived from what the kind IS rather than listed beside it: a hard
+        # How ONE edge kind is drawn, derived from what the kind IS rather than listed beside it. A hard
         # edge is bold (the resolution enforces it), a soft INDIRECT lean is dashed (it reaches its steps
         # through providers and trusts the world for them). Everything else is a plain arrow. The
         # kind's own colour rides through. The vocabulary knows no drawing syntax and the walk knows no
@@ -63,7 +63,7 @@ class Diagram(ABC):
     """The open axis for HOW a resolved run becomes a drawing. Subclass it, implement four small seams and
     render any Explanation your own way - the kernel ships Dot and Mermaid on exactly this base.
 
-    render() is CONCRETE and owns the WALK, which is the whole point of the axis existing: which nodes there
+    render() is CONCRETE and owns the WALK, which is the whole point of the axis existing. Which nodes there
     are, which group each sits in, what identity each is given and in what order the arrows come are facts
     about the RUN, not about a file format, so they are settled once here and no format can answer them
     differently. What genuinely differs between DOT and Mermaid is syntax and syntax is the four seams.
@@ -76,7 +76,7 @@ class Diagram(ABC):
     A drawing is READ-ONLY tooling over what explain() already resolved. Nothing here re-derives an edge or
     re-resolves an order, so a picture that disagreed with its run would mean explain() disagreed with it.
 
-    `marks` paints a run's state onto the drawing: a mapping of label to a plain word this diagram's palette
+    `marks` paints a run's state onto the drawing - a mapping of label to a plain word this diagram's palette
     knows (`failed`, `blocked`, `skipped`, `settling`). A Casualty hands its own straight over, so a failure
     forecast reads as colour, so an unmarked node is exactly a node a recovery may stand on."""
 
@@ -91,7 +91,7 @@ class Diagram(ABC):
         painted = {} if marks is None else marks
         identity = {label: f"n{position}" for position, label
                     in enumerate(label for group in explanation.groups for label in group)}
-        # The arrows are toned from the RUN's own vocabulary, not from a table frozen at import: the
+        # The arrows are toned from the RUN's own vocabulary, not from a table frozen at import. The
         # reading says which kinds it spoke, so a grown kind arrives already styled and a format never
         # holds a second vocabulary that could disagree with the derivation's.
         tones = {kind.slot: Tone.speaking(kind) for kind in explanation.vocabulary}
@@ -109,7 +109,7 @@ class Diagram(ABC):
         # is the fan-in shape this kernel advertises. A thousand of them rendered 53 MB of DOT over half a
         # million lines, which no renderer finishes and no reader wants. A chain of consecutive links would
         # have been the cheap lie, claiming the ends do not exclude each other. A hub tells the whole truth
-        # in n edges: everything touching this node excludes everything else touching it.
+        # in n edges. Everything touching this node excludes everything else touching it.
         for index, (resource, holders) in enumerate(explanation.contention):
             lines.extend(self.contending(f"x{index}", resource, tuple(identity[held] for held in holders)))
         used = tuple(dict.fromkeys(mark for mark in painted.values() if mark in self._tones))
@@ -118,19 +118,19 @@ class Diagram(ABC):
 
     @abstractmethod
     def opening(self) -> tuple[str, ...]:
-        # The document's first lines: the graph declaration and whatever defaults this format sets once.
+        # The document's first lines - the graph declaration and whatever defaults this format sets once.
         ...
 
     @abstractmethod
     def grouped(self, title: str, index: int, members: tuple[Node, ...]) -> tuple[str, ...]:
-        # ONE group of the run as a cluster: its title is the shape's own noun plus the index (`wave 0`
+        # ONE group of the run as a cluster. Its title is the shape's own noun plus the index (`wave 0`
         # runs at once, `chain 0` runs in series), with each member being (node id, displayed label, mark or
         # None). Emit the cluster and the nodes inside it.
         ...
 
     @abstractmethod
     def arrow(self, prerequisite: str, dependent: str, slot: str, tone: Tone) -> str:
-        # ONE landed arrow, drawn in run order: the prerequisite's node id, the dependent's, the
+        # ONE landed arrow, drawn in run order - the prerequisite's node id, the dependent's, the
         # declaration slot that produced the edge plus the tone the walk derived for that slot from the
         # run's own vocabulary - handed in, so a format renders a kind it has never heard of.
         ...

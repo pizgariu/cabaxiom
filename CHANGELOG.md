@@ -2,11 +2,59 @@
 
 All notable changes to Cabaxiom are recorded here. This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html). What reconciliation is and why this kernel exists, lives in the [README](README.md).
 
-Every release is a pre-release on the road to the 1.0.0 freeze.
+Every release before 1.0.0 was a pre-release.
 
 ## [Unreleased]
 
 Nothing yet.
+
+## [1.0.0] - 2026-11-12
+
+**The front door is frozen. Forty-three names carrying one promise, while every name that left says where it went.**
+
+### Added
+- **`MIGRATING.md`, written for the upgrade that actually happens.** 0.7.1 is the release before the freeze, so the page opens on that jump - forty of its fifty-nine names are still on the door, nineteen moved one import deeper and three joined. Each one that moved is a row with the line to type. The older jump from 0.4.2 sits below it with the release every name left in. The behaviour changes ride beside it, one paragraph per window, pointing at the `### BC break` section that holds the full list.
+- **`SECURITY.md` and `CONTRIBUTING.md`, the two pages a stranger looks for before opening anything.** One
+  says what counts as a vulnerability in a kernel that runs whatever a caller's `Step` does and where to
+  send it privately. The other says the gate a change passes, the house rules for comments and commits and
+  what the freeze means for a pull request that touches the door.
+- **The refusal names the window a name left in.** The forwarding table was keyed by layer, which forced one release on a whole layer. True while every name left in the same window and false the moment a second narrowing landed, so it is keyed by name now, each row carrying its own address and its own release. A contract test refuses a window with no section in this file.
+- **The benches stay in the repository and out of the distribution.** `benchmarks/` holds the operation
+  counts the suite gates and the wall time one machine took. No test reads it, so it is not what an sdist
+  owes whoever unpacks it. It was also renamed from `bench/`, which is what it was always called in prose.
+- **The freeze is held by a test.** The suite pinned how many names the door holds and nothing else, so a
+  minor could swap one name for another, drop a keyword or move a default with every test green.
+  `tests/contract/test_freeze.py` holds the forty-three names as 1.0.0 shipped them, every member of a
+  frozen class with its parameters and defaults, the enum values and every class a refusal is caught as. A
+  minor may still grow the door. It cannot take anything away.
+
+### Fixed
+- **Three names from a published door answered with nothing.** `Levels`, `Outcome` and `Pipeline` stood on 0.4.2 and fell through both tables, so `from cabaxiom import Pipeline` met CPython's own "cannot import name", which names nothing and helps nobody. They answer with what replaced them now. A contract test walks every name of the 0.4.2 and 0.7.1 doors and refuses any that answers without a sentence, because the surface a real upgrade arrives from is the one worth pinning.
+- **Six front-page examples taught an import that stopped working.** The narrowing took `Enclave`, `Fanout`, `Enclosure`, `Transition`, `Succession` and `Itinerary` off the door while the README still imported them from it.
+- **The front page said `prune()` verifies the way a converge does.** It never re-probes. Its proof is what each step's own `prune()` reports surviving, which the sentence says now, with `Reversibility` named for an observed proof. A stray Examples heading promising four programs over a directory of eighteen is gone too.
+- **The front page's own `Config` step failed the idempotence proof.** Its `apply()` wrote and answered `changed(...)` on every pass, which is a mutation reported by the second converge. It looks before it writes now and answers `unchanged()` when the world is already right, the way the git example always did. The Quickstart no longer says the Reconciler applies what is missing, since the kernel calls every step's `apply()` and the step decides.
+- **Four sentences on the front page named things that are not there.** `ident` for `Step.identifier`, a `drift` hook for `assess()`, a top-level package said to re-export everything while the door is forty-three names and `quieted` called the only channel that tears a `Rift` when `estranged` tears it too.
+- **The architecture page described three mechanisms that had moved.** The layer arrows are enforced by import-linter rather than a hand-rolled walk, a retry is driven by `BaseRetry.around` and the Reconciler keeps the Dispatcher its `RunMode` vouched for, not the mode. The page's semicolons are gone too.
+- **The architecture page counted a surface that had moved twice.** It said fifty-nine on the door and a hundred and thirty-eight below it, against forty-three and a hundred and forty-four. Both counts are pinned in the suite now, so a name landing turns the page red rather than leaving a number behind.
+- **A hook's reply is vetted where it comes back, in the shape the Ledger reads.** Every local dispatcher unpacked it bare, so a hook that fell off the end gave CPython's `cannot unpack non-iterable NoneType` with no step named and a write returning `("set to fast", {})` spread the string into `residual.applied` letter by letter with nothing raised. The wire had this rule in `RemoteDispatcher` alone. It lives on `Dispatcher` now and both paths speak it, the local one as a `TypeError` naming the step and the verb, which takes the `OnError` road like any other exception a hook raises. The vet sits outside the retry, since a hook that cannot answer in the shape will not answer differently the third time.
+- **The reply is believed by its items and not only by its container.** The gate read the container and never what was in it, so a return already wrapped once passed - a sequence is a sequence. A `prune` answering `[None, {}], {}` gave a residual of `[None, {}]` and verified False for a teardown that tore nothing down and broke nothing. The correct answer is empty and True. An empty residual is this kernel's entire claim, so the founding axiom read backwards. Every item of a changes sequence is checked against the two fields the Drift protocol names now, refused at the boundary naming the step.
+- **A bare string on an instance cost a run its only mutual exclusion.** The slots taking a set of strings were checked twice, once in the class body and once per instance, from two copies of one list that had drifted. The instance copy was missing `contends` and `tags` was in neither. A constructor writing `self.contends = "database"` iterated into the characters d, a, t, b, s and e, so every match missed and `explain().contention` answered empty while two writes ran at once on one resource the declaration said may never overlap. The list lives once on `Step._LABELLED` and both gates read it.
+- **`produces` is sealed after construction, beside `contends` and `leases`.** The `DataFlow` check vets it once when the run resolves, so a write to it afterwards left a declaration saying one thing while the run had been checked against another. Nothing in the tree, the suite, the examples or the README writes this slot after construction, so the seal costs nothing.
+- **A class edge reaches every instance of the kind it names, subclasses included.** `expects = (Database,)` drew no edge at all against a `PostgresDatabase(Database)` instance, because the index behind a class edge was keyed by the step's exact type. An `Api` beside that instance resolved to one wave with no arrows and no failures, so the API deployed before the database migrated and the run called it clean. Two places already said the opposite, the Graph's own docstring and the front page. The index registers each step under every `Step` class in its MRO now, the lookup stays constant time and the supplied order is kept.
+- **A step could name itself the label the labeller was about to mint.** `Step.labelled` numbers the second and later instance of a kind `Name#2` and nothing stopped a caller writing exactly that. Two unnamed `Web` steps beside one calling itself `Web#2` produced two distinct steps under one label, so the Mermaid drawing emitted one of them twice and left the other out entirely. Every sentence the record writes is keyed by that label. The FORM is refused at resolution rather than the collision, since whether a name collides depends on how many instances a run happens to hold. `tenant-acme`, `shard-7` and `Web#2a` are untouched. One label meaning two steps has been closed here once before, from the other side.
+- **A set byte ceiling re-ran a landed write for the careful caller alone.** Past the transport call the hook has already run, so nothing below may become a retryable failure. The reply's length was measured five lines above the comment that says so. A transport answering `None` with a limit set and `Retry(3)` raised out of the measurement and the write ran three times on the worker, while the same transport on the default limit fell through to the decode and got the honest `Skew` with one landed write. The operator who bounded their wire got the duplicate writes and the one who left the default did not, which is the wrong way round. The measurement moves under the invariant.
+- **One contended resource drew a link per pair, so a fan of shards rendered megabytes.** Contention was drawn as every pair of holders, which is the honest reading of the claim and is quadratic in the holders of one resource. The run was never affected. What blew up was the picture a caller reaches for when a large run confuses them, which is exactly when the run is largest - 50 shards on one label drew 133 KB, 500 drew 13.3 MB and 1000 drew 53.4 MB over half a million lines. A chain of consecutive links would have been the cheap fix and a lie, claiming the ends do not exclude each other. One hub per resource says the true thing in n edges. The same 1000 shards draw 186 KB. The README's sample drawing shows the hub.
+
+### BC break
+- **The door is forty-three names.** Nineteen left it - `Clean`, `Cutover`, `Enclave`, `Enclosure`, `Every`, `Fanout`, `Flow`, `Itinerary`, `Journal`, `Only`, `Permit`, `RemoteDispatcher`, `Skip`, `Stable`, `Succession`, `ThreadDispatcher`, `Transition`, `WithTag` and `WithoutTag`. Every one of them is still importable from its layer and every one answers with that line when reached for on the door. The Roadmap brings twelve of them back in the 1.1 through 1.5 minors, which is additive and breaks nothing. The other seven stay in their layer until one earns the door.
+- **Three names joined it.** `Cancellation`, `Reading` and `Vocabulary` were one import deeper and are on the frozen surface now, because the kernel's own first client depends on all three and depending on unfrozen ground is what a freeze exists to stop.
+- **A reply in the wrong shape is refused where it comes back.** A write answers None or a sequence of Drift-shaped changes and an assess answers an `Assessment`, both of them beside a mapping of artifacts. Anything else raises `TypeError` locally and crosses as `Skew` on the wire instead of reaching the record.
+- **A bare string in a label slot is refused by name.** `provides`, `contends`, `produces`, `consumes` and `tags` take a set of strings. A string written into any of the five is refused at the class body or at resolution, wherever it lands.
+- **`step.produces = ...` after construction raises.** The slot joins the frozen set, so the declaration a run vetted is the one it keeps.
+- **An identifier ending in `#` followed by digits is refused.** That is the form the labeller mints for the second instance of a kind, so a declaration may not claim it.
+- **A class edge that used to draw nothing now draws.** A declaration naming a base class reaches every instance of the kind, so a run that was one wave can become several. That is the order the declaration always asked for.
+- **`Diagram.contended(one, other, resource)` is `Diagram.contending(hub, resource, holders)`** and answers lines rather than one line. It keeps its default of drawing nothing, so a format that never heard of contention is untouched. Both shipped formats draw a different picture for the same run.
+- **The layers are public and NOT frozen.** `cabaxiom.core` publishes a hundred and forty-four names and `cabaxiom.laboratory` fifteen. Both stay importable and documented. Neither carries the 1.x promise, so a name there can move in a minor. Pin a minor if you stand on one.
 
 ## [0.7.1] - 2026-10-30
 
@@ -293,8 +341,26 @@ Nothing. 0.3.1 is 0.3.0 with two defects removed.
 
 Planned milestones, in rough order. Nothing here is a promise of scope.
 
-- **1.0.0** - API stability. Freeze the public surface and commit to Semantic Versioning guarantees for it. The first non-prerelease, cut from the last of the 0.x line.
-[unreleased]: https://github.com/pizgariu/cabaxiom/compare/v0.7.1...HEAD
+Everything below is PROMOTION rather than construction. The code is written, tested and importable from its
+layer today. A minor moves a name onto the frozen door, which is additive and breaks nothing. It happens
+once that name has been steady long enough to carry the promise.
+
+- **1.1.0** - The laboratory on the door. `Idempotence`, `Reversibility`, `Isolation` and `Siege` with the
+  records they mint, plus the doubles the suite grew in `cabaxiom.laboratory.rig.testing`. The proofs are what make this
+  kernel worth trusting, so they graduate first.
+- **1.2.0** - The scope axis. `Only`, `Skip`, `WithTag` and `WithoutTag` for narrowing a run, beside `Flow`
+  and the `Chains` arranger for shaping one.
+- **1.3.0** - Capacity and the gate. `Permit` and `Local` for holding a pool inside one process, `Ceiling` and
+  `Charter` for refusing a run before its first write.
+- **1.4.0** - Nesting and drawing. `Enclave`, `Fanout`, `Transition` and `Itinerary`, plus `Explanation`,
+  `Mermaid` and `Dot` for reading a run as a picture.
+- **1.5.0** - The wire. `RemoteDispatcher` and `ThreadDispatcher`, once the protocol has been steady across
+  a full minor line.
+- **2.0.0** - The first break the freeze licenses. A major is an announcement rather than a failure. The
+  candidates are measured rather than imagined. Raising the Python floor above 3.12 is the standing one.
+
+[unreleased]: https://github.com/pizgariu/cabaxiom/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/pizgariu/cabaxiom/compare/v0.7.1...v1.0.0
 [0.7.1]: https://github.com/pizgariu/cabaxiom/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/pizgariu/cabaxiom/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/pizgariu/cabaxiom/compare/v0.6.1...v0.6.2

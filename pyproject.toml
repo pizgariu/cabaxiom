@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cabaxiom"
-version = "0.7.1"
+version = "1.0.0"
 description = "A domain-agnostic reconciliation kernel - declare desired state as Steps, then converge and self-verify."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -13,7 +13,7 @@ license-files = ["LICENSE"]
 authors = [{ name = "Grzegorz Stolarz" }]
 keywords = ["reconciliation", "desired-state", "idempotent", "convergence", "topological-sort", "state-machine"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
@@ -50,6 +50,7 @@ include = [
   "/CHANGELOG.md",
   "/CONTRIBUTING.md",
   "/LICENSE",
+  "/MIGRATING.md",
   "/README.md",
   "/SECURITY.md",
 ]

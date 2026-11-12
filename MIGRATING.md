@@ -12,6 +12,18 @@ import cabaxiom
 cabaxiom.__all__          # the frozen surface, forty-three names
 ```
 
+**What a name carries is frozen with it.** The public methods, properties and constructor keywords of a
+frozen class keep their names, their parameters and their defaults. A minor may add a method or a keyword
+with a default. It never takes one away. A contract test holds every one of them to the shape 1.0.0 shipped.
+
+**A frozen verb can hand back a layer type.** `Reconciler.explain()` answers an `Explanation` and
+`foresee()` a `Casualty`, both from `cabaxiom.core.record`. The verb is frozen. What the object it returns
+exposes carries its layer's promise, the same as a name you import from there. So does a layer type a frozen
+constructor accepts, such as a custom `Ordering` handed to `Reconciler`.
+
+**A bug fix is not a change of meaning.** A fix that makes a frozen name do what its documentation already
+says ships in a patch under `### Fixed`. Changing what the documentation says waits for 2.0.0.
+
 They fall in four groups. What you DECLARE (`Step` and the shapes a hook hands back), what you RUN (the
 `Reconciler` and its axes), what you READ (the records a run answers with) and what you CATCH (the refusal
 vocabulary).
@@ -118,11 +130,11 @@ Every one of those answers the same way, so the suite and the sentences still do
 |---|---|
 | `Levels` | the partition is WavesPartition since the plan layer split. Write `from cabaxiom.core.plan import WavesPartition` |
 | `Outcome` | a write answers FlowOutcome or AsyncFlowOutcome, which gained the artifacts half - a hook hands back `(changes, artifacts)` rather than changes alone. Both are on the front door |
-| `Pipeline` | running independent chains is an ARRANGER rather than a dispatcher. Write `Reconciler(..., arranger=Chains())`, importing Chains from cabaxiom.core.plan |
+| `Pipeline` | running independent chains at once is the Flow run mode. A step starts the moment its own prerequisites settle, so one chain never waits on another. Write `Reconciler(..., mode=Flow())`, importing Flow from cabaxiom.core.run |
 
 ## Behaviour, not just names
 
-Three windows changed how the kernel behaves. A name that survived can still answer differently, so each
+Four windows changed how the kernel behaves. A name that survived can still answer differently, so each
 window's `### BC break` section in [CHANGELOG.md](CHANGELOG.md) is the full list.
 
 - **0.5.0** - eight breaks. The declaration vocabulary became data and the dependency slot was renamed from
@@ -131,6 +143,9 @@ window's `### BC break` section in [CHANGELOG.md](CHANGELOG.md) is the full list
   takes `inputs` and a write answers `(changes, artifacts)` rather than changes alone.
 - **0.7.0** - six breaks. The package became four layers, the door narrowed the first time and the three
   strategy families answer a named verb instead of `__call__`.
+- **1.0.0** - nine breaks. A hook's reply in the wrong shape is refused where it comes back, a bare string
+  in a label slot is refused and a class edge naming a base class reaches its subclasses now, so a run can
+  gain waves.
 
 ## The shortest path
 

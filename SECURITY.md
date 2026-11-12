@@ -25,7 +25,8 @@ These are worth reporting.
 
 - a run that reports VERIFIED against a world it did not reach or hides a failure from the record
 - a declaration guard that can be walked past, so an edge, a seating or a data-plane rule stops holding
-- anything crossing `RemoteDispatcher` that a peer can use to make the local side act outside the protocol
+- anything crossing `RemoteDispatcher` that makes the local side act outside the protocol on an envelope the
+  kernel built itself
 - a refusal that can be turned into arbitrary execution, a read outside the process or an unbounded resource
 
 These are out of scope.
@@ -33,6 +34,8 @@ These are out of scope.
 - what a caller's own `Step` does when it runs
 - resource use that follows from a declaration, such as a fan-in of n steps drawing n edges
 - a denial of service that needs control of the declaration, since a declaration already runs code
+- what a peer can do by sending its own envelope to `RemoteDispatcher.work()`. The envelope is a pickle and
+  loading one runs code, so the transport has to carry it between peers that trust each other
 
 ## Versions
 

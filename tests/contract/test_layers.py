@@ -196,6 +196,18 @@ class EveryMovedNameSaysWhereItWentTests(unittest.TestCase):
             with self.subTest(name=name, where=where):
                 self.assertTrue(hasattr(importlib.import_module(where), name), f"{where} does not hold {name}")
 
+    def test_every_window_the_table_names_has_a_section_that_explains_it(self):
+        # The row carries the release the name left in, so the sentence sends a reader to a section. A window
+        # with no section is a refusal pointing at a page that answers nothing, which this kernel has shipped
+        # once already and does not intend to ship twice.
+        from cabaxiom import _MOVED
+
+        changelog = (_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        for window in sorted({window for _where, window in _MOVED.values()}):
+            with self.subTest(window=window):
+                self.assertIn(f"## [{window}]", changelog,
+                              f"the table sends a reader to the {window} section and CHANGELOG.md has none")
+
     def test_every_name_a_published_door_carried_still_answers(self):
         # 0.4.2 and 0.7.1 both went out to PyPI, so each list is a surface a real upgrade arrives from. Every
         # name on them must meet a SENTENCE - either the layer it moved to or what replaced it. A name in

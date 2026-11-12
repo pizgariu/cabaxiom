@@ -27,7 +27,8 @@ round to covering.
 ## What 1.0.0 froze
 
 The forty-three names `cabaxiom` exports will not move, change signature or change meaning inside the 1.x
-line. A change that touches one of them is a 2.0.0 conversation rather than a pull request.
+line. A change to what one of them is documented to do is a 2.0.0 conversation rather than a pull request.
+A fix that makes one do what its documentation already says is an ordinary pull request.
 
 `cabaxiom.core` and `cabaxiom.laboratory` are public and carry no such promise, so a name there can move in
 a minor. [MIGRATING.md](MIGRATING.md) says which is which. A name graduates to the door when it has been

@@ -1201,7 +1201,10 @@ class RemoteDispatcher(RunMode):
     the composition.
 
     The domain supplies ONE thing, the transport. The worker half ships here too, as the static work(),
-    re-exposed from the worker so a remote process runs RemoteDispatcher.work on the envelope bytes."""
+    re-exposed from the worker so a remote process runs RemoteDispatcher.work on the envelope bytes.
+
+    The envelope is a pickle and loading one runs code, so the transport carries it between peers that trust
+    each other."""
 
     # Re-exposed from the worker so the worker half and the protocol version keep their user-facing home -
     # the name a remote process and every test reach for.

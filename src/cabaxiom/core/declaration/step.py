@@ -203,11 +203,9 @@ class Step(ABC, metaclass=_Sealed):
     # cannot stay settable, whatever else it is. `contends` went first, because Flow reads it per
     # unit, then `leases`, because every write asks it per attempt - a step that emptied a sibling's tuple
     # mid-run made a capped write run with no permit asked and two rivals run at once, measured at three
-    # writers in a pool of one. `produces` is the third and it was found the same way. Ledger.record re-reads
-    # it when it holds a producer to its declaration, so `self.produces = frozenset()` inside an apply
-    # disarmed the data-plane guard: the honest run is refused with DataFlow and the run with that one line
-    # closed clean while the consumer improvised on its own default. The mirror was worse - an unrelated step
-    # could ADD a key to an honest producer's slot and fail it for a declaration it never wrote.
+    # writers in a pool of one. `produces` is the third for a different reason. No run re-reads it in this
+    # release. The DataFlow check vets it once at resolution, so a write afterwards left a declaration saying
+    # one thing while the run had been checked against another.
     #
     # The enumeration is the fragile part rather than the list. It was a comment claiming a run reads these
     # once. It was one short of the truth twice. Before adding a slot here, grep the run and the record

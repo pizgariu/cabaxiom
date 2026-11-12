@@ -15,9 +15,8 @@ class FrozenStepTests(unittest.IsolatedAsyncioTestCase):
     def test_the_slots_a_run_re_reads_are_sealed_after_construction(self):
         # Each is read while the run RUNS, so a sibling that emptied one mid-run switched the guard behind
         # it off. Flow reads `contends` per unit and every write asks `leases` per attempt, measured at
-        # three writers in a pool of one. Ledger.record re-reads `produces` when it holds a producer to its
-        # declaration, so `self.produces = frozenset()` inside an apply let a run close VERIFIED while the
-        # consumer downstream improvised on a default nobody supplied.
+        # three writers in a pool of one. `produces` is vetted once by the DataFlow check at resolution, so a
+        # write afterwards left a declaration saying one thing while the run had been checked against another.
         class Capped(Step):
             leases = (Permit("db", 1),)
             contends = frozenset({"db"})

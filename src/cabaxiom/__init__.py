@@ -288,8 +288,9 @@ _SEALED: dict[str, str] = {
               "`from cabaxiom.core.plan import WavesPartition`",
     "Outcome": "a write answers FlowOutcome or AsyncFlowOutcome, which gained the artifacts half - a hook "
                "hands back `(changes, artifacts)` rather than changes alone. Both are on the front door",
-    "Pipeline": "running independent chains is an ARRANGER rather than a dispatcher. Write "
-                "`Reconciler(..., arranger=Chains())`, importing Chains from cabaxiom.core.plan",
+    "Pipeline": "running independent chains at once is the Flow run mode. A step starts the moment its "
+                "own prerequisites settle, so one chain never waits on another. Write "
+                "`Reconciler(..., mode=Flow())`, importing Flow from cabaxiom.core.run",
 }
 
 
